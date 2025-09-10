@@ -20,6 +20,11 @@ class PronyEmbedder(BaseEmbedder):
 
     def __len__(self) -> int:
         return self._naux
+    
+    def _get_nparam(self) -> int:
+        """Number of independent parameters used to define the drift matrix.
+        """
+        return 2
 
     def __init__(self, theta: float, gamma: float, *args, **kwargs) -> None:
         """
@@ -39,6 +44,7 @@ class PronyEmbedder(BaseEmbedder):
         TypeError
             If θ or γ are not float values.
         """
+
         # Check types
         if not isinstance(theta, (int, float)):
             raise TypeError(f"θ must be a float, got {type(theta).__name__}")
@@ -58,25 +64,44 @@ class PronyEmbedder(BaseEmbedder):
         self._gamma = gamma_float
         self._theta = theta_float
     
-    @property
-    def drift_matrix(self) -> npt.NDArray[np.floating]:
+    def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
         """The drift matrix of the extended Markovian system.
         
         Returns
         -------
         Drift matrix for the Prony embedding,
-           [ 0   w ]
-           [ w   γ ]
-            
-        Notes
-        -----
-        This matrix is also accessible through the alias 'A'.
+           [ 0   θ ]
+           [ θ   γ ]
         """
         self._A[0,0] = 0.0
         self._A[0,1] = self._theta
         self._A[1,0] = self._theta
         self._A[1,1] = self._gamma
         return np.copy(self._A)
+    
+    def _compute_drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
+        """The gradient of the drift matrix of the extended Markovian system.
+        
+        Returns
+        -------
+        Derivative of the drift matrix
+           [ 0   θ ]
+           [ θ   γ ]
+        with respect to θ (grad[0]):
+           [ 0   1 ]
+           [ 1   0 ]
+        and γ (grad[1]):
+           [ 0   0 ]
+           [ 0   1 ]
+        """
+        self._grad_A[:] = 0.0
+        # Derivative with respect to θ
+        self._grad_A[0,0,1] = 1.0
+        self._grad_A[0,1,0] = 1.0
+        # Derivative with respect to γ
+        self._grad_A[1,1,1] = 1.0
+        return np.copy(self._grad_A)
+        
     
     def kernel(self, time: ScalarArr, nu: Optional[int]=0) -> npt.NDArray[np.floating]:
         """

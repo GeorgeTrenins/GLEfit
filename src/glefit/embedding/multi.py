@@ -18,13 +18,15 @@ class MultiEmbedder(BaseEmbedder):
 
     def __init__(self, embs: Iterable[BaseEmbedder], *args, **kwargs):
         self._embs = embs
+        self._naux = sum([len(emb) for emb in self._embs])
+        self._nparam = sum([emb.nparam for emb in embs])
         super().__init__(*args, **kwargs)
 
     def __len__(self) -> int:
-        naux = 0
-        for emb in self._embs:
-            naux += len(emb)
-        return naux
+        return self._naux
+    
+    def _get_nparam(self) -> int:
+        return self._nparam 
     
     def kernel(self, time: ScalarArr, nu: Optional[int] = 0) -> npt.NDArray[np.floating]:
         super().kernel(time, nu=nu)
@@ -67,8 +69,7 @@ class MultiEmbedder(BaseEmbedder):
         else:
             raise ValueError(f"Invalid derivative order nu = {nu} in call to spectrum. Valid values are 0 and 1.")
         
-    @property
-    def drift_matrix(self) -> npt.NDArray[np.floating]:
+    def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
         """Construct the drift matrix for the combined embedding system.
     
         Returns
@@ -99,5 +100,50 @@ class MultiEmbedder(BaseEmbedder):
             self._A[lb:ub,0] = emb_A[1:,0]
             self._A[lb:ub, lb:ub] = emb_A[1:,1:]
         return self._A
+    
+    def _compute_drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
+        """Construct the gradient of the drift matrix for the combined system.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of shape (P, N+1, N+1) where:
+            - P is the total number of parameters from all embedders
+            - N is the total number of auxiliary variables
+            Each slice [i,:,:] contains the derivative with respect to the i-th
+            parameter and has block structure:
+            [  0    ∂w₁ᵀ  ∂w₂ᵀ  ...  ]
+            [∂w₁   ∂A₁    0     ...  ]
+            [∂w₂    0    ∂A₂    ...  ]
+            [...   ...    ...   ...  ]
+
+        Notes
+        -----
+        Parameters are ordered according to the sequence of embedders,
+        with all parameters from each embedder appearing consecutively.
+        """
+        self._grad_A[:] = 0.0
+        param_offset = 0
+        ub = 1
+        
+        for emb in self._embs:
+            # Get gradient from current embedder
+            emb_grad_A = emb.drift_matrix_gradient
+            naux = len(emb)
+            nparam = emb_grad_A.shape[0]
+            
+            # Set block boundaries
+            lb = ub
+            ub = ub + naux
+            
+            # Fill gradient blocks for each parameter
+            grad_A_slice = self._grad_A[param_offset:param_offset+nparam]
+            grad_A_slice[:, 0, lb:ub] = emb_grad_A[:, 0, 1:]
+            grad_A_slice[:, lb:ub, 0] = emb_grad_A[:, 1:, 0]
+            grad_A_slice[:, lb:ub, lb:ub] = emb_grad_A[:, 1:, 1:]
+                
+            param_offset += nparam
+            
+        return self._grad_A
 
 

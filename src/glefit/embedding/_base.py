@@ -34,6 +34,8 @@ class BaseEmbedder(ABC):
     def __init__(self, *args, **kwargs):
         naux = self.__len__()
         self._A : np.ndarray = np.empty((naux+1, naux+1))
+        nparam = self.nparam
+        self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
 
     @abstractmethod
     def __len__(self) -> int:
@@ -52,6 +54,38 @@ class BaseEmbedder(ABC):
         """
         pass
 
+    @abstractmethod
+    def _get_nparam(self) -> int:
+        """Number of independent parameters used to define the drift matrix.
+        """
+        pass
+
+
+    @property
+    def nparam(self) -> int:
+        """Number of independent parameters used to define the drift matrix.
+        """
+        return self._get_nparam()
+
+    @abstractmethod
+    def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
+        """Calculate the drift matrix for the current parametrization of the embedder
+
+        Returns
+        -------
+        numpy.ndarray
+            A 2D array of shape (n+1, n+1) where n is the number of
+            auxiliary variables. The matrix represents the drift term
+            in the extended system's equations of motion.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+
     @property
     def drift_matrix(self) -> npt.NDArray[np.floating]:
         """The drift matrix of the extended Markovian system.
@@ -67,10 +101,46 @@ class BaseEmbedder(ABC):
         -----
         This matrix is also accessible through the alias 'A'.
         """
-        return self._A
+        return self._compute_drift_matrix()
 
     # Alias
     A = drift_matrix
+
+    @abstractmethod
+    def _compute_drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
+        """Calculate the gradient of the drift matrix for the current parametrization of the embedder
+
+        Returns
+        -------
+        numpy.ndarray
+            A 3D array of shape (k, n+1, n+1) where k is the number of parameters and n is the number of auxiliary variables. 
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+    @property
+    def drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
+        """The derivative of the drift matrix with respect to the parameters of the embedder.
+        
+        Returns
+        -------
+        numpy.ndarray
+            A 3D array of shape (k, n+1, n+1) where k is the number of parameters and n is the number of auxiliary variables. 
+            
+        Notes
+        -----
+        This is also accessible through the alias 'grad_A'.
+        """
+        return self._compute_drift_matrix_gradient()
+
+    # Alias
+    grad_A = drift_matrix_gradient
+
+    
     
     @abstractmethod
     def kernel(self, time: ScalarArr, nu: Optional[int]=0) -> npt.NDArray[np.floating]:
