@@ -1,0 +1,7 @@
+name: glefit
+dependencies:
+    - python=3.11
+    - scipy=1.16.*
+    - numpy
+    - sympy
+    - pytest

@@ -61,8 +61,7 @@ class PronyEmbedder(BaseEmbedder):
             raise ValueError(f"γ must be positive, got {gamma_float}")
 
         super().__init__(*args, **kwargs)
-        self._gamma = gamma_float
-        self._theta = theta_float
+        self._params[:] = np.asarray([theta_float, gamma_float])
     
     def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
         """The drift matrix of the extended Markovian system.
@@ -73,10 +72,11 @@ class PronyEmbedder(BaseEmbedder):
            [ 0   θ ]
            [ θ   γ ]
         """
+        theta, gamma = self.params
         self._A[0,0] = 0.0
-        self._A[0,1] = self._theta
-        self._A[1,0] = self._theta
-        self._A[1,1] = self._gamma
+        self._A[0,1] = theta
+        self._A[1,0] = theta
+        self._A[1,1] = gamma
         return np.copy(self._A)
     
     def _compute_drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
@@ -130,19 +130,20 @@ class PronyEmbedder(BaseEmbedder):
         """
 
         super().kernel(time, nu=nu)
+        theta, gamma = self.params
         if nu == 0:
-            return self._theta**2 * np.exp(-self._gamma * np.abs(time))
+            return theta**2 * np.exp(-gamma * np.abs(time))
         elif nu == 1:
             time = np.abs(np.atleast_1d(time))
             if time.ndim != 1:
                 raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
                                  f"instead got {time.ndim = }.")
-            exp_gamma_t = np.exp(-self._gamma*time)
+            exp_gamma_t = np.exp(-gamma*time)
             ans = np.empty((2, len(time)))
             # First derivative term: d/dθ [θ^2 exp(-γt)]
-            ans[0] = 2 * self._theta * exp_gamma_t
+            ans[0] = 2 * theta * exp_gamma_t
             # Second derivative term: d/dγ [θ^2 exp(-γt)]
-            ans[1] = -(self._theta**2) * time * exp_gamma_t
+            ans[1] = -(theta**2) * time * exp_gamma_t
             return ans
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0 and 1.")
@@ -176,21 +177,22 @@ class PronyEmbedder(BaseEmbedder):
         """
         super().spectrum(frequency, nu=nu)
         frequency = np.asarray(frequency)
+        theta, gamma = self.params
         if nu == 0:
-            return self._gamma * self._theta**2 / (
-                   self._gamma**2 + frequency**2)
+            return gamma * theta**2 / (
+                   gamma**2 + frequency**2)
         elif nu == 1:
             if frequency.ndim != 1:
                 raise ValueError(f"Expecting `frequency` to be scalar or a 1D array, "
                                  f"instead got {frequency.ndim = }.")
             ans = np.empty((2, len(frequency)))
             # First derivative term: d/dθ [γ θ^2 / (γ^2 + ω^2)] = 2 θ γ / (γ^2 + ω^2)
-            ans[0] = 2 * self._theta * self._gamma / (
-                     self._gamma**2 + frequency**2)
+            ans[0] = 2 * theta * gamma / (
+                     gamma**2 + frequency**2)
             # Second derivative term: 
             # d/dγ [γ * θ^2 / (γ^2 + ω^2)] = θ^2 * (ω^2 - γ^2) / (γ^2 + ω^2)^2
-            ans[1] = self._theta**2 * (frequency**2 - self._gamma**2) / (
-                     self._gamma**2 + frequency**2)**2
+            ans[1] = theta**2 * (frequency**2 - gamma**2) / (
+                     gamma**2 + frequency**2)**2
             return ans
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0 and 1.")

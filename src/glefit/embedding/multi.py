@@ -26,7 +26,34 @@ class MultiEmbedder(BaseEmbedder):
         return self._naux
     
     def _get_nparam(self) -> int:
-        return self._nparam 
+        return self._nparam
+    
+    @BaseEmbedder.params.getter
+    def params(self):
+        # ----- collect params from component embedders ---- #
+        param_offset = 0
+        for emb in self._embs:
+            nparam = emb.nparam
+            # set slice boundaries
+            slc = slice(param_offset, param_offset+nparam)
+            self._params[slc] = emb.params
+            param_offset += nparam
+        return np.copy(self._params)
+    
+    @params.setter
+    def params(self, value):
+        arr = np.asarray(value)
+        # ---- reuse base setter ----#
+        BaseEmbedder.params.fset(self, arr)  
+        # ---- set params in the component embedders ---- #
+        param_offset = 0
+        for emb in self._embs:
+            nparam = emb.nparam
+            # set slice boundaries
+            slc = slice(param_offset, param_offset+nparam)
+            emb.params = self._params[slc]    
+            param_offset += nparam
+
     
     def kernel(self, time: ScalarArr, nu: Optional[int] = 0) -> npt.NDArray[np.floating]:
         super().kernel(time, nu=nu)
@@ -38,6 +65,7 @@ class MultiEmbedder(BaseEmbedder):
         elif nu == 1:
             # Concatenate along parameter axis (axis=0)
             ans = np.concatenate([emb.kernel(time, nu=1) for emb in self._embs], axis=0)
+            return ans
         else:
             raise ValueError(f"Invalid derivative order nu = {nu} in call to kernel. Valid values are 0 and 1.")
             

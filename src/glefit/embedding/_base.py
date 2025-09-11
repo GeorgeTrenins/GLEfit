@@ -36,6 +36,7 @@ class BaseEmbedder(ABC):
         self._A : np.ndarray = np.empty((naux+1, naux+1))
         nparam = self.nparam
         self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
+        self._params : np.ndarray = np.empty(nparam)
 
     @abstractmethod
     def __len__(self) -> int:
@@ -66,7 +67,22 @@ class BaseEmbedder(ABC):
         """Number of independent parameters used to define the drift matrix.
         """
         return self._get_nparam()
-
+    
+    @property
+    def params(self) -> npt.NDArray[np.floating]:
+        """Return vector of optimizable parameters in the embedding."""
+        return np.copy(self._params)
+    
+    @params.setter
+    def params(self, value: npt.ArrayLike) -> None:
+        """Set vector of optimizable parameters in the embedding."""
+        cur = self._params
+        arr = np.asarray(value)
+        if arr.shape != cur.shape:
+            raise ValueError(f"params must have shape {cur.shape}, got {arr.shape}")
+        self._params[:] = arr
+    
+    
     @abstractmethod
     def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
         """Calculate the drift matrix for the current parametrization of the embedder
