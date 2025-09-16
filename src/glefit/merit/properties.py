@@ -12,13 +12,16 @@ from __future__ import print_function, division, absolute_import
 from ._base import BaseArrayProperty
 from scipy.linalg import expm_frechet, expm
 from typing import Union
+from ._base import temp_params
 import numpy as np
 import numpy.typing as npt
+from typing import Optional
 
 
 class MemoryKernel(BaseArrayProperty):
 
-    def _get_value(self) -> npt.NDArray[np.floating]:
+    @temp_params
+    def function(self, v: Optional[npt.NDArray[np.floating]] = None) -> float:
         Ap = self.emb.A
         theta = Ap[0, 1:]
         A = Ap[1:,1:]
@@ -35,7 +38,6 @@ class MemoryKernel(BaseArrayProperty):
             ):
         """
         Returns ∇_A (theta^T exp(-tau A) theta), same shape as A.
-        Works for real/complex A; uses dense algorithms.
         """
         if isinstance(time, float):
             pass

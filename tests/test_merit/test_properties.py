@@ -140,7 +140,6 @@ def test_memory_kernel_param_gradient():
         err_msg="Expressions for the kernel gradient with respect to optimizable parameters do not match"
     )
 
-
 def test_memory_kernel_distance_gradient():
     # System setup
     time = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
@@ -155,22 +154,15 @@ def test_memory_kernel_distance_gradient():
         loc=1.0, 
         scale=0.2, 
         size=ref_kernel.shape)
-    kernel_object = MemoryKernel(time, target, multi_emb, "squared")
+    kernel_object = MemoryKernel(time, target, multi_emb, metric="squared")
     # reference (finite difference)
-    # define function for finite difference
-    def fun(v):
-        # get a reference to the embedder object
-        emb = kernel_object.emb
-        # store current value of parameters
-        cache = emb.params
-        # compute value of kernel for parameter vector v
-        emb.params = v
-        kernel = kernel_object.value
-        # restore original params
-        emb.params = cache
-        # compute the distane
-        return kernel_object.distance_metric(kernel, kernel_object.target)
-    ref_distance_gradient = approx_derivative(fun, multi_emb.params, method='3-point')
+    params = multi_emb.params
+    ref_distance_gradient = np.sum(
+        approx_derivative(
+            lambda v: kernel_object.distance_metric(
+                kernel_object.function(v=v), target), 
+            params, method='3-point'),
+        axis=0)
     # test
     distance_gradient = kernel_object.gradient()
     # Verify that the two kernels are identical

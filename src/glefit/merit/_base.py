@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
 from typing import Union, TypeVar, Callable, Any, Optional, cast
-from utils.numderiv import jacobian
+from glefit.utils.numderiv import jacobian
 import functools
 
 # ---- Types ---------------------------------------------------------------
@@ -142,7 +142,7 @@ class BaseScalarProperty(ABC):
         self._target = target
         self.emb = emb
         self._set_weight(weight)
-        self.distance_metric: BaseDistance = METRICS[metric]
+        self.distance_metric: BaseDistance = METRICS[metric]()
 
     def _set_weight(self, weight):
         if np.ndim(weight) != 0:
