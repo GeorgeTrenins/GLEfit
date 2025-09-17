@@ -10,13 +10,14 @@
 
 from __future__ import print_function, division, absolute_import
 import numpy as np
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union, Tuple
 
 
 def jacobian(
     f: Callable[[np.ndarray], np.ndarray],
     x: Iterable[float],
     *,
+    fshape: Optional[Tuple[int, ...]] = None,
     h: Optional[Union[float, Iterable[float]]] = None,
     rel_step: Optional[float] = None,
     max_step: Optional[float] = None,
@@ -35,6 +36,8 @@ def jacobian(
         Function mapping R^n -> R^m. Signature: f(x, *args, **kwargs) and returns 1D array-like of length m.
     x : array_like, shape (n,)
         Point at which to compute the Jacobian.
+    fshape: tuple of int, optional
+        Shape of the output of f(x). If absent, one call is made to f() before the finite-difference calculation to determine the shape.
     h : float or array_like, shape (n,), optional
         Absolute step size(s) per coordinate. If None, chosen automatically.
     rel_step : float, optional
@@ -64,13 +67,18 @@ def jacobian(
         kwargs = {}
     x = np.atleast_1d(np.asarray(x, dtype=float))
     if x.ndim != 1:
-        raise ValueError("x must be a 1D array-like (shape (n,)).")
+        raise ValueError(f"x must be a 1D array-like (shape (n,)), instead got shape = {x.shape}")
     n = x.size
     # Evaluate once to infer output size and dtype
-    y0 = np.asarray(f(x, *args, **kwargs), dtype=float)
-    if y0.ndim != 1:
-        raise ValueError("f(x) must return a 1D array-like (shape (m,)).")
-    m = y0.size
+    if fshape is None or value:
+        y0 = np.asarray(f(x, *args, **kwargs), dtype=float)
+        if y0.ndim != 1:
+            raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {y0.shape}.")
+        m = y0.size
+    else:
+        if len(fshape) != 1:
+            raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {fshape}.")
+        m = fshape[0]
     # Machine epsilon for dtype
     eps = np.finfo(x.dtype).eps
     # Step size selection

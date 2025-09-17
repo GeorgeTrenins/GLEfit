@@ -171,6 +171,24 @@ def test_memory_kernel_distance_gradient():
         rtol=1e-7,
         err_msg="Expressions for gradient of the distance betwixt the target and actual kernel w.r.t. optimizable parameters do not match."
     )
+
+def test_memory_kernel_param_hessian():
+    time = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
+    thetas = np.asarray([1.0, 2.0, 3.0])
+    gammas = np.asarray([0.5, 0.25, 0.1])
+    # reference:
+    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
+    multi_emb = MultiEmbedder(embs)
+    ref_kernel_hessian = multi_emb.kernel(time, nu=2)
+    # numerical
+    kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
+    _, num_kernel_hessian = kernel_object._gradhess_wrt_params()
+    # Verify that the two kernels are identical
+    np.testing.assert_allclose(
+        num_kernel_hessian, ref_kernel_hessian,
+        rtol=1e-9,
+        err_msg="Expressions for the kernel gradient with respect to optimizable parameters do not match"
+    )
     
 if __name__ == "__main__":
     pytest.main([__file__])

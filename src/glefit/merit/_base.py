@@ -173,7 +173,9 @@ class BaseScalarProperty(ABC):
         pass
 
     def _grad_wrt_params(self) -> npt.NDArray[np.floating]:
-        """Gradient of the current property value w.r.t. optimizable parameters"""
+        """Gradient of the current property value w.r.t. optimizable parameters
+        Output shape (p,...) where p is the number of parameters
+        """
         # Gradient of the property w.r.t A matrix
         grad_h_A: npt.NDArray[np.floating] = self._grad_wrt_A()
         # Gradient of the p + auxvar A matrix w.r.t. optimizable parameters
@@ -212,12 +214,24 @@ class BaseScalarProperty(ABC):
         ... is the shape of the property -- can be scalar or array
         """
         v_cache = self.emb.params
-        def fun(v):
-            self.emb.params = v
-            ans = self._grad_wrt_params()
-            self.emb.params = v_cache
-            return ans
-        hess, grad = jacobian(fun, v_cache, value=True)
+        grad = self._grad_wrt_params()
+        grad_shape = grad.shape
+        if np.ndim(grad) == 1:
+            def fun(v):
+                self.emb.params = v
+                ans = self._grad_wrt_params()
+                self.emb.params = v_cache
+                return ans
+            hess = jacobian(fun, v_cache)
+        else:
+            def fun(v):
+                self.emb.params = v
+                ans = self._grad_wrt_params().reshape(-1)
+                self.emb.params = v_cache
+                return ans
+            hess = jacobian(fun, v_cache)
+            hess.shape = grad_shape + (len(v_cache),)
+            hess = np.einsum('a...b->ab...', hess)
         return grad, hess
     
     @temp_params

@@ -12,7 +12,6 @@ from ._base import BaseEmbedder, ScalarArr
 from typing import Iterable, Optional
 import numpy as np
 import numpy.typing as npt
-from scipy.linalg import block_diag
 
 
 class MultiEmbedder(BaseEmbedder):
@@ -68,8 +67,18 @@ class MultiEmbedder(BaseEmbedder):
             ans = np.concatenate([emb.kernel(time, nu=1) for emb in self._embs], axis=0)
             return ans
         elif nu == 2:
-            blocks = (emb.kernel(time, nu=2) for emb in self._embs)
-            ans = block_diag(*blocks)
+            blocks = []
+            indices = [0]
+            for emb in self._embs:
+                block = emb.kernel(time, nu=2)
+                blocks.append(block)
+                indices.append(indices[-1]+len(block))
+            ans = np.zeros((indices[-1], indices[-1], blocks[-1].shape[-1]))
+            # second pass over embs to pack the output
+            for i, block in enumerate(blocks):
+                lb, ub = indices[i:i+2]
+                ans[lb:ub,lb:ub] = block
+            return ans
         else:
             raise ValueError(f"Invalid derivative order nu = {nu} in call to kernel. Valid values are 0, 1, or 2.")
             
@@ -100,8 +109,18 @@ class MultiEmbedder(BaseEmbedder):
             ans = np.concatenate([emb.spectrum(frequency, nu=1) for emb in self._embs], axis=0)
             return ans
         elif nu == 2:
-            blocks = (emb.spectrum(frequency, nu=2) for emb in self._embs)
-            ans = block_diag(*blocks)
+            blocks = []
+            indices = [0]
+            for emb in self._embs:
+                block = emb.spectrum(frequency, nu=2) 
+                blocks.append(block)
+                indices.append(indices[-1]+len(block))
+            ans = np.zeros((indices[-1], indices[-1], blocks[-1].shape[-1]))
+            # second pass over embs to pack the output
+            for i, block in enumerate(blocks):
+                lb, ub = indices[i:i+2]
+                ans[lb:ub,lb:ub] = block
+            return ans
         else:
             raise ValueError(f"Invalid derivative order nu = {nu} in call to spectrum. Valid values are 0, 1, or 2.")
         
