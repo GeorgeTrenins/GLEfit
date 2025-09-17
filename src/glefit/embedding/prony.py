@@ -113,7 +113,7 @@ class PronyEmbedder(BaseEmbedder):
             The input time values for which to compute the kernel.
         nu : int, optional
             Order of the derivative with respect to embedding parameters.
-            Only accepts 0 or 1.
+            Accepts 0, 1, or 2.
 
         Returns
         -------
@@ -122,6 +122,7 @@ class PronyEmbedder(BaseEmbedder):
             For nu=1, returns a 2 x N array, where N is the number of time points:
             - ans[0] contains the derivative with respect to θ,
             - ans[1] contains the derivative with respect to γ.
+            For nu=2, returns a 2 x 2 x N array
 
         Raises
         ------
@@ -131,19 +132,29 @@ class PronyEmbedder(BaseEmbedder):
 
         super().kernel(time, nu=nu)
         theta, gamma = self.params
+        time = np.abs(np.atleast_1d(time))
+        if time.ndim != 1:
+            raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
+                             f"instead got {time.ndim = }.")
         if nu == 0:
             return theta**2 * np.exp(-gamma * np.abs(time))
         elif nu == 1:
-            time = np.abs(np.atleast_1d(time))
-            if time.ndim != 1:
-                raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
-                                 f"instead got {time.ndim = }.")
             exp_gamma_t = np.exp(-gamma*time)
             ans = np.empty((2, len(time)))
             # First derivative term: d/dθ [θ^2 exp(-γt)]
             ans[0] = 2 * theta * exp_gamma_t
             # Second derivative term: d/dγ [θ^2 exp(-γt)]
             ans[1] = -(theta**2) * time * exp_gamma_t
+            return ans
+        elif nu == 2:
+            exp_gamma_t = np.exp(-gamma*time)
+            ans = np.empty((2, 2, len(time)))
+            # d²/dθ² [θ^2 exp(-γt)]
+            ans[0,0] = 2*exp_gamma_t
+            # d²/dθdγ [θ^2 exp(-γt)]
+            ans[0,1] = ans[1,0] = -2 * theta * time * exp_gamma_t
+            # d²/dγ² [θ^2 exp(-γt)]
+            ans[1,1] = theta**2 * time**2 * exp_gamma_t
             return ans
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0 and 1.")
@@ -169,6 +180,7 @@ class PronyEmbedder(BaseEmbedder):
             For nu=1, returns a 2 x N array, where N is the number of frequency points:
             - ans[0] contains the derivative with respect to θ,
             - ans[1] contains the derivative with respect to γ.
+            For nu=2, returns a 2 x 2 x N array
 
         Raises
         ------
@@ -193,6 +205,18 @@ class PronyEmbedder(BaseEmbedder):
             # d/dγ [γ * θ^2 / (γ^2 + ω^2)] = θ^2 * (ω^2 - γ^2) / (γ^2 + ω^2)^2
             ans[1] = theta**2 * (frequency**2 - gamma**2) / (
                      gamma**2 + frequency**2)**2
+            return ans
+        elif nu == 2:
+            g2 = gamma**2
+            w2 = frequency**2
+            gw2 = g2 + w2
+            ans = np.empty((2, 2, len(frequency)))
+            # d²/dθ² [θ^2 exp(-γt)]
+            ans[0,0] = 2*gamma / gw2
+            # d²/dθdγ [θ^2 exp(-γt)]
+            ans[0,1] = ans[1,0] = 2*theta * (w2 - g2) / gw2**2
+            # d²/dγ² [θ^2 exp(-γt)]
+            ans[1,1] = 2*gamma*theta**2 * (g2 - 3*w2) / gw2**3
             return ans
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0 and 1.")

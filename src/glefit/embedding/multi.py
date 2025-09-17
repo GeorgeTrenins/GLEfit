@@ -12,6 +12,7 @@ from ._base import BaseEmbedder, ScalarArr
 from typing import Iterable, Optional
 import numpy as np
 import numpy.typing as npt
+from scipy.linalg import block_diag
 
 
 class MultiEmbedder(BaseEmbedder):
@@ -66,8 +67,11 @@ class MultiEmbedder(BaseEmbedder):
             # Concatenate along parameter axis (axis=0)
             ans = np.concatenate([emb.kernel(time, nu=1) for emb in self._embs], axis=0)
             return ans
+        elif nu == 2:
+            blocks = (emb.kernel(time, nu=2) for emb in self._embs)
+            ans = block_diag(*blocks)
         else:
-            raise ValueError(f"Invalid derivative order nu = {nu} in call to kernel. Valid values are 0 and 1.")
+            raise ValueError(f"Invalid derivative order nu = {nu} in call to kernel. Valid values are 0, 1, or 2.")
             
     def spectrum(self, frequency: ScalarArr, nu: Optional[int] = 0) -> npt.NDArray[np.floating]:
         """Compute the spectrum (cosine transform) of the memory kernel.
@@ -84,6 +88,7 @@ class MultiEmbedder(BaseEmbedder):
         numpy.ndarray
             For nu=0: Sum of spectra from all embedders
             For nu=1: Concatenated parameter derivatives from all embedders
+            For nu=2: Block-diagonal hessian w.r.t. parameters of all embedders
         """
         if nu == 0:
             ans = 0.0
@@ -94,8 +99,11 @@ class MultiEmbedder(BaseEmbedder):
             # Concatenate along parameter axis (axis=0)
             ans = np.concatenate([emb.spectrum(frequency, nu=1) for emb in self._embs], axis=0)
             return ans
+        elif nu == 2:
+            blocks = (emb.spectrum(frequency, nu=2) for emb in self._embs)
+            ans = block_diag(*blocks)
         else:
-            raise ValueError(f"Invalid derivative order nu = {nu} in call to spectrum. Valid values are 0 and 1.")
+            raise ValueError(f"Invalid derivative order nu = {nu} in call to spectrum. Valid values are 0, 1, or 2.")
         
     def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
         """Construct the drift matrix for the combined embedding system.
