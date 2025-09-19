@@ -267,6 +267,8 @@ class BaseScalarProperty(ABC):
         hess += grad_distance_h * hess_h_params
         grad = grad_distance_h * grad_h_params
         return distance, grad, hess
+    
+BaseMerit = BaseScalarProperty  # alias
 
 
 class BaseArrayProperty(BaseScalarProperty):
