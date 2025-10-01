@@ -5,3 +5,5 @@ dependencies:
     - numpy
     - sympy
     - pytest
+    - jupyter
+    - matplotlib

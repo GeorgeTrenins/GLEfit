@@ -132,6 +132,7 @@ class Optimizer(IOContext):
             self.iteration()
             is_converged = self.converged()
             self.nsteps += 1
+            self.log()
         return is_converged
     
     def initialize(self):
@@ -155,7 +156,6 @@ class Optimizer(IOContext):
         p = self.emb.params
         self.emb.params = p+h
         self.update()
-        self.log()
 
     def step(self):
         """Compute an update step for the optimizable params"""
@@ -167,10 +167,9 @@ class Optimizer(IOContext):
         name = self.__class__.__name__
         params = self.emb.params
         if self.trajectory is not None:
-            if self.nsteps == 0:
-                args = (" " * len(name), "Step", "Time")
-                msg = "%s  %4s %8s\n" % args
-                self.trajectory.write(msg)
+            args = (" " * len(name), "Step", "Time")
+            msg = "%s  %4s %8s\n" % args
+            self.trajectory.write(msg)
             args = (name, self.nsteps, T[3], T[4], T[5])
             msg = "%s:  %3d %02d:%02d:%02d\n" % args
             self.trajectory.write(msg)
@@ -183,7 +182,9 @@ class Optimizer(IOContext):
                 threshold=1_000_000,  # basically, always print full array
                 formatter={'float_kind':lambda x: f"{x: .6e}"}
             ))
+            self.trajectory.write("\n")
             self.trajectory.write("==== End of parameters =====\n")
+            self.trajectory.write("\n")
             self.trajectory.flush()
 
 
