@@ -20,7 +20,7 @@ class Debye(BaseSpectralDensity):
                  eta: float, 
                  omega_cut: float, 
                  *args, **kwargs) -> None:
-        """Initialize a Debye spectral density
+        """Debye spectral density
 
         J(ω) = η * ω * ωc^2 / (ωc^2 + ω^2)
         K(t) = η * ωc * exp(-ωc*t)

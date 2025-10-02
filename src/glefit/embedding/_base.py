@@ -37,6 +37,7 @@ class BaseEmbedder(ABC):
         nparam = self.nparam
         self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
         self._params : np.ndarray = np.empty(nparam)
+        self._x : np.ndarray = np.empty(nparam) 
 
     @abstractmethod
     def __len__(self) -> int:
@@ -61,7 +62,6 @@ class BaseEmbedder(ABC):
         """
         pass
 
-
     @property
     def nparam(self) -> int:
         """Number of independent parameters used to define the drift matrix.
@@ -81,10 +81,73 @@ class BaseEmbedder(ABC):
         if arr.shape != cur.shape:
             raise ValueError(f"params must have shape {cur.shape}, got {arr.shape}")
         self._params[:] = arr
+        self._x[:] = self._forward_map(arr)
+
+    @property
+    def x(self) -> npt.NDArray[np.floating]:
+        """Transformed parameters, imposing inequality constraints"""
+        return np.copy(self._x)
     
+    @x.setter
+    def x(self, value: npt.ArrayLike) -> None:
+        cur = self._x
+        arr = np.asarray(value)
+        if arr.shape != cur.shape:
+            raise ValueError(f"x must have shape {cur.shape}, got {arr.shape}")
+        self._x[:] = arr
+        self._params[:] = self._inverse_map(arr)
+        
+    @abstractmethod
+    def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Transform optimizable params so that inequality constraints are automatically imposed"""
+        return np.copy(params)
+
+    @abstractmethod
+    def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Undo the inequality constraint-imposing mapping.
+        """
+        return np.copy(x)
+
+    @abstractmethod
+    def _jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
+        """
+        return np.ones_like(x)
     
     @abstractmethod
-    def _compute_drift_matrix(self) -> npt.NDArray[np.floating]:
+    def _hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform.
+        """
+        return np.zeros_like(x)
+    
+    def _grad_param_to_x(
+            self, 
+            grad: npt.NDArray[np.floating], 
+            x: npt.NDArray[np.floating]
+        ) -> npt.NDArray[np.floating]:
+        """Convert a gradient with respect to the conventional parameters to a gradient w.r.t.
+        mapped parameters imposing inequality constraints.
+        """
+        jac_px = self._jac_px(x)
+        return np.einsum('i,i...->i...', jac_px, grad)
+    
+    def _hess_param_to_x(
+            self, 
+            grad: npt.NDArray[np.floating], 
+            hess: npt.NDArray[np.floating], 
+            x: npt.NDArray[np.floating]
+        ) -> npt.NDArray[np.floating]:
+        """Compute the Hessian w.r.t.mapped parameters from the gradient and Hessian w.r.t conventional parameters.
+        """
+        jac_px = self._jac_px(x)
+        hess_px = self._hess_px(x)
+        ans = np.einsum('i,j,ij...->ij...', jac_px, jac_px, hess)
+        diag = np.einsum('ii...->i...', ans) # view of the diagonal
+        diag += np.einsum('i,i...->i...', hess_px, grad)
+        return ans
+
+    @abstractmethod
+    def _compute_drift_matrix(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Calculate the drift matrix for the current parametrization of the embedder
 
         Returns
@@ -117,14 +180,15 @@ class BaseEmbedder(ABC):
         -----
         This matrix is also accessible through the alias 'A'.
         """
-        return self._compute_drift_matrix()
+        return self._compute_drift_matrix(self._params)
 
     # Alias
     A = drift_matrix
 
     @abstractmethod
-    def _compute_drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
+    def _drift_matrix_param_grad(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Calculate the gradient of the drift matrix for the current parametrization of the embedder
+        (before the mapping)
 
         Returns
         -------
@@ -138,6 +202,19 @@ class BaseEmbedder(ABC):
         """
         pass
 
+    def _drift_matrix_x_grad(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Calculate the gradient of the drift matrix for the current parametrization of the embedder
+        (after the mapping).
+
+        Returns
+        -------
+        numpy.ndarray
+            A 3D array of shape (k, n+1, n+1) where k is the number of parameters and n is the number of auxiliary variables. 
+        """
+        params = self._inverse_map(x)
+        param_grad_A = self._drift_matrix_param_grad(params)
+        return self._grad_param_to_x(param_grad_A, x)
+        
     @property
     def drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
         """The derivative of the drift matrix with respect to the parameters of the embedder.
@@ -151,15 +228,92 @@ class BaseEmbedder(ABC):
         -----
         This is also accessible through the alias 'grad_A'.
         """
-        return self._compute_drift_matrix_gradient()
+        return self._drift_matrix_x_grad(self._x)
 
     # Alias
     grad_A = drift_matrix_gradient
 
-    
-    
     @abstractmethod
-    def kernel(self, time: ScalarArr, nu: Optional[int]=0) -> npt.NDArray[np.floating]:
+    def _kernel(
+        self, 
+        time: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the memory kernel function for the embedding.
+
+        Parameters
+        ----------
+        time : scalar or array-like
+            The input time values for which to compute the kernel.
+
+        Returns
+        -------
+        np.ndarray
+            The computed kernel values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+    @abstractmethod
+    def _kernel_grad(
+        self, 
+        time: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the gradient of the memory kernel function w.r.t. conventional embedding parameters.
+
+        Parameters
+        ----------
+        time : scalar or array-like
+            The input time values for which to compute the kernel.
+
+        Returns
+        -------
+        np.ndarray
+            The computed kernel values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+    @abstractmethod
+    def _kernel_hess(
+        self, 
+        time: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the hessian of the memory kernel function w.r.t. conventional embedding parameters.
+
+        Parameters
+        ----------
+        time : scalar or array-like
+            The input time values for which to compute the kernel.
+
+        Returns
+        -------
+        np.ndarray
+            The computed kernel values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+    def kernel(
+        self, 
+        time: ScalarArr, 
+        nu: Optional[int]=0, 
+        mapped: Optional[bool]=False
+    ) -> npt.NDArray[np.floating]:
         """
         Computes the memory kernel function for the embedding.
 
@@ -170,6 +324,9 @@ class BaseEmbedder(ABC):
         nu : int (optional)
             Order of the derivative with respect to embedding parameters 
             (default is 0)
+        mapped : bool (optional)
+            True if the derivatives are with respect to mapped parameters. 
+            Default is False.
 
         Returns
         -------
@@ -183,11 +340,113 @@ class BaseEmbedder(ABC):
         TypeError
             If `nu` is not an integer
         """
+        time = np.abs(np.atleast_1d(time))
+        if time.ndim != 1:
+            raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
+                             f"instead got {time.ndim = }.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
+        if nu == 0:
+            return self._kernel(time)
+        elif nu == 1:
+            grad = self._kernel_grad(time)
+            if mapped:
+                return self._grad_param_to_x(grad, self.x)
+            else:
+                return grad
+        elif nu == 2:
+            hess = self._kernel_hess(time)
+            if mapped:
+                grad = self._kernel_grad(time)
+                return self._hess_param_to_x(grad, hess, self.x)
+            else:
+                return hess
+        else:
+            raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
+        
+
+    @abstractmethod
+    def _spectrum(
+        self, 
+        frequency: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the spectrum for the embedding.
+
+        Parameters
+        ----------
+        frequency : scalar or array-like
+            The frequencies for which to compute the spectrum.
+
+        Returns
+        -------
+        np.ndarray
+            The computed spectrum values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
     
     @abstractmethod
-    def spectrum(self, frequency: ScalarArr, nu: Optional[int]=0) -> npt.NDArray[np.floating]:
+    def _spectrum_grad(
+        self, 
+        frequency: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the gradient of the spectrum w.r.t. conventional embedding parameters.
+
+        Parameters
+        ----------
+        frequency : scalar or array-like
+            The frequencies for which to compute the spectrum.
+
+        Returns
+        -------
+        np.ndarray
+            The computed spectrum values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+
+    @abstractmethod
+    def _spectrum_hess(
+        self, 
+        frequency: ScalarArr, 
+    )-> npt.NDArray[np.floating]:
+        """
+        Computes the hessian of the spectrum w.r.t. conventional embedding parameters.
+
+        Parameters
+        ----------
+        frequency : scalar or array-like
+            The frequencies for which to compute the spectrum.
+
+        Returns
+        -------
+        np.ndarray
+            The computed kernel values as a NumPy array of floating point numbers.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
+        """
+        pass
+        
+    def spectrum(
+        self, 
+        frequency: ScalarArr, 
+        nu: Optional[int]=0,
+        mapped: Optional[bool]=False
+    ) -> npt.NDArray[np.floating]:
         """
         Computes the spectrum (Fourier transform of the kernel) for the embedding
         at the given frequencies.
@@ -196,10 +455,12 @@ class BaseEmbedder(ABC):
         ----------
         frequency : scalar or array-like
             Array of frequency values at which to evaluate the spectrum.
-
         nu : int (optional)
             Order of the derivative with respect to embedding parameters 
             (default is 0)
+        mapped : bool (optional)
+            True if the derivatives are with respect to mapped parameters. 
+            Default is False.
 
         Returns
         -------
@@ -213,11 +474,36 @@ class BaseEmbedder(ABC):
         TypeError
             If `nu` is not an integer
         """
+        frequency = np.abs(np.atleast_1d(frequency))
+        if frequency.ndim != 1:
+            raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
+                             f"instead got {frequency.ndim = }.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
+        if nu == 0:
+            return self._spectrum(frequency)
+        elif nu == 1:
+            grad = self._spectrum_grad(frequency)
+            if mapped:
+                return self._grad_param_to_x(grad, self.x)
+            else:
+                return grad
+        elif nu == 2:
+            hess = self._spectrum_hess(frequency)
+            if mapped:
+                grad = self._spectrum_grad(frequency)
+                return self._hess_param_to_x(grad, hess, self.x)
+            else:
+                return hess
+        else:
+            raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
         
-        
-    def spectral_density(self, frequency: ScalarArr, nu: Optional[int]=0) -> npt.NDArray[np.floating]:
+    def spectral_density(
+            self, 
+            frequency: ScalarArr, 
+            nu: Optional[int]=0,
+            mapped: Optional[bool]=False
+        ) -> npt.NDArray[np.floating]:
         """
         Computes the spectral density (spectrum multiplied by frequency) for the embedding
         at the given frequencies.
@@ -226,6 +512,12 @@ class BaseEmbedder(ABC):
         ----------
         frequency : scalar or array-like
             Array of frequency values at which to evaluate the spectrum.
+        nu : int (optional)
+            Order of the derivative with respect to embedding parameters 
+            (default is 0)
+        mapped : bool (optional)
+            True if the derivatives are with respect to mapped parameters. 
+            Default is False.
 
         Returns
         -------
@@ -237,6 +529,5 @@ class BaseEmbedder(ABC):
         NotImplementedError
             If the method is not implemented in the subclass.
         """
-
         freq = np.asarray(frequency)
-        return freq * self.spectrum(freq, nu=nu)
+        return freq * self.spectrum(freq, nu=nu, mapped=mapped)

@@ -31,6 +31,7 @@ class NewtonRaphson(Optimizer):
         """
         self.gtol = options.get("gtol", 0.05)
         self.max_step = options.get("max_step")
+        self._eigvals = None
         super().run(steps=steps, options=options)
 
     def initialize(self):
@@ -106,6 +107,8 @@ class NewtonRaphson(Optimizer):
 class EigenvectorFollowing(NewtonRaphson):
 
     def get_eigvals(self):
+        if self._eigvals is None:
+            self._eigvals = np.linalg.eigvalsh(self._hess)
         return np.copy(self._eigvals)
 
     def step(self):

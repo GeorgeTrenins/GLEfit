@@ -26,7 +26,7 @@ def test_kernel_invalid_nu():
     
     # Verify ValueError is raised with invalid nu
     nu = 3
-    with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0 and 1."):
+    with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2."):
         emb.kernel(time, nu=nu)
 
 
@@ -99,6 +99,48 @@ def test_kernel_gradient():
         err_msg="Derivative with respect to γ does not match symbolic result"
     )
 
+def test_kernel_x_gradient():
+    """Test that kernel derivatives for mapped variables match symbolic differentiation results."""
+    # Setup symbolic expressions
+    t, x1, x2 = sp.symbols('t x1 x2', real=True)
+    kernel = sp.exp(x1)**2 * sp.exp(-sp.exp(x2) * sp.Abs(t))
+    
+    # Compute symbolic derivatives
+    d_x1 = sp.diff(kernel, x1)
+    d_x2 = sp.diff(kernel, x2)
+    
+    # Convert to numeric functions
+    f_theta = sp.lambdify((t, x1, x2), d_x1, 'numpy')
+    f_gamma = sp.lambdify((t, x1, x2), d_x2, 'numpy')
+    
+    # Setup numerical test
+    theta_val = 1.0
+    gamma_val = 0.5
+    times = np.array([-1.0, 0.0, 0.5, 1.0, 2.0])
+    
+    # Initialize embedder
+    emb = PronyEmbedder(theta_val, gamma_val)
+    
+    # Get numerical derivatives
+    derivatives = emb.kernel(times, nu=1, mapped=True)
+    
+    # Compare with symbolic results
+    x1, x2 = emb.x
+    expected_x1 = f_theta(times, x1, x2)
+    expected_x2 = f_gamma(times, x1, x2)
+    
+    assert_allclose(
+        derivatives[0], expected_x1,
+        rtol=1e-15, 
+        err_msg="Derivative with respect to ln(θ) does not match symbolic result"
+    )
+    assert_allclose(
+        derivatives[1], expected_x2,
+        rtol=1e-15,
+        err_msg="Derivative with respect to ln(γ) does not match symbolic result"
+    )
+
+
 def test_kernel_hessian():
     """Test that the second derivates of the kernel match symbolic differentiation."""
     # Setup symbolic expressions
@@ -146,6 +188,55 @@ def test_kernel_hessian():
         rtol=1e-15,
         err_msg="Second derivative with respect to γ does not match symbolic result"
     )
+
+def test_kernel_x_hessian():
+    """Test that the second derivates of the kernel match symbolic differentiation for mapped variables."""
+    # Setup symbolic expressions
+    t, x1, x2 = sp.symbols('t x1 x2', real=True)
+    kernel = sp.exp(x1)**2 * sp.exp(-sp.exp(x2) * sp.Abs(t))
+    
+    # Compute symbolic derivatives
+    dx1x1 = sp.diff(kernel, x1, x1)
+    dx1x2 = sp.diff(kernel, x1, x2)
+    dx2x2 = sp.diff(kernel, x2, x2)
+    
+    # Convert to numeric functions
+    fx1x1 = sp.lambdify((t, x1, x2), dx1x1, 'numpy')
+    fx1x2 = sp.lambdify((t, x1, x2), dx1x2, 'numpy')
+    fx2x2 = sp.lambdify((t, x1, x2), dx2x2, 'numpy')
+    
+    # Setup numerical test
+    x1 = 1.0
+    x2 = 0.5
+    times = np.array([-1.0, 0.0, 0.5, 1.0, 2.0])
+    
+    # Initialize embedder
+    emb = PronyEmbedder(x1, x2)
+    x1, x2 = emb.x
+    
+    # Get numerical derivatives
+    hessian = emb.kernel(times, nu=2, mapped=True)
+    
+    # Compare with symbolic results
+    expected_x1x1 = fx1x1(times, x1, x2)
+    expected_x1x2 = fx1x2(times, x1, x2)
+    expected_x2x2 = fx2x2(times, x1, x2)
+    
+    assert_allclose(
+        hessian[0,0], expected_x1x1,
+        rtol=1e-15, 
+        err_msg="Second derivative with respect to θ does not match symbolic result"
+    )
+    assert_allclose(
+        hessian[0,1], expected_x1x2,
+        rtol=1e-15, 
+        err_msg="Mixed derivative with respect to θ and γ does not match symbolic result"
+    )
+    assert_allclose(
+        hessian[1,1], expected_x2x2,
+        rtol=1e-15,
+        err_msg="Second derivative with respect to γ does not match symbolic result"
+    )
     
 
 def test_spectrum_invalid_nu():
@@ -158,7 +249,7 @@ def test_spectrum_invalid_nu():
     
     # Verify ValueError is raised with invalid nu
     nu = 3
-    with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0 and 1."):
+    with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2."):
         emb.spectrum(freq, nu=nu)
 
 
