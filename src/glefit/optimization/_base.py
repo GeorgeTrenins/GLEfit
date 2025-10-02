@@ -153,8 +153,8 @@ class Optimizer(IOContext):
 
     def iteration(self):
         h = self.step()
-        p = self.emb.params
-        self.emb.params = p+h
+        x = self.emb.x
+        self.emb.x = x+h
         self.update()
 
     def step(self):
