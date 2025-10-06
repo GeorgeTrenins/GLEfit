@@ -109,18 +109,18 @@ class BaseEmbedder(ABC):
         return np.copy(x)
 
     @abstractmethod
-    def _jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
         return np.ones_like(x)
     
     @abstractmethod
-    def _hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform.
         """
         return np.zeros_like(x)
     
-    def _grad_param_to_x(
+    def grad_param_to_x(
             self, 
             grad: npt.NDArray[np.floating], 
             x: npt.NDArray[np.floating]
@@ -128,10 +128,10 @@ class BaseEmbedder(ABC):
         """Convert a gradient with respect to the conventional parameters to a gradient w.r.t.
         mapped parameters imposing inequality constraints.
         """
-        jac_px = self._jac_px(x)
+        jac_px = self.jac_px(x)
         return np.einsum('i,i...->i...', jac_px, grad)
     
-    def _hess_param_to_x(
+    def hess_param_to_x(
             self, 
             grad: npt.NDArray[np.floating], 
             hess: npt.NDArray[np.floating], 
@@ -139,15 +139,15 @@ class BaseEmbedder(ABC):
         ) -> npt.NDArray[np.floating]:
         """Compute the Hessian w.r.t.mapped parameters from the gradient and Hessian w.r.t conventional parameters.
         """
-        jac_px = self._jac_px(x)
-        hess_px = self._hess_px(x)
+        jac_px = self.jac_px(x)
+        hess_px = self.hess_px(x)
         ans = np.einsum('i,j,ij...->ij...', jac_px, jac_px, hess)
         diag = np.einsum('ii...->i...', ans) # view of the diagonal
         diag += np.einsum('i,i...->i...', hess_px, grad)
         return ans
 
     @abstractmethod
-    def _compute_drift_matrix(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def compute_drift_matrix(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Calculate the drift matrix for the current parametrization of the embedder
 
         Returns
@@ -180,13 +180,13 @@ class BaseEmbedder(ABC):
         -----
         This matrix is also accessible through the alias 'A'.
         """
-        return self._compute_drift_matrix(self._params)
+        return self.compute_drift_matrix(self._params)
 
     # Alias
     A = drift_matrix
 
     @abstractmethod
-    def _drift_matrix_param_grad(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def drift_matrix_param_grad(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Calculate the gradient of the drift matrix for the current parametrization of the embedder
         (before the mapping)
 
@@ -202,7 +202,7 @@ class BaseEmbedder(ABC):
         """
         pass
 
-    def _drift_matrix_x_grad(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def drift_matrix_x_grad(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Calculate the gradient of the drift matrix for the current parametrization of the embedder
         (after the mapping).
 
@@ -212,8 +212,8 @@ class BaseEmbedder(ABC):
             A 3D array of shape (k, n+1, n+1) where k is the number of parameters and n is the number of auxiliary variables. 
         """
         params = self._inverse_map(x)
-        param_grad_A = self._drift_matrix_param_grad(params)
-        return self._grad_param_to_x(param_grad_A, x)
+        param_grad_A = self.drift_matrix_param_grad(params)
+        return self.grad_param_to_x(param_grad_A, x)
         
     @property
     def drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
@@ -228,13 +228,13 @@ class BaseEmbedder(ABC):
         -----
         This is also accessible through the alias 'grad_A'.
         """
-        return self._drift_matrix_x_grad(self._x)
+        return self.drift_matrix_x_grad(self._x)
 
     # Alias
     grad_A = drift_matrix_gradient
 
     @abstractmethod
-    def _kernel(
+    def kernel_func(
         self, 
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -259,7 +259,7 @@ class BaseEmbedder(ABC):
         pass
 
     @abstractmethod
-    def _kernel_grad(
+    def kernel_grad(
         self, 
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -284,7 +284,7 @@ class BaseEmbedder(ABC):
         pass
 
     @abstractmethod
-    def _kernel_hess(
+    def kernel_hess(
         self, 
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -347,18 +347,18 @@ class BaseEmbedder(ABC):
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:
-            return self._kernel(time)
+            return self.kernel_func(time)
         elif nu == 1:
-            grad = self._kernel_grad(time)
+            grad = self.kernel_grad(time)
             if mapped:
-                return self._grad_param_to_x(grad, self.x)
+                return self.grad_param_to_x(grad, self.x)
             else:
                 return grad
         elif nu == 2:
-            hess = self._kernel_hess(time)
+            hess = self.kernel_hess(time)
             if mapped:
-                grad = self._kernel_grad(time)
-                return self._hess_param_to_x(grad, hess, self.x)
+                grad = self.kernel_grad(time)
+                return self.hess_param_to_x(grad, hess, self.x)
             else:
                 return hess
         else:
@@ -366,7 +366,7 @@ class BaseEmbedder(ABC):
         
 
     @abstractmethod
-    def _spectrum(
+    def spectrum_func(
         self, 
         frequency: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -392,7 +392,7 @@ class BaseEmbedder(ABC):
 
     
     @abstractmethod
-    def _spectrum_grad(
+    def spectrum_grad(
         self, 
         frequency: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -417,7 +417,7 @@ class BaseEmbedder(ABC):
         pass
 
     @abstractmethod
-    def _spectrum_hess(
+    def spectrum_hess(
         self, 
         frequency: ScalarArr, 
     )-> npt.NDArray[np.floating]:
@@ -481,18 +481,18 @@ class BaseEmbedder(ABC):
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:
-            return self._spectrum(frequency)
+            return self.spectrum_func(frequency)
         elif nu == 1:
-            grad = self._spectrum_grad(frequency)
+            grad = self.spectrum_grad(frequency)
             if mapped:
-                return self._grad_param_to_x(grad, self.x)
+                return self.grad_param_to_x(grad, self.x)
             else:
                 return grad
         elif nu == 2:
-            hess = self._spectrum_hess(frequency)
+            hess = self.spectrum_hess(frequency)
             if mapped:
-                grad = self._spectrum_grad(frequency)
-                return self._hess_param_to_x(grad, hess, self.x)
+                grad = self.spectrum_grad(frequency)
+                return self.hess_param_to_x(grad, hess, self.x)
             else:
                 return hess
         else:
@@ -530,4 +530,4 @@ class BaseEmbedder(ABC):
             If the method is not implemented in the subclass.
         """
         freq = np.asarray(frequency)
-        return freq * self.spectrum(freq, nu=nu, mapped=mapped)
+        return freq * self.spectrum_func(freq, nu=nu, mapped=mapped)

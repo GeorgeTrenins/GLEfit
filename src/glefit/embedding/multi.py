@@ -117,15 +117,15 @@ class MultiEmbedder(BaseEmbedder):
         """Undo the inequality constraint-imposing mapping."""
         return self._apply_to_params('_inverse_map', x)
 
-    def _jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform."""
-        return self._apply_to_params('_jac_px', x)
+        return self._apply_to_params('jac_px', x)
 
-    def _hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform."""
-        return self._apply_to_params('_hess_px', x)
+        return self._apply_to_params('hess_px', x)
     
-    def _compute_drift_matrix(
+    def compute_drift_matrix(
             self, 
             params: npt.NDArray[np.floating]
         ) -> npt.NDArray[np.floating]:
@@ -148,7 +148,7 @@ class MultiEmbedder(BaseEmbedder):
         in a block-diagonal form, with coupling terms in the first row/column.
         The first row/column contains all couplings to the system coordinate.
         """
-        self._A[:] = 0.0
+        A = np.zeros_like(self._A)
         params = np.asarray(params)
         ub = 1
         j = 0
@@ -159,13 +159,13 @@ class MultiEmbedder(BaseEmbedder):
             j = i+nparam
             lb = ub
             ub = ub + naux
-            emb_A = emb._compute_drift_matrix(params[i:j])
-            self._A[0,lb:ub] = emb_A[0,1:]
-            self._A[lb:ub,0] = emb_A[1:,0]
-            self._A[lb:ub, lb:ub] = emb_A[1:,1:]
-        return self._A
+            emb_A = emb.compute_drift_matrix(params[i:j])
+            A[0,lb:ub] = emb_A[0,1:]
+            A[lb:ub,0] = emb_A[1:,0]
+            A[lb:ub, lb:ub] = emb_A[1:,1:]
+        return A
     
-    def _drift_matrix_param_grad(
+    def drift_matrix_param_grad(
             self, 
             params: npt.NDArray[np.floating]
         ) -> npt.NDArray[np.floating]:
@@ -190,7 +190,7 @@ class MultiEmbedder(BaseEmbedder):
         with all parameters from each embedder appearing consecutively.
         """
         params = np.asarray(params)
-        self._grad_A[:] = 0.0
+        grad_A = np.zeros_like(self._grad_A)
         ub = 1
         j = 0
         for emb in self._embs:
@@ -202,30 +202,30 @@ class MultiEmbedder(BaseEmbedder):
             nparam = emb.nparam
             i = j
             j = i+nparam
-            emb_grad_A = emb._drift_matrix_param_grad(params[i:j])
+            emb_grad_A = emb.drift_matrix_param_grad(params[i:j])
             # Fill gradient blocks for each parameter
-            grad_A_slice = self._grad_A[i:j]
+            grad_A_slice = grad_A[i:j]
             grad_A_slice[:, 0, lb:ub] = emb_grad_A[:, 0, 1:]
             grad_A_slice[:, lb:ub, 0] = emb_grad_A[:, 1:, 0]
             grad_A_slice[:, lb:ub, lb:ub] = emb_grad_A[:, 1:, 1:]
-        return self._grad_A
+        return grad_A
     
-    def _kernel(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         ans = 0.0
         for emb in self._embs:
-            ans = ans + emb._kernel(time)
+            ans = ans + emb.kernel_func(time)
         return ans
     
-    def _kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         # Concatenate along parameter axis (axis=0)
-        ans = np.concatenate([emb._kernel_grad(time) for emb in self._embs], axis=0)
+        ans = np.concatenate([emb.kernel_grad(time) for emb in self._embs], axis=0)
         return ans
     
-    def _kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         blocks = []
         indices = [0]
         for emb in self._embs:
-            block = emb._kernel_hess(time)
+            block = emb.kernel_hess(time)
             blocks.append(block)
             indices.append(indices[-1]+len(block))
         ans = np.zeros((indices[-1], indices[-1], blocks[-1].shape[-1]))
@@ -233,22 +233,23 @@ class MultiEmbedder(BaseEmbedder):
         for i, block in enumerate(blocks):
             lb, ub = indices[i:i+2]
             ans[lb:ub,lb:ub] = block
+        return ans
 
-    def _spectrum(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+    def spectrum_func(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
         ans = 0.0
         for emb in self._embs:
-            ans = ans + emb._spectrum(frequency, nu=0)
+            ans = ans + emb.spectrum_func(frequency, nu=0)
         return ans
     
-    def _spectrum_grad(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
-        ans = np.concatenate([emb._spectrum_grad(frequency) for emb in self._embs], axis=0)
+    def spectrum_grad(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+        ans = np.concatenate([emb.spectrum_grad(frequency) for emb in self._embs], axis=0)
         return ans
     
-    def _spectrum_hess(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+    def spectrum_hess(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
         blocks = []
         indices = [0]
         for emb in self._embs:
-            block = emb._spectrum_hess(frequency) 
+            block = emb.spectrum_hess(frequency) 
             blocks.append(block)
             indices.append(indices[-1]+len(block))
         ans = np.zeros((indices[-1], indices[-1], blocks[-1].shape[-1]))

@@ -83,7 +83,7 @@ def test_multi_drift_matrix_gradient():
     
     # Verify the packing of combined gradient
     np.testing.assert_allclose(
-        multi_emb._drift_matrix_param_grad(multi_emb.params), grad_ref,
+        multi_emb.drift_matrix_param_grad(multi_emb.params), grad_ref,
         rtol=1e-15,
         err_msg="Combined drift matrix gradient does not match expected structure"
     )

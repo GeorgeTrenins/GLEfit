@@ -12,7 +12,6 @@ from __future__ import print_function, division, absolute_import
 from ._base import BaseArrayProperty
 from scipy.linalg import expm_frechet, expm
 from typing import Union
-from ._base import temp_params
 import numpy as np
 import numpy.typing as npt
 from typing import Optional
@@ -20,9 +19,12 @@ from typing import Optional
 
 class MemoryKernel(BaseArrayProperty):
 
-    @temp_params
-    def function(self, v: Optional[npt.NDArray[np.floating]] = None) -> float:
-        Ap = self.emb.A
+    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> float:
+        if x is None:
+            Ap = self.emb.A
+        else:
+            emb = self.emb
+            Ap = emb.compute_drift_matrix(emb._inverse_map(x))
         theta = Ap[0, 1:]
         A = Ap[1:,1:]
         return np.einsum(
@@ -54,8 +56,11 @@ class MemoryKernel(BaseArrayProperty):
         expA, K = expm_frechet(-time * A.T, E, compute_expm=True)  # L_exp(-τA^T, E)
         return expA, -time * K
 
-    def _grad_wrt_A(self) -> npt.NDArray[np.floating]:
-        Ap = self.emb.A
+    def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]]=None) -> npt.NDArray[np.floating]:
+        if A is None:
+            Ap = self.emb.A
+        else:
+            Ap = np.copy(A)
         time = self.array
         ans = np.zeros((len(time),) + Ap.shape)
         theta = Ap[0,1:]

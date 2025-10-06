@@ -74,13 +74,13 @@ class PronyEmbedder(BaseEmbedder):
         """
         return np.exp(x)
     
-    def _jac_px(self, x):
+    def jac_px(self, x):
         return np.exp(x)
     
-    def _hess_px(self, x):
+    def hess_px(self, x):
         return np.exp(x)
 
-    def _compute_drift_matrix(
+    def compute_drift_matrix(
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
@@ -93,13 +93,14 @@ class PronyEmbedder(BaseEmbedder):
            [ θ   γ ]
         """
         theta, gamma = np.asarray(params)
-        self._A[0,0] = 0.0
-        self._A[0,1] = theta
-        self._A[1,0] = theta
-        self._A[1,1] = gamma
-        return np.copy(self._A)
+        A = np.zeros((2,2))
+        A[0,0] = 0.0
+        A[0,1] = theta
+        A[1,0] = theta
+        A[1,1] = gamma
+        return A
     
-    def _drift_matrix_param_grad(
+    def drift_matrix_param_grad(
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
@@ -117,22 +118,22 @@ class PronyEmbedder(BaseEmbedder):
            [ 0   0 ]
            [ 0   1 ]
         """
-        self._grad_A[:] = 0.0
+        grad_A = np.zeros((2,2,2))
         # Derivative with respect to θ
-        self._grad_A[0,0,1] = 1.0
-        self._grad_A[0,1,0] = 1.0
+        grad_A[0,0,1] = 1.0
+        grad_A[0,1,0] = 1.0
         # Derivative with respect to γ
-        self._grad_A[1,1,1] = 1.0
-        return np.copy(self._grad_A)
+        grad_A[1,1,1] = 1.0
+        return grad_A
     
-    def _kernel(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         """
         Memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt)
         """
         theta, gamma = self.params
         return theta**2 * np.exp(-gamma * time)
     
-    def _kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         """
         Gradient of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt),
         w.r.t. [θ, γ]
@@ -146,7 +147,7 @@ class PronyEmbedder(BaseEmbedder):
         ans[1] = -(theta**2) * time * exp_gamma_t
         return ans
     
-    def _kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         """
         Hessian of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt),
         w.r.t. [θ, γ]
@@ -162,14 +163,14 @@ class PronyEmbedder(BaseEmbedder):
         ans[1,1] = theta**2 * time**2 * exp_gamma_t
         return ans
     
-    def _spectrum(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
+    def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
         """
         Spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2)
         """
         theta, gamma = self.params
         return gamma * theta**2 / (gamma**2 + frequency**2)
         
-    def _spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
+    def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
         """
         Gradient of the spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2),
         w.r.t. [θ, γ]
@@ -183,7 +184,7 @@ class PronyEmbedder(BaseEmbedder):
         ans[1] = theta**2 * (frequency**2 - gamma**2) / (gamma**2 + frequency**2)**2
         return ans
     
-    def _spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
+    def spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
         """
         Hessian of the spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2),
         w.r.t. [θ, γ]

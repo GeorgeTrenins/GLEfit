@@ -52,20 +52,6 @@ def check_value_target(func: F) -> F:
         return func(self, value, target, *args, **kwargs)
     return cast(F, wrapper)
 
-def temp_params(method):
-    """If v is provided, temporarily set self.emb.params = v during the call."""
-    @functools.wraps(method)
-    def wrapper(self, v: Optional[npt.NDArray[np.floating]] = None):
-        if v is None:
-            return method(self, v)
-        old = self.emb.params
-        self.emb.params = v
-        try:
-            return method(self, v)
-        finally:
-            self.emb.params = old
-    return wrapper
-
 # ---- Base class ----------------------------------------------------------
 
 class BaseDistance(ABC):
@@ -153,8 +139,7 @@ class BaseScalarProperty(ABC):
     def target(self) -> float:
         return self._target
     
-    @temp_params
-    def function(self, v: Optional[npt.NDArray[np.floating]] = None) -> float:
+    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> float:
         """Actual value of the property parametrized by the GLE matrice"""
         raise NotImplementedError(f"{self.__class__.__name__} must implement a property function")
     
@@ -168,24 +153,29 @@ class BaseScalarProperty(ABC):
         return self.weight * self.distance_metric(self.value, self.target)
 
     @abstractmethod
-    def _grad_wrt_A(self) -> npt.NDArray[np.floating]:
+    def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]]=None) -> npt.NDArray[np.floating]:
         """Gradient of the current property value w.r.t. GLE matrix"""
         pass
 
-    def _grad_wrt_params(self) -> npt.NDArray[np.floating]:
+    def grad_wrt_params(self, x: Optional[npt.NDArray[np.floating]]=None) -> npt.NDArray[np.floating]:
         """Gradient of the current property value w.r.t. optimizable parameters
         Output shape (p,...) where p is the number of parameters
         """
+        emb = self.emb
+        if x is None:
+            x = emb.x
+            Ap = emb.A
+        else:
+            Ap = emb.compute_drift_matrix(emb._inverse_map(x))
         # Gradient of the property w.r.t A matrix
-        grad_h_A: npt.NDArray[np.floating] = self._grad_wrt_A()
+        grad_h_A: npt.NDArray[np.floating] = self.grad_wrt_A(A=Ap)
         # Gradient of the p + auxvar A matrix w.r.t. optimizable parameters
-        grad_A_params: npt.NDArray[np.floating] = self.emb.grad_A
+        grad_A_params: npt.NDArray[np.floating] = emb.drift_matrix_x_grad(x)
         # Gradient of the property w.r.t. optimizable parameters
         ans = np.einsum('...ij,pij->p...', grad_h_A, grad_A_params)
         return ans
     
-    @temp_params
-    def gradient(self, v: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
+    def gradient(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of the distance to target w.r.t. optimizable parameters.
         Output shape (p,) where p is the number of parameters
         """
@@ -193,76 +183,83 @@ class BaseScalarProperty(ABC):
         grad_distance_h: float = self.distance_metric.gradient(self.value, self.target)
         grad_distance_h *= self.weight
         # Gradient of the property w.r.t. optimizable parameters
-        grad_h_params: npt.NDArray[np.floating] = self._grad_wrt_params()
+        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
         # Chain rule:
         ans = grad_distance_h * grad_h_params
         return ans
     
-    def both(self, v: Optional[npt.NDArray[np.floating]] = None) -> tuple[float,npt.NDArray[np.floating]]:
+    def both(self, x: Optional[npt.NDArray[np.floating]] = None) -> tuple[float,npt.NDArray[np.floating]]:
         """Distance from target and its gradient w.r.t. optimizable params.
         """
-        distance, grad_distance_h = self.distance_metric.both(self.value, self.target)
+        distance, grad_distance_h = self.distance_metric.both(self.function(x=x), self.target)
         distance *= self.weight
         grad_distance_h *= self.weight
-        grad_h_params: npt.NDArray[np.floating] = self._grad_wrt_params()
+        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params()
         grad = grad_distance_h * grad_h_params
         return distance, grad
     
-    def _gradhess_wrt_params(self) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
+    def gradhess_wrt_params(
+            self, 
+            x: Optional[npt.NDArray[np.floating]] = None
+    )-> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """Gradient and hessian of the current property w.r.t. optimizable parameters.
         Output shapes are (p, ...) and (p, p, ...), where p is the number of parameters and
         ... is the shape of the property -- can be scalar or array
         """
-        v_cache = self.emb.params
-        grad = self._grad_wrt_params()
+        emb = self.emb
+        if x is None:
+            x = emb.x
+        grad = self.grad_wrt_params(x=x)
         grad_shape = grad.shape
         if np.ndim(grad) == 1:
             def fun(v):
-                self.emb.params = v
-                ans = self._grad_wrt_params()
-                self.emb.params = v_cache
+                ans = self.grad_wrt_params(x=v)
                 return ans
-            hess = jacobian(fun, v_cache)
+            hess = jacobian(fun, x)
         else:
             def fun(v):
-                self.emb.params = v
-                ans = self._grad_wrt_params().reshape(-1)
-                self.emb.params = v_cache
+                ans = self.grad_wrt_params(x=v).reshape(-1)
                 return ans
-            hess = jacobian(fun, v_cache)
-            hess.shape = grad_shape + (len(v_cache),)
+            hess = jacobian(fun, x)
+            hess.shape = grad_shape + (len(x),)
             hess = np.einsum('a...b->ab...', hess)
         return grad, hess
     
-    @temp_params
-    def hessian(self, v: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
+    def hessian(
+            self, 
+            x: Optional[npt.NDArray[np.floating]] = None
+    ) -> npt.NDArray[np.floating]:
         """Hessian of the distance to target w.r.t. optimizable parameters.
         Output shape (p, p) where p is the number of parameters
         """
         grad_distance_h: float
         hess_distance_h: float
-        _, grad_distance_h, hess_distance_h = self.distance_metric.all(self.value, self.target)
+        _, grad_distance_h, hess_distance_h = self.distance_metric.all(self.function(x=x), self.target)
         grad_distance_h *= self.weight
         hess_distance_h *= self.weight
         grad_h_params : np.ndarray
         hess_h_params : np.ndarray
-        grad_h_params, hess_h_params = self._gradhess_wrt_params()
+        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
         ans = hess_distance_h * grad_h_params[:,None] * grad_h_params[None,:]
         ans += grad_distance_h * hess_h_params
         return ans
 
-    def all(self, v: Optional[npt.NDArray[np.floating]] = None) -> tuple[float,npt.NDArray[np.floating],npt.NDArray[np.floating]]:
+    def all(
+            self, 
+            x: Optional[npt.NDArray[np.floating]] = None
+    ) -> tuple[float,npt.NDArray[np.floating],npt.NDArray[np.floating]]:
         """Distance of property to target, its gradient, and its hessian w.r.t. optimizable params.
         """
         grad_distance_h: float
         hess_distance_h: float
-        distance, grad_distance_h, hess_distance_h = self.distance_metric.all(self.value, self.target)
+        distance, grad_distance_h, hess_distance_h = self.distance_metric.all(
+            self.function(x=x), self.target)
         distance *= self.weight
         grad_distance_h *= self.weight
         hess_distance_h *= self.weight
         grad_h_params : np.ndarray
         hess_h_params : np.ndarray
-        grad_h_params, hess_h_params = self._gradhess_wrt_params()
+        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
         hess = hess_distance_h * grad_h_params[:,None] * grad_h_params[None,:]
         hess += grad_distance_h * hess_h_params
         grad = grad_distance_h * grad_h_params
@@ -305,8 +302,7 @@ class BaseArrayProperty(BaseScalarProperty):
     def value(self) -> npt.NDArray[np.floating]:
         return self.function()
     
-    @temp_params
-    def function(self, v: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
+    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         raise NotImplementedError(f"{self.__class__.__name__} must implement a property function")
     
     @property
@@ -315,61 +311,67 @@ class BaseArrayProperty(BaseScalarProperty):
         #TODO: this currently implements the "1-norm" only, generalise later
         return np.sum(self.weight * self.distance_metric(self.value, self.target))
     
-    @temp_params
-    def gradient(self, v: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
+    def gradient(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of the distance to target w.r.t. optimizable parameters.
         Output shape (p,) where p is the number of parameters
         """
         # Derivative of the distance metric w.r.t. property
-        grad_distance_h: npt.NDArray[np.floating] = self.distance_metric.gradient(self.value, self.target)
+        grad_distance_h: npt.NDArray[np.floating] = self.distance_metric.gradient(
+            self.function(x=x), self.target)
         grad_distance_h *= self.weight
-        # Gradient of the property w.r.t. optimizable parameters
-        grad_h_params: npt.NDArray[np.floating] = self._grad_wrt_params()
+        # Gradient of the property w.r.t. optimizable paramet_spectrum_hessers
+        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
         # Chain rule:
         ans = np.einsum('t,pt->p', grad_distance_h, grad_h_params)
         return ans
     
-    def both(self, v: Optional[npt.NDArray[np.floating]] = None) -> tuple[float,npt.NDArray[np.floating]]:
+    def both(
+            self, 
+            x: Optional[npt.NDArray[np.floating]] = None
+        ) -> tuple[float,npt.NDArray[np.floating]]:
         """Distance from target and its gradient w.r.t. optimizable params.
         """
-        distance, grad_distance_h = self.distance_metric.both(self.value, self.target)
+        distance, grad_distance_h = self.distance_metric.both(self.function(x=x), self.target)
         distance *= self.weight
         grad_distance_h *= self.weight
-        grad_h_params: npt.NDArray[np.floating] = self._grad_wrt_params()
+        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
         return np.sum(distance), np.einsum('t,pt->p', grad_distance_h, grad_h_params)
 
-    @temp_params
-    def hessian(self, v: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
+    def hessian(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Hessian of the property w.r.t. optimizable parameters.
         Output shape (p, p) where p is the number of parameters
         """
         # First and second derivative of the distance metric w.r.t. property, shape (t,)
         grad_distance_h: np.ndarray
         hess_distance_h: np.ndarray
-        _, grad_distance_h, hess_distance_h = self.distance_metric.all(self.value, self.target)
+        _, grad_distance_h, hess_distance_h = self.distance_metric.all(self.function(x=x), self.target)
         grad_distance_h *= self.weight
         hess_distance_h *= self.weight
         # Gradient and hessian of the property w.r.t. optimizable parameters
         grad_h_params : np.ndarray  # shape (p,t)
         hess_h_params : np.ndarray  # shape (p,p,t)
-        grad_h_params, hess_h_params = self._gradhess_wrt_params()
+        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
         ans = np.einsum('t,at,bt->ab', hess_distance_h, grad_h_params, grad_h_params)
         ans += np.einsum('t,abt->ab', grad_distance_h, hess_h_params)
         return ans
 
-    def all(self, v: Optional[npt.NDArray[np.floating]] = None) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
+    def all(
+            self, 
+            x: Optional[npt.NDArray[np.floating]] = None
+    ) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         # Zeroth, first and second derivative of the distance metric w.r.t. property, shape (t,)
         distance: np.ndarray
         grad_distance_h: np.ndarray
         hess_distance_h: np.ndarray
-        distance, grad_distance_h, hess_distance_h = self.distance_metric.all(self.value, self.target)
+        distance, grad_distance_h, hess_distance_h = self.distance_metric.all(
+            self.function(x=x), self.target)
         distance *= self.weight
         grad_distance_h *= self.weight
         hess_distance_h *= self.weight
         # Gradient and hessian of the property w.r.t. optimizable parameters
         grad_h_params : np.ndarray  # shape (p,t)
         hess_h_params : np.ndarray  # shape (p,p,t)
-        grad_h_params, hess_h_params = self._gradhess_wrt_params()
+        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
         grad = np.einsum('t,at->a', grad_distance_h, grad_h_params)
         hess = np.einsum('t,at,bt->ab', hess_distance_h, grad_h_params, grad_h_params)
         hess += np.einsum('t,abt->ab', grad_distance_h, hess_h_params)

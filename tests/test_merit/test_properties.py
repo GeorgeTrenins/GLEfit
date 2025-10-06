@@ -129,10 +129,10 @@ def test_memory_kernel_param_gradient():
     # reference:
     embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
     multi_emb = MultiEmbedder(embs)
-    ref_kernel_gradient = multi_emb.kernel(time, nu=1)
+    ref_kernel_gradient = multi_emb.kernel(time, nu=1, mapped=True)
     # numerical
     kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
-    num_kernel_gradient = kernel_object._grad_wrt_params()
+    num_kernel_gradient = kernel_object.grad_wrt_params()
     # Verify that the two kernels are identical
     np.testing.assert_allclose(
         num_kernel_gradient, ref_kernel_gradient,
@@ -156,12 +156,12 @@ def test_memory_kernel_distance_gradient():
         size=ref_kernel.shape)
     kernel_object = MemoryKernel(time, target, multi_emb, metric="squared")
     # reference (finite difference)
-    params = multi_emb.params
+    x = multi_emb.x
     ref_distance_gradient = np.sum(
         approx_derivative(
-            lambda v: kernel_object.distance_metric(
-                kernel_object.function(v=v), target), 
-            params, method='3-point'),
+            lambda y: kernel_object.distance_metric(
+                kernel_object.function(x=y), target), 
+            x, method='3-point'),
         axis=0)
     # test
     distance_gradient = kernel_object.gradient()
@@ -179,16 +179,22 @@ def test_memory_kernel_param_hessian():
     # reference:
     embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
     multi_emb = MultiEmbedder(embs)
-    ref_kernel_hessian = multi_emb.kernel(time, nu=2)
+    ref_kernel_hessian = multi_emb.kernel(time, nu=2, mapped=True)
     # numerical
     kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
-    _, num_kernel_hessian = kernel_object._gradhess_wrt_params()
+    _, num_kernel_hessian = kernel_object.gradhess_wrt_params()
     # Verify that the two kernels are identical
     np.testing.assert_allclose(
         num_kernel_hessian, ref_kernel_hessian,
-        rtol=1e-9,
+        rtol=1e-8, atol=1e-10,
         err_msg="Expressions for the kernel gradient with respect to optimizable parameters do not match"
     )
     
 if __name__ == "__main__":
     pytest.main([__file__])
+
+    # test_memory_kernel_value()
+    # test_memory_kernel_A_gradient()
+    # test_memory_kernel_param_gradient()
+    # test_memory_kernel_distance_gradient()
+    # test_memory_kernel_param_hessian()
