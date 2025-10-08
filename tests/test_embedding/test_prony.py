@@ -29,7 +29,6 @@ def test_kernel_invalid_nu():
     with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2."):
         emb.kernel(time, nu=nu)
 
-
 def test_kernel_values():
     """Test that kernel values match symbolic function."""
     # Setup symbolic expressions
@@ -140,7 +139,6 @@ def test_kernel_x_gradient():
         err_msg="Derivative with respect to ln(γ) does not match symbolic result"
     )
 
-
 def test_kernel_hessian():
     """Test that the second derivates of the kernel match symbolic differentiation."""
     # Setup symbolic expressions
@@ -238,7 +236,6 @@ def test_kernel_x_hessian():
         err_msg="Second derivative with respect to γ does not match symbolic result"
     )
     
-
 def test_spectrum_invalid_nu():
     """Test that kernel raises ValueError when nu is not 0 or 1."""
     # Setup
@@ -251,7 +248,6 @@ def test_spectrum_invalid_nu():
     nu = 3
     with pytest.raises(ValueError, match=f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2."):
         emb.spectrum(freq, nu=nu)
-
 
 def test_spectrum_values():
     """Test that spectrum values match symbolic function."""
@@ -287,7 +283,6 @@ def test_spectrum_values():
         rtol=1e-15, 
         err_msg="Friction spectrum does not match symbolic result"
     )
-
 
 def test_spectrum_gradient():
     """Test that spectrum derivatives match symbolic Fourier transforms."""
