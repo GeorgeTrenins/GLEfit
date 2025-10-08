@@ -79,11 +79,12 @@ def jacobian(
         if len(fshape) != 1:
             raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {fshape}.")
         m = fshape[0]
-    # Machine epsilon for dtype
-    eps = np.finfo(x.dtype).eps
-    # Step size selection
+    # Step size selection, see Chapter 5.7 of Numerical Recipes (3rd ed) by Press et al
     if h is None:
+        # optimal size for 2nd order central difference
         if rel_step is None:
+            # estimate of fractional error in evaluating f()
+            eps = np.finfo(x.dtype).eps    
             rel_step = eps ** (1.0 / 3.0)
         h = rel_step * np.maximum(1.0, np.abs(x))
     else:
