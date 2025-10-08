@@ -216,13 +216,20 @@ class BaseScalarProperty(ABC):
                 ans = self.grad_wrt_params(x=v)
                 return ans
             hess = jacobian(fun, x)
+            # symmetrize
+            hess += hess.T
+            hess /= 2
         else:
             def fun(v):
                 ans = self.grad_wrt_params(x=v).reshape(-1)
                 return ans
             hess = jacobian(fun, x)
             hess.shape = grad_shape + (len(x),)
+            # reorder axes
             hess = np.einsum('a...b->ab...', hess)
+            # symmetrize
+            hess += np.swapaxes(hess, 0, 1)
+            hess /= 2
         return grad, hess
     
     def hessian(
