@@ -7,10 +7,6 @@
 @Desc    :   Unit tests for the oscillatory Prony embedding (https://doi.org/10.1103/PhysRevB.89.134303)
 '''
 
-
-from __future__ import print_function, division, absolute_import
-
-
 from __future__ import print_function, division, absolute_import
 import pytest
 from glefit.embedding import PronyCosineEmbedder

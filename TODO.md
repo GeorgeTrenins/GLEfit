@@ -1,3 +1,3 @@
-* check numerical stability of finite difference for Jacobian
+* impement mapper objects
 
 * pytorch?
