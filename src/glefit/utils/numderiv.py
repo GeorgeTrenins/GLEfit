@@ -13,6 +13,44 @@ import numpy as np
 from typing import Callable, Iterable, Optional, Union, Tuple
 
 
+STENCILS = {
+    1 : # first-order derivative
+    {
+        2 : [ -1/2, 0, 1/2 ],  
+        4 : [ 1/12, -2/3, 0, 2/3, -1/12 ]
+    },
+    2 : # second-order derivatives
+    {
+        2 : [ 1, -2,  1],
+        4 : [-1/12, 4/3, -5/2, 4/3, -1/12]
+    }
+}
+
+
+def _central_finite_difference_hrel(x:float, nu: int, order: int) -> float:
+    """Return the optimal relative finite-difference step according to the generalization of the prescription in 
+    Numerical Recipes (3rd edition), Chapter 5.7
+
+    Args:
+        x (float): function argument - used to determine the correct machine epsilon
+        nu (int): order of the derivative
+        order (int): order of the finite difference stencil
+
+    """
+
+    eps = np.finfo(np.asarray(x, dtype=float).dtype).eps
+    hrel = eps**(1/(nu+order))
+    return hrel
+
+def refine_step_nearest(x: float, h: float) -> float:
+    """
+    Return a refined step `href` so that y = round_to_float(x + h) and href = y - x is exactly representable.
+    """
+    
+    temp = x + h
+    return temp - x
+
+
 def diff(
     f: Callable[[float], float],
     x: float,
@@ -38,9 +76,9 @@ def diff(
     h : float, optional
         Absolute step size. If None, chosen automatically.
     rel_step : float, optional
-        Relative step factor. If provided and `h` is None, the step is h = rel_step * max(1, |x_i|). #TODO: describe and implement intelligent defaults
+        Relative step factor. If provided and `h` is None, the step is h = rel_step * max(1, |x_i|). Default is chosen as eps^(1/(nu+order)) where eps is the fractional accuracy of the float type. 
     max_step : float, optional
-        Upper bound for any |h_i|. #TODO: describe defaults
+        Upper bound for any |h_i|. No upper bound applied by default
     order : {2, 4}, default=2
         Stencil order. 2 -> 3-point central (O(h^2)); 4 -> 5-point central (O(h^4)).
     nu : {1, 2}, default=1
@@ -62,33 +100,34 @@ def diff(
         kwargs = {}
     if not isinstance(x, float):
         raise TypeError(f"`x` is expected to be a float, instead got {type(x).__name__}")
-    # TODO: from here
-    # Step size selection, see Chapter 5.7 of Numerical Recipes (3rd ed) by Press et al
     if h is None:
-        # optimal size for 2nd order central difference
         if rel_step is None:
-            # estimate of fractional error in evaluating f()
-            eps = np.finfo(x.dtype).eps    
-            rel_step = eps ** (1.0 / 3.0)
-        h = rel_step * np.maximum(1.0, np.abs(x))
+            rel_step = _central_finite_difference_hrel(x, nu, order) 
+        h = rel_step * np.maximum(1.0, np.abs(x)) 
     else:
-        try:
-            h = np.asarray(h, dtype=float) * np.ones_like(x)
-        except ValueError as e:
-            raise e("h must be either a float or a 1D arrays of the same shape as x")
-        if h.ndim != 1:
-            raise ValueError("If provided, h must have the same shape as x.")
+        h = abs(float(h))
     if max_step is not None:
         max_step = abs(float(max_step))
-        h = np.clip(h, a_min=-max_step, a_max=max_step)
-    # Ensure perturbations are not swallowed by floating-point granularity
-    # Make h at least a couple of units of least precision of x in each direction.
-    ulp_plus  = np.nextafter(x,  np.inf) - x
-    ulp_minus = x - np.nextafter(x, -np.inf)
-    min_h = 2.0 * np.maximum(np.abs(ulp_plus), np.abs(ulp_minus))
-    h = np.where(np.abs(h) < min_h, np.sign(h + (h == 0)) * min_h, h)
-    
-
+        h = np.clip(h, a_max=max_step)
+    # ensure (x+h) - x is exactly representable
+    h = refine_step_nearest(x, h)
+    try:
+        derivative_order_nu = STENCILS[nu]
+    except KeyError as e:
+        raise e(f"Requested derivative order {nu = }, currently only supporting {list(STENCILS.keys())}")
+    try:
+        stencil = derivative_order_nu[order]
+    except KeyError as e:
+        raise e(f"Requested stencil order = {order} for derivative order {nu = }, currently only supporting {list(derivative_order_nu.keys())}")
+    ans = 0.0
+    # stencil amplitude
+    a = (len(stencil) - 1)//2
+    for k, c in zip(range(-a, a+1), stencil):
+        if c == 0: continue
+        y = x + k*h
+        ans += c*f(y)
+    ans /= h**nu
+    return ans
 
 def jacobian(
     f: Callable[[np.ndarray], np.ndarray],
@@ -156,61 +195,41 @@ def jacobian(
         if len(fshape) != 1:
             raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {fshape}.")
         m = fshape[0]
-    # Step size selection, see Chapter 5.7 of Numerical Recipes (3rd ed) by Press et al
     if h is None:
         # optimal size for 2nd order central difference
         if rel_step is None:
             # estimate of fractional error in evaluating f()
-            eps = np.finfo(x.dtype).eps    
-            rel_step = eps ** (1.0 / 3.0)
+            rel_step = _central_finite_difference_hrel(x, 1, order)
         h = rel_step * np.maximum(1.0, np.abs(x))
     else:
         try:
-            h = np.asarray(h, dtype=float) * np.ones_like(x)
+            h = np.abs(h) * np.ones_like(x)
         except ValueError as e:
             raise e("h must be either a float or a 1D arrays of the same shape as x")
         if h.ndim != 1:
             raise ValueError("If provided, h must have the same shape as x.")
     if max_step is not None:
         max_step = abs(float(max_step))
-        h = np.clip(h, a_min=-max_step, a_max=max_step)
-    # Ensure perturbations are not swallowed by floating-point granularity
-    # Make h at least a couple of units of least precision of x in each direction.
-    ulp_plus  = np.nextafter(x,  np.inf) - x
-    ulp_minus = x - np.nextafter(x, -np.inf)
-    min_h = 2.0 * np.maximum(np.abs(ulp_plus), np.abs(ulp_minus))
-    h = np.where(np.abs(h) < min_h, np.sign(h + (h == 0)) * min_h, h)
-    J = np.empty((m, n), dtype=float)
-    if order == 2:
-        for i in range(n):
-            hi = h[i]
-            xp = x.copy()
-            xp[i] = x[i] + hi
-            xm = x.copy()
-            xm[i] = x[i] - hi
-            fp = np.asarray(f(xp, *args, **kwargs), dtype=float)
-            fm = np.asarray(f(xm, *args, **kwargs), dtype=float)
-            if fp.shape != (m,) or fm.shape != (m,):
-                raise ValueError("f(x) must return a 1D array-like of length m.")
-            J[:, i] = (fp - fm) / (2.0 * hi)
-    elif order == 4:
-        for i in range(n):
-            hi = h[i]
-            xp  = x.copy()
-            xp[i]  = x[i] + hi
-            xm  = x.copy()
-            xm[i]  = x[i] - hi
-            xp2 = x.copy()
-            xp2[i] = x[i] + 2.0 * hi
-            xm2 = x.copy()
-            xm2[i] = x[i] - 2.0 * hi
-            fp  = np.asarray(f(xp,  *args, **kwargs), dtype=float)
-            fm  = np.asarray(f(xm,  *args, **kwargs), dtype=float)
-            fp2 = np.asarray(f(xp2, *args, **kwargs), dtype=float)
-            fm2 = np.asarray(f(xm2, *args, **kwargs), dtype=float)
-            J[:, i] = (-fp2 + 8.0 * fp - 8.0 * fm + fm2) / (12.0 * hi)
-    else:
-        raise ValueError("order must be 2 or 4.")
+        h = np.clip(h, a_max=max_step)
+    # make sure (x + h) - x is exactly representable
+    h = refine_step_nearest(x, h)
+    J = np.zeros((m, n), dtype=float)
+    # get the stencil for a first-order derivative
+    try:
+        stencil = STENCILS[1][order]
+    except KeyError as e:
+        raise e(f"Requested stencil order = {order} for derivative order nu = 1, currently only supporting {list(STENCILS[1].keys())}")
+    a = (len(stencil) - 1)//2
+    for i in range(n):
+        hi = h[i]
+        for k, c in zip(range(-a, a+1), stencil):
+            if c == 0:
+                continue
+            else:
+                xh = x.copy()
+                xh[i] += k*hi
+                J[:, i] += c*np.asarray(f(xh, *args, **kwargs), dtype=float)
+    J /= h
     if value:
         return J, y0
     else:
