@@ -10,6 +10,7 @@
 
 from __future__ import print_function, division, absolute_import
 from typing import Union, Iterable, Optional
+from glefit.mappers import BaseMapper
 import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
@@ -37,7 +38,12 @@ class BaseEmbedder(ABC):
         nparam = self.nparam
         self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
         self._params : np.ndarray = np.empty(nparam)
-        self._x : np.ndarray = np.empty(nparam) 
+        self._x : np.ndarray = np.empty(nparam)
+        self._mappers: BaseMapper = kwargs.get("mappers")
+        if self._mappers is not None:
+            if len(self._mappers) != self.nparam:
+                raise ValueError(f"The number of constraint mappers should match the number of optimizable parameters, instead got {nparam = } and {len(self._mappers) = }")
+
 
     @abstractmethod
     def __len__(self) -> int:
@@ -97,28 +103,52 @@ class BaseEmbedder(ABC):
         self._x[:] = arr
         self._params[:] = self._inverse_map(arr)
         
-    @abstractmethod
     def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Transform optimizable params so that inequality constraints are automatically imposed"""
-        return np.copy(params)
+        if self._mappers is None:
+            return np.copy(params)
+        else:
+            x = np.zeros_like(params)
+            for i, (mapper,p) in enumerate(zip(self._mappers, params)):
+                mapper: BaseMapper
+                x[i] = mapper.forward(p)
+            return x
 
-    @abstractmethod
     def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Undo the inequality constraint-imposing mapping.
         """
-        return np.copy(x)
+        if self._mappers is None:
+            return np.copy(x)
+        else:
+            p = np.zeros_like(x)
+            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
+                mapper: BaseMapper
+                p[i] = mapper.inverse(xi)
+            return p
 
-    @abstractmethod
     def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
-        return np.ones_like(x)
+        if self._mappers is None:
+            return np.copy(x)
+        else:
+            p = np.zeros_like(x)
+            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
+                mapper: BaseMapper
+                p[i] = mapper.grad(xi)
+            return p
     
-    @abstractmethod
     def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform.
         """
-        return np.zeros_like(x)
+        if self._mappers is None:
+            return np.copy(x)
+        else:
+            p = np.zeros_like(x)
+            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
+                mapper: BaseMapper
+                p[i] = mapper.hess(xi)
+            return p
     
     def grad_param_to_x(
             self, 

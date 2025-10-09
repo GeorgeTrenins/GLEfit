@@ -12,6 +12,7 @@ from __future__ import print_function, division, absolute_import
 
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
+from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
 
@@ -30,9 +31,6 @@ class PronyCosineEmbedder(BaseEmbedder):
         """
         Initialize the oscillatory Prony Markovian embedding, 
             K(t) = θ^2 exp(-γt) cos(ωt). 
-        Under the hood, the embedder imposes positivity constraints by mapping 
-            θ -> exp(x1), γ -> exp(x2), ω -> exp(x3)
-
 
         Parameters
         ----------
@@ -42,6 +40,11 @@ class PronyCosineEmbedder(BaseEmbedder):
             Relaxation rate (units of reciprocal time). Must be positive.
         ω : float
             Harmonic oscillation rate (units of reciprocal time). Must be positive.
+
+        **kwargs
+        --------
+        mappers : Tuple[BaseMapper, BaseMapper]
+            constraint mappers, by default imposes θ,γ,ω > 0
 
         Raises
         ------
@@ -55,33 +58,11 @@ class PronyCosineEmbedder(BaseEmbedder):
         for variable, symbol in zip([theta, gamma, omega], "θγω"):
             if not isinstance(variable, (int, float)):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
-        
-        # Convert to float and check positivity
-        gamma_float = float(gamma)
-        theta_float = float(theta)
-        omega_float = float(omega)
-        
-        for variable, symbol in zip([theta_float, gamma_float, omega_float], "θγω"):
-            if variable <= 0:
-                raise TypeError(f"{symbol} must be positive, got {variable}")
-        
+        kwargs.setdefault(
+            "mappers", 3*[LowerBoundMapper(),]
+        )
         super().__init__(*args, **kwargs)
-        self.params = np.asarray([theta_float, gamma_float, omega_float])
-        
-    def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Transform optimizable params so that inequality constraints are automatically imposed"""
-        return np.log(params)
-    
-    def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Undo the inequality constraint-imposing mapping.
-        """
-        return np.exp(x)
-    
-    def jac_px(self, x):
-        return np.exp(x)
-    
-    def hess_px(self, x):
-        return np.exp(x)
+        self.params = np.asarray([theta, gamma, omega], dtype=float)
 
     def compute_drift_matrix(
             self, 

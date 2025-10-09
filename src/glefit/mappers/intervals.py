@@ -28,6 +28,8 @@ class LowerBoundMapper(BaseMapper):
 
     def forward(self, p: float) -> float:
         diff = p - self.a
+        if diff < 0:
+            raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")
         x = np.log(diff)
         return x
     
@@ -55,6 +57,8 @@ class UpperBoundMapper(BaseMapper):
 
     def forward(self, p: float) -> float:
         diff = self.b - p
+        if diff < 0:
+            raise ValueError(f"Invalid parameter value p = {float(p)}, must be smaller than  b = {self.b}")
         x = np.log(diff)
         return x
     
@@ -88,7 +92,15 @@ class IntervalMapper(BaseMapper):
         self.diff = self.b - self.a
         
     def forward(self, p: float) -> float:
-        return np.log(p - self.a) - np.log(self.b - p)
+        diff = p - self.a
+        if diff < 0:
+            raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")
+        ans = np.log(diff)
+        diff = self.b - p
+        if diff < 0:
+            raise ValueError(f"Invalid parameter value p = {float(p)}, must be smaller than  b = {self.b}")
+        ans -= np.log(diff)
+        return ans
     
     def inverse(self, x: float) -> float:
         return self.a + self.diff / (1 + np.exp(-x))
@@ -99,6 +111,10 @@ class IntervalMapper(BaseMapper):
     def hess(self, x: float) -> float:
         x2 = x/2
         return -self.diff * np.tanh(x2) / (2 * np.cosh(x2))**2
+    
+if __name__ == "__main__":
+    m = IntervalMapper()
+    print(m.inverse(m.forward(0.5)))
         
 
         

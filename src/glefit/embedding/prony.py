@@ -10,6 +10,7 @@
 
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
+from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
 
@@ -27,10 +28,7 @@ class PronyEmbedder(BaseEmbedder):
 
     def __init__(self, theta: float, gamma: float, *args, **kwargs) -> None:
         """
-        Initialize the Prony Markovian embedding, K(t) = θ^2 exp(-γt). Under the hood,
-        the embedder imposes positivity constraints by mapping 
-        θ -> exp(x1) and γ -> exp(x2)
-
+        Initialize the Prony Markovian embedding, K(t) = θ^2 exp(-γt). 
 
         Parameters
         ----------
@@ -38,6 +36,11 @@ class PronyEmbedder(BaseEmbedder):
             Coupling strength (units of reciprocal time). Must be positive.
         γ : float
             Relaxation rate (units of reciprocal time). Must be positive.
+
+        **kwargs
+        --------
+        mappers : Tuple[BaseMapper, BaseMapper]
+            constraint mappers, by default imposes θ,γ > 0
 
         Raises
         ------
@@ -52,33 +55,9 @@ class PronyEmbedder(BaseEmbedder):
             raise TypeError(f"θ must be a float, got {type(theta).__name__}")
         if not isinstance(gamma, (int, float)):
             raise TypeError(f"γ must be a float, got {type(gamma).__name__}")
-        
-        # Convert to float and check positivity
-        gamma_float = float(gamma)
-        theta_float = float(theta)
-        
-        if theta_float <= 0:
-            raise ValueError(f"θ must be positive, got {theta_float}")
-        if gamma_float <= 0:
-            raise ValueError(f"γ must be positive, got {gamma_float}")
-
+        kwargs.setdefault("mappers", [LowerBoundMapper(), LowerBoundMapper()])
         super().__init__(*args, **kwargs)
-        self.params = np.asarray([theta_float, gamma_float])
-        
-    def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Transform optimizable params so that inequality constraints are automatically imposed"""
-        return np.log(params)
-    
-    def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Undo the inequality constraint-imposing mapping.
-        """
-        return np.exp(x)
-    
-    def jac_px(self, x):
-        return np.exp(x)
-    
-    def hess_px(self, x):
-        return np.exp(x)
+        self.params = np.asarray([theta, gamma], dtype=float)
 
     def compute_drift_matrix(
             self, 
