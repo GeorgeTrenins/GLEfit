@@ -66,7 +66,7 @@ def test_diff_second_derivative():
     x_vals = [-1.0, -0.5, 0.0, 0.5, 1.0]
     
     for f, d2fdx2, expr in num_funcs:
-        for order in [2, 4]:
+        for order in [2, 4, 6]:
             for x in x_vals:
                 numerical = diff(f, x, order=order, nu=2)
                 analytical = d2fdx2(x)
