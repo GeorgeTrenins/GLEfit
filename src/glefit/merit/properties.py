@@ -67,6 +67,6 @@ class MemoryKernel(BaseArrayProperty):
         A = Ap[1:,1:]
         expA, grad_expA = self._grad_thetaT_expA_theta(A, theta, time)
         ans[:,0,1:] = np.einsum('j,tjk->tk', theta, expA)
-        ans[:,1:,0] = ans[:,0,1:]
+        ans[:,1:,0] = -ans[:,0,1:]
         ans[:,1:,1:] = grad_expA
         return ans

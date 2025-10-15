@@ -72,8 +72,8 @@ class PronyCosineEmbedder(BaseEmbedder):
         -------
         Drift matrix for the oscillatory Prony embedding,
            [ 0   θ   0]
-           [ θ   γ  -ω]
-           [ 0   ω   γ]
+           [-θ   γ   ω]
+           [ 0  -ω   γ]
         """
         theta, gamma, omega = np.asarray(params)
         A = np.zeros((3,3))
@@ -81,8 +81,8 @@ class PronyCosineEmbedder(BaseEmbedder):
         A[0,1] = theta
         A[1,0] = -theta
         A[1,1] = A[2,2] = gamma
-        A[1,2] = -omega
-        A[2,1] = omega
+        A[1,2] = omega
+        A[2,1] = -omega
         return A
     
     def drift_matrix_param_grad(
@@ -95,19 +95,19 @@ class PronyCosineEmbedder(BaseEmbedder):
         -------
         Derivative of the drift matrix
            [ 0   θ   0]
-           [ θ   γ  -ω]
-           [ 0   ω   γ]
+           [-θ   γ   ω]
+           [ 0  -ω   γ]
         with respect to θ, γ, and ω (grad[0], grad[1], grad[2])
         """
         grad_A = np.zeros((3,3,3))
-        # Derivative with respect to θ
+        # d/dθ 
         grad_A[0,0,1] = 1.0
-        grad_A[0,1,0] = 1.0
-        # Derivative with respect to γ
+        grad_A[0,1,0] = -1.0
+        # d/dγ 
         grad_A[1,1,1] = grad_A[1,2,2] = 1.0
-        # Derivative with respect to omega
-        grad_A[2,1,2] = -1.0
-        grad_A[2,2,1] = 1.0
+        # d/dω 
+        grad_A[2,1,2] = 1.0
+        grad_A[2,2,1] = -1.0
         return grad_A
     
     def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
@@ -128,11 +128,11 @@ class PronyCosineEmbedder(BaseEmbedder):
         exp_gamma_t = np.exp(-gamma*time)
         cos_omega_t = np.cos(omega*time)
         ans = np.empty((3, len(time)))
-        # d/dθ [θ^2 exp(-γt) cos(ωt)]
+        # d/dθ 
         ans[0] = 2 * theta * exp_gamma_t * cos_omega_t
-        # d/dγ [θ^2 exp(-γt) cos(ωt)]
+        # d/dγ 
         ans[1] = -(theta**2) * time * exp_gamma_t * cos_omega_t
-        # d/dω [θ^2 exp(-γt) cos(ωt)]
+        # d/dω 
         ans[2] = -(theta**2) * time * exp_gamma_t * np.sin(omega*time)
         return ans
     
@@ -147,17 +147,17 @@ class PronyCosineEmbedder(BaseEmbedder):
         cos_omega_t = np.cos(omega*time)
         sin_omega_t = np.sin(omega*time)
         ans = np.empty((3, 3, len(time)))
-        # d²/dθ² [θ^2 exp(-γt) cos(ωt)]
+        # d²/dθ² 
         ans[0,0] = 2 * exp_gamma_t * cos_omega_t
-        # d²/dθdγ [θ^2 exp(-γt) cos(ωt)]
+        # d²/dθdγ 
         ans[0,1] = ans[1,0] = -2 * theta * time * exp_gamma_t * cos_omega_t
-        # d²/dθdω [θ^2 exp(-γt) cos(ωt)]
+        # d²/dθdω 
         ans[0,2] = ans[2,0] = -2 * theta * time * exp_gamma_t * sin_omega_t
-        # d²/dγ² [θ^2 exp(-γt) cos(ωt)]
+        # d²/dγ² 
         ans[1,1] = theta**2 * time**2 * exp_gamma_t * cos_omega_t
-        # d²/dγdω [θ^2 exp(-γt) cos(ωt)]
+        # d²/dγdω 
         ans[1,2] = ans[2,1] = theta**2 * time**2 * exp_gamma_t * sin_omega_t
-        # d²/dω² [θ^2 exp(-γt) cos(ωt)]
+        # d²/dω² 
         ans[2,2] = -(theta**2) * time**2 * exp_gamma_t * cos_omega_t
         return ans
     

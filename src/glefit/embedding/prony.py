@@ -69,14 +69,14 @@ class PronyEmbedder(BaseEmbedder):
         -------
         Drift matrix for the Prony embedding,
            [ 0   θ ]
-           [ θ   γ ]
+           [-θ   γ ]
         """
         theta, gamma = np.asarray(params)
         A = np.zeros((2,2))
-        A[0,0] = 0.0
-        A[0,1] = theta
-        A[1,0] = theta
-        A[1,1] = gamma
+        A[0,0] =  0.0
+        A[0,1] =  theta
+        A[1,0] = -theta
+        A[1,1] =  gamma
         return A
     
     def drift_matrix_param_grad(
@@ -89,10 +89,10 @@ class PronyEmbedder(BaseEmbedder):
         -------
         Derivative of the drift matrix
            [ 0   θ ]
-           [ θ   γ ]
+           [-θ   γ ]
         with respect to θ (grad[0]):
            [ 0   1 ]
-           [ 1   0 ]
+           [-1   0 ]
         and γ (grad[1]):
            [ 0   0 ]
            [ 0   1 ]
@@ -100,7 +100,7 @@ class PronyEmbedder(BaseEmbedder):
         grad_A = np.zeros((2,2,2))
         # Derivative with respect to θ
         grad_A[0,0,1] = 1.0
-        grad_A[0,1,0] = 1.0
+        grad_A[0,1,0] =-1.0
         # Derivative with respect to γ
         grad_A[1,1,1] = 1.0
         return grad_A
@@ -120,9 +120,9 @@ class PronyEmbedder(BaseEmbedder):
         theta, gamma = self.params
         exp_gamma_t = np.exp(-gamma*time)
         ans = np.empty((2, len(time)))
-        # First derivative term: d/dθ [θ^2 exp(-γt)]
+        # d/dθ
         ans[0] = 2 * theta * exp_gamma_t
-        # Second derivative term: d/dγ [θ^2 exp(-γt)]
+        # d/dγ
         ans[1] = -(theta**2) * time * exp_gamma_t
         return ans
     
@@ -134,11 +134,11 @@ class PronyEmbedder(BaseEmbedder):
         theta, gamma = self.params
         exp_gamma_t = np.exp(-gamma*time)
         ans = np.empty((2, 2, len(time)))
-        # d²/dθ² [θ^2 exp(-γt)]
+        # d²/dθ² 
         ans[0,0] = 2*exp_gamma_t
-        # d²/dθdγ [θ^2 exp(-γt)]
+        # d²/dθdγ
         ans[0,1] = ans[1,0] = -2 * theta * time * exp_gamma_t
-        # d²/dγ² [θ^2 exp(-γt)]
+        # d²/dγ² 
         ans[1,1] = theta**2 * time**2 * exp_gamma_t
         return ans
     
@@ -156,9 +156,8 @@ class PronyEmbedder(BaseEmbedder):
         """
         theta, gamma = self.params
         ans = np.empty((2, len(frequency)))
-        # First derivative term: d/dθ [γ θ^2 / (γ^2 + ω^2)] = 2 θ γ / (γ^2 + ω^2)
+        # d/dθ [γ θ^2 / (γ^2 + ω^2)] = 2 θ γ / (γ^2 + ω^2)
         ans[0] = 2 * theta * gamma / (gamma**2 + frequency**2)
-        # Second derivative term: 
         # d/dγ [γ * θ^2 / (γ^2 + ω^2)] = θ^2 * (ω^2 - γ^2) / (γ^2 + ω^2)^2
         ans[1] = theta**2 * (frequency**2 - gamma**2) / (gamma**2 + frequency**2)**2
         return ans
@@ -173,10 +172,10 @@ class PronyEmbedder(BaseEmbedder):
         w2 = frequency**2
         gw2 = g2 + w2
         ans = np.empty((2, 2, len(frequency)))
-        # d²/dθ² [θ^2 exp(-γt)]
+        # d²/dθ² 
         ans[0,0] = 2*gamma / gw2
-        # d²/dθdγ [θ^2 exp(-γt)]
+        # d²/dθdγ 
         ans[0,1] = ans[1,0] = 2*theta * (w2 - g2) / gw2**2
-        # d²/dγ² [θ^2 exp(-γt)]
+        # d²/dγ²
         ans[1,1] = 2*gamma*theta**2 * (g2 - 3*w2) / gw2**3
         return ans
