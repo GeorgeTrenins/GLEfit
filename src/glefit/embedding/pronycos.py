@@ -9,8 +9,6 @@
 
 
 from __future__ import print_function, division, absolute_import
-
-from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper
 import numpy as np
@@ -80,7 +78,8 @@ class PronyCosineEmbedder(BaseEmbedder):
         theta, gamma, omega = np.asarray(params)
         A = np.zeros((3,3))
         A[0,0] = 0.0
-        A[0,1] = A[1,0] = theta
+        A[0,1] = theta
+        A[1,0] = -theta
         A[1,1] = A[2,2] = gamma
         A[1,2] = -omega
         A[2,1] = omega
