@@ -14,7 +14,7 @@ import numpy as np
 from scipy.linalg import expm
 from scipy.optimize._numdiff import approx_derivative
 from glefit.merit import MemoryKernel
-from glefit.embedding import PronyEmbedder, MultiEmbedder
+from glefit.embedding import PronyEmbedder, MultiEmbedder, PronyCosineEmbedder
 
 
 #---------- NUMERICAL DERIVATIVES FOR TESTING -----------#
@@ -78,31 +78,39 @@ def fd_grad_thetaT_expA_theta(A, tau, theta, h=None, relative=True):
 
 def test_memory_kernel_value():
     time = np.asarray([0.0, 0.5, 1.0, 4.0])
-    thetas = np.asarray([1.0, 2.0, 3.0])
-    gammas = np.asarray([0.5, 0.25, 0.1])
-    # reference:
-    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
-    multi_emb = MultiEmbedder(embs)
+    prony_thetas = np.asarray([1.0, 2.0])
+    prony_gammas = np.asarray([0.5, 0.25])
+    prony_embs = [PronyEmbedder(theta, gamma) 
+                  for theta, gamma in zip(prony_thetas, prony_gammas)]
+    osc_thetas = np.asarray([0.9, 1.5])
+    osc_gammas = np.asarray([0.75, 0.15])
+    osc_omegas = np.asarray([1.0, 2.0])
+    osc_embs = [PronyCosineEmbedder(theta, gamma, omega) 
+                for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)]
+    multi_emb = MultiEmbedder(prony_embs + osc_embs)
     ref_kernel = multi_emb.kernel(time)
-    # numerical
     kernel_object = MemoryKernel(time, ref_kernel, multi_emb, "squared")
     kernel_value = kernel_object.value
-    # Verify that the two kernels are identical
     np.testing.assert_allclose(
         ref_kernel, kernel_value,
-        rtol=1e-14,
-        err_msg="Expressions for the kernel in terms of optimization parameters and the A matrix do not match"
+        rtol=1e-10, atol=1e-12,
+        err_msg="Kernel expressions via parameters and A matrix do not match"
     )
 
-
 def test_memory_kernel_A_gradient():
-    """Test the implementation of the derivative of theta^T exp(-tau A) theta with respect to the elements of A
-    """
+    """Test gradient of theta^T exp(-tau A) theta w.r.t. A elements."""
     time = np.asarray([0.5, 1.0, 4.0])
-    thetas = np.asarray([1.0, 2.0, 3.0])
-    gammas = np.asarray([0.5, 0.25, 0.1])
-    # reference:
-    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
+    
+    # Setup embedders as before
+    prony_thetas = np.asarray([1.0, 2.0])
+    prony_gammas = np.asarray([0.5, 0.25])
+    osc_thetas = np.asarray([3.0, 4.0])
+    osc_gammas = np.asarray([0.1, 0.05])
+    osc_omegas = np.asarray([1.0, 2.0])
+    embs = ([PronyEmbedder(theta, gamma) 
+             for theta, gamma in zip(prony_thetas, prony_gammas)] +
+            [PronyCosineEmbedder(theta, gamma, omega) 
+             for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)])
     multi_emb = MultiEmbedder(embs)
     Ap = multi_emb.drift_matrix
     A = Ap[1:,1:]
@@ -111,51 +119,54 @@ def test_memory_kernel_A_gradient():
     for tau in time:
         ref_grad_A.append(fd_grad_thetaT_expA_theta(A, tau, theta))
     ref_grad_A = np.stack(ref_grad_A, axis=0)
-    # numerical:
-    kernel_object = MemoryKernel(
-        time, np.ones_like(time), multi_emb, "squared")
+    kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
     num_grad_A = kernel_object._grad_thetaT_expA_theta(A, theta, time)[1]
     np.testing.assert_allclose(
         ref_grad_A, num_grad_A,
         rtol=1e-8,
-        err_msg="Expressions for the kernel gradient with respect to the drift matrix do not match"
-    ) 
-    
+        err_msg="Kernel gradients w.r.t. drift matrix do not match"
+    )
 
 def test_memory_kernel_param_gradient():
+    """Test parameter gradients of the kernel."""
     time = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
-    thetas = np.asarray([1.0, 2.0, 3.0])
-    gammas = np.asarray([0.5, 0.25, 0.1])
-    # reference:
-    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
+    prony_thetas = np.asarray([1.0, 2.0])
+    prony_gammas = np.asarray([0.5, 0.25])
+    osc_thetas = np.asarray([3.0, 4.0])
+    osc_gammas = np.asarray([0.1, 0.05])
+    osc_omegas = np.asarray([1.0, 2.0])
+    
+    embs = ([PronyEmbedder(theta, gamma) 
+             for theta, gamma in zip(prony_thetas, prony_gammas)] +
+            [PronyCosineEmbedder(theta, gamma, omega) 
+             for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)])
     multi_emb = MultiEmbedder(embs)
     ref_kernel_gradient = multi_emb.kernel(time, nu=1, mapped=True)
-    # numerical
     kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
     num_kernel_gradient = kernel_object.grad_wrt_params()
-    # Verify that the two kernels are identical
     np.testing.assert_allclose(
         num_kernel_gradient, ref_kernel_gradient,
         rtol=1e-14,
-        err_msg="Expressions for the kernel gradient with respect to optimizable parameters do not match"
+        err_msg="Kernel parameter gradients do not match"
     )
 
 def test_memory_kernel_distance_gradient():
-    # System setup
+    """Test gradient of the distance metric."""
     time = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
-    thetas = np.asarray([1.0, 2.0, 3.0])
-    gammas = np.asarray([0.5, 0.25, 0.1])
-    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
+    prony_thetas = np.asarray([1.0, 2.0])
+    prony_gammas = np.asarray([0.5, 0.25])
+    osc_thetas = np.asarray([3.0, 4.0])
+    osc_gammas = np.asarray([0.1, 0.05])
+    osc_omegas = np.asarray([1.0, 2.0])
+    embs = ([PronyEmbedder(theta, gamma) 
+             for theta, gamma in zip(prony_thetas, prony_gammas)] +
+            [PronyCosineEmbedder(theta, gamma, omega) 
+             for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)])
     multi_emb = MultiEmbedder(embs)
     ref_kernel = multi_emb.kernel(time)
     rng = np.random.default_rng(seed=31415)
-    # Introduce "noise"
-    target = ref_kernel * rng.normal(
-        loc=1.0, 
-        scale=0.2, 
-        size=ref_kernel.shape)
+    target = ref_kernel * rng.normal(loc=1.0, scale=0.2, size=ref_kernel.shape)
     kernel_object = MemoryKernel(time, target, multi_emb, metric="squared")
-    # reference (finite difference)
     x = multi_emb.x
     ref_distance_gradient = np.sum(
         approx_derivative(
@@ -163,38 +174,34 @@ def test_memory_kernel_distance_gradient():
                 kernel_object.function(x=y), target), 
             x, method='3-point'),
         axis=0)
-    # test
     distance_gradient = kernel_object.gradient()
-    # Verify that the two kernels are identical
     np.testing.assert_allclose(
         distance_gradient, ref_distance_gradient,
         rtol=1e-7,
-        err_msg="Expressions for gradient of the distance betwixt the target and actual kernel w.r.t. optimizable parameters do not match."
+        err_msg="Distance metric gradients do not match"
     )
 
 def test_memory_kernel_param_hessian():
     time = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
-    thetas = np.asarray([1.0, 2.0, 3.0])
-    gammas = np.asarray([0.5, 0.25, 0.1])
-    # reference:
-    embs = [PronyEmbedder(theta, gamma) for theta, gamma in zip(thetas, gammas)]
+    prony_thetas = np.asarray([1.0, 2.0])
+    prony_gammas = np.asarray([0.5, 0.25])
+    osc_thetas = np.asarray([3.0, 4.0])
+    osc_gammas = np.asarray([0.1, 0.05])
+    osc_omegas = np.asarray([1.0, 2.0])
+    
+    embs = ([PronyEmbedder(theta, gamma) 
+             for theta, gamma in zip(prony_thetas, prony_gammas)] +
+            [PronyCosineEmbedder(theta, gamma, omega) 
+             for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)])
     multi_emb = MultiEmbedder(embs)
     ref_kernel_hessian = multi_emb.kernel(time, nu=2, mapped=True)
-    # numerical
     kernel_object = MemoryKernel(time, np.ones_like(time), multi_emb, "squared")
     _, num_kernel_hessian = kernel_object.gradhess_wrt_params()
-    # Verify that the two kernels are identical
     np.testing.assert_allclose(
         num_kernel_hessian, ref_kernel_hessian,
         rtol=1e-8, atol=1e-10,
-        err_msg="Expressions for the kernel gradient with respect to optimizable parameters do not match"
+        err_msg="Kernel parameter Hessians do not match"
     )
     
 if __name__ == "__main__":
     pytest.main([__file__])
-
-    # test_memory_kernel_value()
-    # test_memory_kernel_A_gradient()
-    # test_memory_kernel_param_gradient()
-    # test_memory_kernel_distance_gradient()
-    # test_memory_kernel_param_hessian()

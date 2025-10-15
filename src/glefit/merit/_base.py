@@ -215,7 +215,7 @@ class BaseScalarProperty(ABC):
             def fun(v):
                 ans = self.grad_wrt_params(x=v)
                 return ans
-            hess = jacobian(fun, x)
+            hess = jacobian(fun, x, order=4)
             # symmetrize
             hess += hess.T
             hess /= 2
@@ -223,7 +223,7 @@ class BaseScalarProperty(ABC):
             def fun(v):
                 ans = self.grad_wrt_params(x=v).reshape(-1)
                 return ans
-            hess = jacobian(fun, x)
+            hess = jacobian(fun, x, order=4)
             hess.shape = grad_shape + (len(x),)
             # reorder axes
             hess = np.einsum('a...b->ab...', hess)
