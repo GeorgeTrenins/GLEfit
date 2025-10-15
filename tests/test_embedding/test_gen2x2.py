@@ -72,6 +72,8 @@ def test_param_conversion():
             err_msg=f"Kernels computed for equivalent parametrizations do not match!"
         )
 
+#TODO: test coversion to_conventional()
+
 
 
 

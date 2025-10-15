@@ -133,24 +133,19 @@ class TwoAuxEmbedder(BaseEmbedder):
         if params.shape != (4,):
            raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {params.shape = }")
         r, zeta, lamda, Gamma = params
-        if Gamma > 0:
-            if abs(zeta) < Gamma:
-                alpha = np.abs(zeta) / Gamma
-                delta = np.sign(zeta)*Gamma
-                Omega = 0.0
-                theta1 = r * np.sqrt((1 + alpha)/2)
-                theta2 = r * np.sqrt((1 - alpha)/2)
-            else:
-                delta = zeta
-                Omega = np.sqrt(zeta**2 - Gamma**2)
-                theta1 = r
-                theta2 = 0.0
+        if abs(zeta) < Gamma:
+            alpha = np.abs(zeta) / Gamma
+            delta = np.sign(zeta)*Gamma
+            Omega = 0.0
+            theta1 = r * np.sqrt((1 + alpha)/2)
+            theta2 = r * np.sqrt((1 - alpha)/2)
+            gamma = lamda + Gamma
         else:
             delta = zeta
-            Omega = np.sqrt(zeta**2 + Gamma**2)
+            Omega = np.sqrt(zeta**2 - np.sign(Gamma)*Gamma**2)
             theta1 = r
             theta2 = 0.0
-        gamma = lamda + max(Gamma, abs(zeta))
+            gamma = lamda + abs(zeta)
         return np.asarray([theta1, theta2, gamma, delta, Omega])
     
     @staticmethod
