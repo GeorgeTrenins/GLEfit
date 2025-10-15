@@ -114,9 +114,3 @@ class IntervalMapper(BaseMapper):
     
 if __name__ == "__main__":
     m = IntervalMapper()
-    print(m.inverse(m.forward(0.5)))
-        
-
-        
-
-    
