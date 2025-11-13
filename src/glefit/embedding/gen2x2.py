@@ -11,13 +11,19 @@
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper, IdentityMapper
-from glefit.utils.special import coscosh, sincsinhc
+from glefit.utils.special import coscosh, sincsinhc, expcoscosh, expsincsinhc
 from collections import namedtuple
+from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
 _cparams = namedtuple('CParams', ['theta1', 'theta2', 'gamma', 'delta', 'Omega'])
-_params = namedtuple('Params', ['r', 'zeta', 'lamda', 'Gamma'])
+_params = namedtuple('Params', ['r', 'alpha', 'lamda', 'Gamma'])
+_DEFAULTS = dict(sigma=5.0, threshold=20.0)
+
+#TODO:
+# * implement spectrum
+# * update params setter to also update cparams
 
 
 class TwoAuxEmbedder(BaseEmbedder):
@@ -44,18 +50,18 @@ class TwoAuxEmbedder(BaseEmbedder):
                 (θ[0]²-θ[1]²) sinh(t·sqrt(δ²-Ω²)) · δ/sqrt(δ²-Ω²)
             ]
         which, under the hood, is converted to the four-parameter function imposing the Lyapunov stability condition,
-            K(t) = r² exp(-λt) exp(-|max(Γ,|ζ|)|·t) [ C(Γ,t) - ζ|t|·S(Γ,t) ]
+            K(t) = r² exp(-λt) exp(-max(Γ,|α|)·t) [ C(Γ,t) - αt·S(Γ,t) ]
         where
             C(Γ,t) = cosh(Γt) if Γ > 0 else cos(Γt)
         and
-            S(Γ,t) = sinch(Γt) if Γ > 0 else sinc(Γt)
+            S(Γ,t) = sinhc(Γt) if Γ > 0 else sinc(Γt)
         with
-            r, λ > 0 and Γ, ζ ∈ R.
+            r, λ > 0 and Γ, α ∈ R.
 
         Parameters
         ----------
             theta : np.ndarray, shape(2,)
-            gamma  : float
+            gamma : float
             delta : float
             Omega : float
 
@@ -67,21 +73,28 @@ class TwoAuxEmbedder(BaseEmbedder):
             If input arguments fall outside their respective domains.
         """
 
-        # Check types
+        from glefit.utils.special import Softmax, Softabs
+        self.softmax = Softmax(
+            sigma=kwargs.get("sigma", _DEFAULTS["sigma"]),
+            threshold=kwargs.get("threshold", _DEFAULTS["threshold"]),
+        )
+        self.softabs = Softabs(
+            sigma=kwargs.get("sigma", _DEFAULTS["sigma"]),
+            threshold=kwargs.get("threshold", _DEFAULTS["threshold"]),
+        )
         for variable, symbol in zip([gamma, Omega, delta], "γδΩ"):
             if not isinstance(variable, (int, float)):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
         theta = np.asarray(theta, dtype=float)
         if theta.shape != (2,):
             raise ValueError(f"θ must be a length-2 vector, instead got {theta.shape = }")
-        
         self._cparams = np.concatenate([theta, [gamma, delta, Omega]])
         self._named_cparams = _cparams(*self._cparams)
         params = self.from_conventional(self._cparams)
         kwargs.setdefault(
             "mappers", [
                 LowerBoundMapper(), # r > 0
-                IdentityMapper(),   # ζ ∈ R
+                IdentityMapper(),   # α ∈ R
                 LowerBoundMapper(), # λ > 0
                 IdentityMapper()    # Γ ∈ R
         ])
@@ -89,11 +102,21 @@ class TwoAuxEmbedder(BaseEmbedder):
         self.params = params
         self._named_params = _params(*self.params)
 
-    @staticmethod
+    def _gamma_lower_bound(self, Gamma, alpha, nu=0):
+        if nu == 0:
+            return self.softmax( Gamma, self.softabs(alpha, nu=0), nu=0)
+        elif nu == 1:
+            ans = self.softmax( Gamma, self.softabs(alpha, nu=0), nu=1)
+            ans[1] *= self.softabs(alpha, nu=1)
+            return ans
+        else:
+            raise ValueError(f"Expecting nu = 0 or 1, instead got nu = {nu}")
+
     def from_conventional(
+        self,
         cparams: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert the 'conventional' embedding parameters to the reduced parameter set that removes the embedding degenracy
+        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
 
         Args:
             cparams : np.ndarray, shape(5,)
@@ -101,7 +124,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Returns:
             params : np.ndarray, shape(4,)
-                non-degenerate parameters [ r, ζ, λ, Γ ]
+                non-degenerate parameters [ r, α, λ, Γ ]
         """
         cparams = np.asarray(cparams, dtype=float)
         if cparams.shape != (5,):
@@ -111,42 +134,107 @@ class TwoAuxEmbedder(BaseEmbedder):
         r = np.sqrt(np.sum(th2))
         d2O2 = delta**2 - Omega**2
         Gamma = np.sign(d2O2) * np.sqrt(np.abs(d2O2))
-        zeta = delta * (th2[0] - th2[1]) / (th2[0] + th2[1])
-        lamda = gamma - max(Gamma, abs(zeta))
-        params = np.array([r, zeta, lamda, Gamma], dtype=float)
+        alpha = delta * (th2[0] - th2[1]) / (th2[0] + th2[1])
+        lamda = gamma - self._gamma_lower_bound(Gamma, alpha, nu=0)
+        params = np.array([r, alpha, lamda, Gamma], dtype=float)
         return params
     
-    @staticmethod
     def to_conventional(
+        self,
         params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         Args:
-            cparams : np.ndarray, shape(4,)
-                non-degenerate parameters in the order [ r, ζ, λ, Γ ]
+            params : np.ndarray, shape(4,)
+                non-degenerate parameters in the order [ r, α, λ, Γ ]
 
         Returns:
-            params : np.ndarray, shape(5,)
+            cparams : np.ndarray, shape(5,)
                 conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
         """
         params = np.asarray(params, dtype=float)
         if params.shape != (4,):
            raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {params.shape = }")
-        r, zeta, lamda, Gamma = params
-        if abs(zeta) < Gamma:
-            alpha = np.abs(zeta) / Gamma
-            delta = np.sign(zeta)*Gamma
+        r, alpha, lamda, Gamma = params
+        if abs(alpha) < Gamma:
+            delta = Gamma
             Omega = 0.0
-            theta1 = r * np.sqrt((1 + alpha)/2)
-            theta2 = r * np.sqrt((1 - alpha)/2)
-            gamma = lamda + Gamma
+            theta1 = r * np.sqrt((1 + alpha/Gamma)/2)
+            theta2 = r * np.sqrt((1 - alpha/Gamma)/2)
         else:
-            delta = zeta
-            Omega = np.sqrt(zeta**2 - np.sign(Gamma)*Gamma**2)
-            theta1 = r
-            theta2 = 0.0
-            gamma = lamda + abs(zeta)
+            delta = abs(alpha)
+            Omega = np.sqrt(alpha**2 - np.sign(Gamma)*Gamma**2)
+            theta1 = r if alpha > 0 else 0.0 
+            theta2 = 0.0 if alpha > 0 else r
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         return np.asarray([theta1, theta2, gamma, delta, Omega])
+    
+    def jac_conventional(
+        self,
+        params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Convert non-degenerate embedding parameters to conventional embedding variables and compute the jacobian of the conventional vars w.r.t. params
+
+        Args:
+            params : np.ndarray, shape(4,)
+                non-degenerate parameters in the order [ r, α, λ, Γ ]
+
+        Returns:
+            cparams : np.ndarray, shape(5,)
+                conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
+            jac : np.ndarray, shape(5, 4)
+                jac[i,j] = D[ cparams[i], params[j] ]
+        """
+        params = np.asarray(params, dtype=float)
+        if params.shape != (4,):
+           raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {params.shape = }")
+        r, alpha, lamda, Gamma = params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        jac = np.zeros((5,4))
+        if abs(alpha) < Gamma:
+            delta = Gamma
+            Omega = 0.0
+            sqrt_p = np.sqrt((1 + alpha/Gamma)/2)
+            sqrt_m = np.sqrt((1 - alpha/Gamma)/2)
+            theta1 = r * sqrt_p
+            theta2 = r * sqrt_m
+            # θ[0] w.r.t. [ r, α, λ, Γ ]
+            jac[0,0] = sqrt_p
+            jac[0,1] = r / (4 * Gamma * sqrt_p)
+            jac[0,3] = -r*alpha / (4*Gamma**2) / sqrt_p
+            # θ[1] w.r.t. [ r, α, λ, Γ ]
+            jac[1,0] = sqrt_m
+            jac[1,1] = -r / (4 * Gamma * sqrt_m)
+            jac[1,3] = r*alpha / (4*Gamma**2) / sqrt_m
+            # δ w.r.t [ r, α, λ, Γ ]
+            jac[3,3] = 1.0
+            # Ω w.r.t [ r, α, λ, Γ ], but Ω = 0
+        else:
+            delta = abs(alpha)
+            abs_Gamma = abs(Gamma)
+            Omega = np.sqrt(alpha**2 - abs_Gamma*Gamma)
+            if alpha > 0:
+                theta1 = r
+                # θ[0] w.r.t. [ r, α, λ, Γ ]
+                jac[0,0] = 1.0
+                theta2 = 0.0
+            else:
+                theta1 = 0.0
+                theta2 = r
+                # θ[1] w.r.t. [ r, α, λ, Γ ]
+                jac[1,0] = 1.0
+            # δ w.r.t [ r, α, λ, Γ ]
+            jac[3,1] = np.sign(alpha)
+            # Ω w.r.t [ r, α, λ, Γ ]
+            jac[4,1] = alpha/Omega
+            jac[4,3] = -abs_Gamma/Omega
+        # γ w.r.t [ r, α, λ, Γ ]
+        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
+        jac[2,1] = tmp[1,0]
+        jac[2,2] = 1.0
+        jac[2,3] = tmp[0,0]
+        cparams = np.asarray([theta1, theta2, gamma, delta, Omega])
+        return cparams, jac
     
     @staticmethod
     def rotate_matrix(
@@ -168,7 +256,8 @@ class TwoAuxEmbedder(BaseEmbedder):
     def from_matrix(
         cls, 
         theta: npt.NDArray[np.floating],
-        A: npt.NDArray[np.floating]
+        A: npt.NDArray[np.floating],
+        **kwargs
     ) -> "TwoAuxEmbedder":
         """Construct the two-variable embedder from a 2x2 drift matrix A and a coupling vector θ.
         """
@@ -182,21 +271,22 @@ class TwoAuxEmbedder(BaseEmbedder):
         gamma = (A[0,0] + A[1,1]) / 2
         delta = (A[0,0] - A[1,1]) / 2
         Omega = A[0,1]
-        return cls(theta, gamma, delta, Omega)
+        return cls(theta, gamma, delta, Omega, **kwargs)
 
     def compute_drift_matrix(
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        """The drift matrix of the extended Markovian system.
+        """The drift matrix of the extended Markovian system expressed in terms of primitive parameters, which are internally converted to the
+        conventional parameters θ[0], θ[1], γ, δ, Ω 
         
         Returns
         -------
-        Drift matrix for the two-variable embedding
             (  0    θ[0] θ[1])
         A = (-θ[0]  γ+δ    Ω )
             (-θ[1]  -Ω   γ-δ )
         """
+
         theta1, theta2, gamma, delta, Omega = self.to_conventional(params)
         A = np.zeros((3,3))
         A[0,1] = theta1
@@ -213,29 +303,103 @@ class TwoAuxEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        raise NotImplementedError
+        """The gradient of the drift matrix with respect to the primitive parameters.
 
+        In terms of *conventional* parameters 
+        cparams = [θ[0], θ[1], γ, δ, Ω]
+            
+                (  0    θ[0] θ[1])
+            A = (-θ[0]  γ+δ    Ω )
+                (-θ[1]  -Ω   γ-δ )
+        """
+    
+        grad_A_conventional = np.zeros((5, 3, 3), dtype=float)
+        # dA/d(theta1)
+        grad_A_conventional[0, 0, 1] = 1.0
+        grad_A_conventional[0, 1, 0] = -1.0
+        # dA/d(theta2)
+        grad_A_conventional[1, 0, 2] = 1.0
+        grad_A_conventional[1, 2, 0] = -1.0
+        # dA/d(gamma)
+        grad_A_conventional[2, 1, 1] = 1.0
+        grad_A_conventional[2, 2, 2] = 1.0
+        # dA/d(delta)
+        grad_A_conventional[3, 1, 1] = 1.0
+        grad_A_conventional[3, 2, 2] = -1.0
+        # dA/d(Omega)
+        grad_A_conventional[4, 1, 2] = 1.0
+        grad_A_conventional[4, 2, 1] = -1.0
+        # chain rule
+        _, jac = self.jac_conventional(params)
+        grad_A = np.einsum(
+            'lij,lk->kij', 
+            grad_A_conventional,
+            jac)
+        return grad_A
+    
     def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         """
         Memory kernel function for the two-variable embedding, 
-            K(t) = r² exp(-λt) exp(-|max(Γ,|ζ|)|·t) [ C(Γ,t) - ζ|t|·S(Γ,t) ]
+            K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
+            where γ = λ + Softmax(Γ, Softabs(α))
         """
         t = np.abs(time)
-        r, zeta, lamda, Gamma = self.params
-        gamma = lamda + max(Gamma, abs(zeta))
-        Gt = Gamma*t
-        ans = coscosh(Gt) - zeta*t*sincsinhc(Gt)
-        ans *= np.exp(-gamma*t)
+        r, alpha, lamda, Gamma = self.params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        ans = expcoscosh(Gamma, t, gamma)
+        ans -= alpha*t*expsincsinhc(Gamma, t, gamma)
         return r**2 * ans
     
     def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        raise NotImplementedError
-    
+        """
+        Gradient of the memory kernel function for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
+        
+            K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
+            where γ = λ + Softmax(Γ, Softabs(α))
+        """
+        t = np.abs(time)
+        r, alpha, lamda, Gamma = self.params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        C = expcoscosh(Gamma, t, gamma)
+        S = expsincsinhc(Gamma, t, gamma)
+        K_base = C - alpha*t*S
+        ans = np.empty((4, len(time)))
+        # d/dr: 2r exp(-γt) [ C(Γt) - α|t|·S(Γt) ]
+        ans[0] = 2*r * K_base
+        # d/dα: r² exp(-γt) [ -|t|·S(Γt) + d(gamma)/dα · (-t) · (C - α|t|·S) ]
+        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
+        d_gamma_Gamma, d_gamma_alpha = tmp[:, 0]
+        ans[1] = r**2 * (
+            -t * S - d_gamma_alpha * t * K_base)
+        # d/dλ: r² exp(-γt) [ -t · (C(Γt) - α|t|·S(Γt)) ]
+        ans[2] = -r**2 * t * K_base
+        # d/dΓ: r² exp(-γt) [ dC/dΓ - α·|t|·dS/dΓ + d(gamma)/dΓ · (-t) · (C - α|t|·S) ]
+        # derivatives w.r.t. Gamma:
+        dC = expcoscosh(Gamma, t, gamma, nu=1, wrt="Gamma")
+        dS = expsincsinhc(Gamma, t, gamma, nu=1, wrt="Gamma")
+        ans[3] = r**2 * (
+            dC - alpha * t * dS - d_gamma_Gamma * t * K_base)
+        return ans
+
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """
+        Hessian of the memory kernel function for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
+        Shape: (4, 4, len(time))
+        """
         raise NotImplementedError
     
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        raise NotImplementedError
+        freq = np.abs(np.asarray(frequency))
+        r, alpha, lamda, Gamma = self.params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        w2 = freq**2
+        g2 = gamma**2
+        y = Gamma * abs(Gamma)
+        ans = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
+        ans /= g2**2 + 2*g2*(w2-y) + (w2+y)**2
+        ans *= r**2
+        return ans
+
     
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
         raise NotImplementedError
