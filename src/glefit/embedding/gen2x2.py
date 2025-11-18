@@ -11,9 +11,8 @@
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper, IdentityMapper
-from glefit.utils.special import coscosh, sincsinhc, expcoscosh, expsincsinhc
+from glefit.utils.special import expcoscosh, expsincsinhc
 from collections import namedtuple
-from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
@@ -22,7 +21,6 @@ _params = namedtuple('Params', ['r', 'alpha', 'lamda', 'Gamma'])
 _DEFAULTS = dict(sigma=5.0, threshold=20.0)
 
 #TODO:
-# * implement spectrum
 # * update params setter to also update cparams
 
 
@@ -364,17 +362,16 @@ class TwoAuxEmbedder(BaseEmbedder):
         S = expsincsinhc(Gamma, t, gamma)
         K_base = C - alpha*t*S
         ans = np.empty((4, len(time)))
-        # d/dr: 2r exp(-γt) [ C(Γt) - α|t|·S(Γt) ]
+        # d/dr
         ans[0] = 2*r * K_base
-        # d/dα: r² exp(-γt) [ -|t|·S(Γt) + d(gamma)/dα · (-t) · (C - α|t|·S) ]
+        # d/dα
         tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
         d_gamma_Gamma, d_gamma_alpha = tmp[:, 0]
         ans[1] = r**2 * (
             -t * S - d_gamma_alpha * t * K_base)
-        # d/dλ: r² exp(-γt) [ -t · (C(Γt) - α|t|·S(Γt)) ]
+        # d/dλ
         ans[2] = -r**2 * t * K_base
-        # d/dΓ: r² exp(-γt) [ dC/dΓ - α·|t|·dS/dΓ + d(gamma)/dΓ · (-t) · (C - α|t|·S) ]
-        # derivatives w.r.t. Gamma:
+        # d/dΓ
         dC = expcoscosh(Gamma, t, gamma, nu=1, wrt="Gamma")
         dS = expsincsinhc(Gamma, t, gamma, nu=1, wrt="Gamma")
         ans[3] = r**2 * (

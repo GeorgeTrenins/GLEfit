@@ -238,7 +238,7 @@ class MultiEmbedder(BaseEmbedder):
     def spectrum_func(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
         ans = 0.0
         for emb in self._embs:
-            ans = ans + emb.spectrum_func(frequency, nu=0)
+            ans = ans + emb.spectrum_func(frequency)
         return ans
     
     def spectrum_grad(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
