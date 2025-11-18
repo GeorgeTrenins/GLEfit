@@ -62,6 +62,7 @@ class BaseSpectralDensity(ABC):
             mask = diff > 0
             ans = np.zeros_like(omega)
             ans[mask] = self.J(np.sqrt(diff2[mask]))
+            return ans
         
     @check_nm_omega
     def nmLambda(self, nm_omega, omega):
@@ -74,6 +75,7 @@ class BaseSpectralDensity(ABC):
             mask = diff > 0
             ans = np.zeros_like(omega)
             ans[mask] = self.J(np.sqrt(diff2[mask])) / w[mask]
+            return ans
         
     @check_nm_omega
     def nmK(self, nm_omega, t, **kwargs):
