@@ -15,6 +15,7 @@ from typing import Union
 import numpy as np
 import numpy.typing as npt
 from typing import Optional
+from glefit.utils.linalg import mat_inv_vec
 
 
 class MemoryKernel(BaseArrayProperty):
@@ -70,3 +71,38 @@ class MemoryKernel(BaseArrayProperty):
         ans[:,1:,0] = -ans[:,0,1:]
         ans[:,1:,1:] = grad_expA
         return ans
+
+
+
+class MemorySpectrum(BaseArrayProperty):
+
+    @staticmethod
+    def _compute_spec_from_A(
+        Ap: npt.NDArray[np.floating], omega: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        theta = Ap[0, 1:]
+        A = Ap[1:,1:]
+        lamda, Q = np.linalg.eig(A)
+        # y = inv(Q) θ
+        y = mat_inv_vec(Q, theta)
+        # z = transpose(Q) θ
+        z = Q.T @ theta
+        return np.sum(
+            y*z*lamda / (lamda**2 + omega[:,None]**2),
+            axis=-1
+        )
+        
+    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> float:
+        if x is None:
+            Ap = self.emb.A
+        else:
+            emb = self.emb
+            Ap = emb.compute_drift_matrix(emb._inverse_map(x))
+        return self._compute_spec_from_A(Ap, self.array)
+    
+    def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]]=None) -> npt.NDArray[np.floating]:
+        if A is None:
+            Ap = self.emb.A
+        else:
+            Ap = np.copy(A)
+        #TODO from here
