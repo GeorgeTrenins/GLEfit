@@ -12,16 +12,16 @@ from __future__ import print_function, division, absolute_import
 import pytest
 import numpy as np
 from scipy.linalg import expm
-from scipy.optimize._numdiff import approx_derivative
 from glefit.merit import MemoryKernel, MemorySpectrum
 from glefit.embedding import PronyEmbedder, MultiEmbedder, PronyCosineEmbedder, TwoAuxEmbedder
+from glefit.utils.numderiv import jacobian
 
 
 #---------- NUMERICAL DERIVATIVES FOR TESTING -----------#
 
-def fd_grad_thetaT_expA_theta(A, tau, theta, h=None, relative=True):
+def fd_grad_thetaT_expA_theta(A, tau, theta):
     """
-    Central finite-difference gradient of f(A) = θᵀ exp(-τ A) θ w.r.t. A.
+    Compute gradient of f(A) = θᵀ exp(-τ A) θ w.r.t. A using glefit.utils.numderiv.jacobian.
 
     Parameters
     ----------
@@ -31,10 +31,6 @@ def fd_grad_thetaT_expA_theta(A, tau, theta, h=None, relative=True):
         Scalar τ.
     theta : (n,) array_like
         Vector θ.
-    h : float or None, optional
-        Base stepsize. If None, uses (eps)**(1/3) scaled per entry (good for central differences).
-    relative : bool, optional
-        If True, uses stepsize h * max(1, |A_ij|) per entry; else uses absolute stepsize h.
 
     Returns
     -------
@@ -47,31 +43,15 @@ def fd_grad_thetaT_expA_theta(A, tau, theta, h=None, relative=True):
     if A.shape != (n, n) or theta.shape != (n,):
         raise ValueError("Shapes must be A:(n,n), theta:(n,)")
 
-    # Default stepsize for central differences
-    if h is None:
-        h_base = (np.finfo(float).eps)**(1/3)  # ~6e-6
-    else:
-        h_base = float(h)
-
-    def f(M):
-        return float(theta @ (expm(-tau * M) @ theta))
-
-    G = np.empty_like(A, dtype=float)
-
-    for i in range(n):
-        for j in range(n):
-            hij = h_base * (max(1.0, abs(A[i, j])) if relative else 1.0)
-            # Forward
-            Aplus = A.copy()
-            Aplus[i, j] += hij
-            fplus = f(Aplus)
-            # Backward
-            Aminus = A.copy()
-            Aminus[i, j] -= hij
-            fminus = f(Aminus)
-            # Central difference
-            G[i, j] = (fplus - fminus) / (2.0 * hij)
-
+    def f(A_flat):
+        """Function to differentiate: f(vec(A)) = θᵀ exp(-τ A) θ"""
+        A_mat = A_flat.reshape((n, n))
+        return np.array([np.linalg.multi_dot([theta, expm(-tau * A_mat), theta])])
+    # Flatten A for derivative calculation
+    A_flat = A.reshape(-1)
+    J = jacobian(f, A_flat, order=4)
+    # Reshape gradient back to matrix form
+    G = J.reshape((n, n))
     return G
 
 #--------------------------------------------------------#
@@ -170,16 +150,17 @@ class TestKernel:
         target = ref_kernel * rng.normal(loc=1.0, scale=0.2, size=ref_kernel.shape)
         kernel_object = MemoryKernel(time, target, multi_emb, metric="squared")
         x = multi_emb.x
-        ref_distance_gradient = np.sum(
-            approx_derivative(
-                lambda y: kernel_object.distance_metric(
-                    kernel_object.function(x=y), target), 
-                x, method='3-point'),
-            axis=0)
+        
+        def distance_func(y):
+            return np.array([np.sum(kernel_object.distance_metric(
+                kernel_object.function(x=y), target))])
+        
+        ref_distance_gradient = jacobian(distance_func, x, order=4).flatten()
         distance_gradient = kernel_object.gradient()
+        
         np.testing.assert_allclose(
             distance_gradient, ref_distance_gradient,
-            rtol=1e-7,
+            rtol=1.0e-6, atol=1.0e-8,
             err_msg="Distance metric gradients do not match"
         )
 
@@ -249,5 +230,89 @@ class TestSpectrum:
             err_msg="Kernel expressions via parameters and A matrix do not match"
         )
 
+    def test_memory_spectrum_param_gradient(self):
+        """Test parameter gradients of the spectrum."""
+        omega = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
+        prony_thetas = np.asarray([1.0, 2.0])
+        prony_gammas = np.asarray([0.5, 0.25])
+        prony_embs = [PronyEmbedder(theta, gamma) 
+                    for theta, gamma in zip(prony_thetas, prony_gammas)]
+        osc_thetas = np.asarray([0.9, 1.5])
+        osc_gammas = np.asarray([0.75, 0.15])
+        osc_omegas = np.asarray([1.0, 2.0])
+        osc_embs = [PronyCosineEmbedder(theta, gamma, omega) 
+                    for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)]
+        gen_emb = TwoAuxEmbedder([1.0,-0.5], 2.0, 1.2, 3.3, sigma=20.0, threshold=30.0)
+        multi_emb = MultiEmbedder(prony_embs + osc_embs + [gen_emb])
+        ref_spectrum_gradient = multi_emb.spectrum(omega, nu=1, mapped=True)
+        spectrum_object = MemorySpectrum(omega, np.ones_like(omega), multi_emb, "squared")
+        num_spectrum_gradient = spectrum_object.grad_wrt_params()
+        np.testing.assert_allclose(
+            num_spectrum_gradient, ref_spectrum_gradient,
+            rtol=1e-14,
+            err_msg="Spectrum parameter gradients do not match"
+        )
+
+    def test_memory_spectrum_distance_gradient(self):
+        """Test gradient of the spectrum distance metric."""
+        omega = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
+        prony_thetas = np.asarray([1.0, 2.0])
+        prony_gammas = np.asarray([0.5, 0.25])
+        prony_embs = [PronyEmbedder(theta, gamma) 
+                    for theta, gamma in zip(prony_thetas, prony_gammas)]
+        osc_thetas = np.asarray([0.9, 1.5])
+        osc_gammas = np.asarray([0.75, 0.15])
+        osc_omegas = np.asarray([1.0, 2.0])
+        osc_embs = [PronyCosineEmbedder(theta, gamma, omega) 
+                    for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)]
+        gen_emb = TwoAuxEmbedder([1.0,-0.5], 2.0, 1.2, 3.3, sigma=20.0, threshold=30.0)
+        multi_emb = MultiEmbedder(prony_embs + osc_embs + [gen_emb])
+        ref_spectrum = multi_emb.spectrum(omega)
+        rng = np.random.default_rng(seed=31415)
+        target = ref_spectrum * rng.normal(loc=1.0, scale=0.2, size=ref_spectrum.shape)
+        spectrum_object = MemorySpectrum(omega, target, multi_emb, metric="squared")
+        x = multi_emb.x
+        
+
+        def distance_func(y):
+            return np.array([np.sum(spectrum_object.distance_metric(
+                spectrum_object.function(x=y), target))])
+        
+        ref_distance_gradient = jacobian(distance_func, x, order=4).flatten()
+        distance_gradient = spectrum_object.gradient()
+        
+        np.testing.assert_allclose(
+            distance_gradient, ref_distance_gradient,
+            rtol=1e-7,
+            err_msg="Spectrum distance metric gradients do not match"
+        )
+
+    def test_memory_spectrum_param_hessian(self):
+        """Test parameter Hessians of the spectrum."""
+        omega = np.asarray([0.0, 0.5, 1.0, 4.0, 10.0])
+        prony_thetas = np.asarray([1.0, 2.0])
+        prony_gammas = np.asarray([0.5, 0.25])
+        prony_embs = [PronyEmbedder(theta, gamma) 
+                    for theta, gamma in zip(prony_thetas, prony_gammas)]
+        osc_thetas = np.asarray([0.9, 1.5])
+        osc_gammas = np.asarray([0.75, 0.15])
+        osc_omegas = np.asarray([1.0, 2.0])
+        osc_embs = [PronyCosineEmbedder(theta, gamma, omega) 
+                    for theta, gamma, omega in zip(osc_thetas, osc_gammas, osc_omegas)]
+        gen_emb = TwoAuxEmbedder([1.0,-0.5], 2.0, 1.2, 3.3, sigma=20.0, threshold=30.0)
+        multi_emb = MultiEmbedder(prony_embs + osc_embs + [gen_emb])
+        ref_spectrum_hessian = multi_emb.spectrum(omega, nu=2, mapped=True)
+        spectrum_object = MemorySpectrum(omega, np.ones_like(omega), multi_emb, "squared")
+        _, num_spectrum_hessian = spectrum_object.gradhess_wrt_params()
+        np.testing.assert_allclose(
+            num_spectrum_hessian, ref_spectrum_hessian,
+            rtol=1e-8, atol=1e-10,
+            err_msg="Spectrum parameter Hessians do not match"
+        )
+
 if __name__ == "__main__":
     pytest.main([__file__])
+    # t = TestKernel()
+    # t.test_memory_kernel_distance_gradient()
+    # t = TestSpectrum()
+    # t.test_memory_spectrum_distance_gradient()

@@ -363,8 +363,322 @@ def test_spectrum_value():
             err_msg="Spectrum values do not match numeric quadrature in underdamped regime"
         )
 
+def test_spectrum_grad_overdamped():
+    """Test spectrum gradient matches symbolic differentiation in overdamped regime."""
+    sigma_val = 10.0
+    threshold_val = 30.0
+    
+    w, r, alpha, lamda, Gamma = sp.symbols('omega r alpha lambda Gamma', real=True, positive=True)
+    
+    # Build symbolic spectrum expression
+    gamma_sym = lamda + symbolic_softmax(
+        Gamma,
+        symbolic_softabs(alpha, sigma_val, threshold_val),
+        sigma_val,
+        threshold_val
+    )
+    w2 = w**2
+    g2 = gamma_sym**2
+    y = Gamma**2  # overdamped: Gamma > 0, so Gamma*|Gamma| = Gamma^2
+    
+    numerator = (alpha + gamma_sym)*w2 - (alpha - gamma_sym)*(g2 - y)
+    denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+    spectrum_sym = r**2 * numerator / denominator
+    
+    # Compute symbolic derivatives
+    d_r = sp.diff(spectrum_sym, r)
+    d_alpha = sp.diff(spectrum_sym, alpha)
+    d_lamda = sp.diff(spectrum_sym, lamda)
+    d_Gamma = sp.diff(spectrum_sym, Gamma)
+    
+    # Convert to numeric functions
+    f_r = sp.lambdify((w, r, alpha, lamda, Gamma), d_r, 'numpy')
+    f_alpha = sp.lambdify((w, r, alpha, lamda, Gamma), d_alpha, 'numpy')
+    f_lamda = sp.lambdify((w, r, alpha, lamda, Gamma), d_lamda, 'numpy')
+    f_Gamma = sp.lambdify((w, r, alpha, lamda, Gamma), d_Gamma, 'numpy')
+    
+    rng = np.random.default_rng(seed=31415)
+    frequencies = np.array([0.0, 0.5, 1.0, 2.0, 5.0, 10.0])
+    
+    emb = TwoAuxEmbedder(np.array([1.0, 0.0]), 1.0, 0.0, 0.0, sigma=sigma_val, threshold=threshold_val)
+    
+    for _ in range(10):
+        r_val = float(rng.uniform(0.1, 5.0))
+        Gamma_val = float(rng.uniform(0.5, 5.0))  # overdamped regime
+        alpha_val = float(rng.uniform(-10.0, 10.0))
+        lamda_val = float(rng.uniform(0.1, 2.0))
+        
+        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        
+        grad = emb.spectrum_grad(frequencies)
+        
+        expected0 = f_r(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected1 = f_alpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected2 = f_lamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected3 = f_Gamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        
+        assert_allclose(grad[0], expected0, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dr mismatch in overdamped regime")
+        assert_allclose(grad[1], expected1, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dα mismatch in overdamped regime")
+        assert_allclose(grad[2], expected2, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dλ mismatch in overdamped regime")
+        assert_allclose(grad[3], expected3, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dΓ mismatch in overdamped regime")
+
+
+def test_spectrum_grad_underdamped():
+    """Test spectrum gradient matches symbolic differentiation in underdamped regime."""
+    sigma_val = 10.0
+    threshold_val = 30.0
+    
+    w, r, alpha, lamda = sp.symbols('omega r alpha lambda', real=True, positive=True)
+    Gamma = sp.symbols('Gamma', real=True, negative=True)
+    
+    # Build symbolic spectrum expression
+    gamma_sym = lamda + symbolic_softmax(
+        Gamma,
+        symbolic_softabs(alpha, sigma_val, threshold_val),
+        sigma_val,
+        threshold_val
+    )
+    w2 = w**2
+    g2 = gamma_sym**2
+    y = -Gamma**2  # underdamped: Gamma < 0, so Gamma*|Gamma| = -Gamma^2
+    
+    numerator = (alpha + gamma_sym)*w2 - (alpha - gamma_sym)*(g2 - y)
+    denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+    spectrum_sym = r**2 * numerator / denominator
+    
+    # Compute symbolic derivatives
+    d_r = sp.diff(spectrum_sym, r)
+    d_alpha = sp.diff(spectrum_sym, alpha)
+    d_lamda = sp.diff(spectrum_sym, lamda)
+    d_Gamma = sp.diff(spectrum_sym, Gamma)
+    
+    # Convert to numeric functions
+    f_r = sp.lambdify((w, r, alpha, lamda, Gamma), d_r, 'numpy')
+    f_alpha = sp.lambdify((w, r, alpha, lamda, Gamma), d_alpha, 'numpy')
+    f_lamda = sp.lambdify((w, r, alpha, lamda, Gamma), d_lamda, 'numpy')
+    f_Gamma = sp.lambdify((w, r, alpha, lamda, Gamma), d_Gamma, 'numpy')
+    
+    rng = np.random.default_rng(seed=31415)
+    frequencies = np.array([0.0, 0.5, 1.0, 2.0, 5.0, 10.0])
+    
+    emb = TwoAuxEmbedder(np.array([1.0, 0.0]), 1.0, 0.0, 0.0, sigma=sigma_val, threshold=threshold_val)
+    
+    for _ in range(10):
+        r_val = float(rng.uniform(0.1, 5.0))
+        Gamma_val = float(rng.uniform(-5.0, -0.5))  # underdamped regime
+        alpha_val = float(rng.uniform(-10.0, 10.0))
+        lamda_val = float(rng.uniform(0.1, 2.0))
+        
+        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        
+        grad = emb.spectrum_grad(frequencies)
+        
+        expected0 = f_r(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected1 = f_alpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected2 = f_lamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected3 = f_Gamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        
+        assert_allclose(grad[0], expected0, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dr mismatch in underdamped regime")
+        assert_allclose(grad[1], expected1, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dα mismatch in underdamped regime")
+        assert_allclose(grad[2], expected2, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dλ mismatch in underdamped regime")
+        assert_allclose(grad[3], expected3, rtol=1e-10, atol=1e-12,
+                        err_msg="dS/dΓ mismatch in underdamped regime")
+
+
+def test_spectrum_hess_overdamped():
+    """Test spectrum Hessian matches symbolic differentiation in overdamped regime."""
+    sigma_val = 10.0
+    threshold_val = 30.0
+    
+    w, r, alpha, lamda, Gamma = sp.symbols('omega r alpha lambda Gamma', real=True, positive=True)
+    
+    # Build symbolic spectrum expression
+    gamma_sym = lamda + symbolic_softmax(
+        Gamma,
+        symbolic_softabs(alpha, sigma_val, threshold_val),
+        sigma_val,
+        threshold_val
+    )
+    w2 = w**2
+    g2 = gamma_sym**2
+    y = Gamma**2  # overdamped: Gamma > 0, so Gamma*|Gamma| = Gamma^2
+    
+    numerator = (alpha + gamma_sym)*w2 - (alpha - gamma_sym)*(g2 - y)
+    denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+    spectrum_sym = r**2 * numerator / denominator
+    
+    # Compute symbolic second derivatives
+    d2_rr = sp.diff(spectrum_sym, r, r)
+    d2_ralpha = sp.diff(spectrum_sym, r, alpha)
+    d2_rlamda = sp.diff(spectrum_sym, r, lamda)
+    d2_rGamma = sp.diff(spectrum_sym, r, Gamma)
+    d2_alphaalpha = sp.diff(spectrum_sym, alpha, alpha)
+    d2_alphalamda = sp.diff(spectrum_sym, alpha, lamda)
+    d2_alphaGamma = sp.diff(spectrum_sym, alpha, Gamma)
+    d2_lamdalamda = sp.diff(spectrum_sym, lamda, lamda)
+    d2_lamdaGamma = sp.diff(spectrum_sym, lamda, Gamma)
+    d2_GammaGamma = sp.diff(spectrum_sym, Gamma, Gamma)
+    
+    # Convert to numeric functions
+    f_rr = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rr, 'numpy')
+    f_ralpha = sp.lambdify((w, r, alpha, lamda, Gamma), d2_ralpha, 'numpy')
+    f_rlamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rlamda, 'numpy')
+    f_rGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rGamma, 'numpy')
+    f_alphaalpha = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphaalpha, 'numpy')
+    f_alphalamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphalamda, 'numpy')
+    f_alphaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphaGamma, 'numpy')
+    f_lamdalamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_lamdalamda, 'numpy')
+    f_lamdaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_lamdaGamma, 'numpy')
+    f_GammaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_GammaGamma, 'numpy')
+    
+    rng = np.random.default_rng(seed=31415)
+    frequencies = np.array([0.5, 1.0, 2.0, 5.0])
+    
+    emb = TwoAuxEmbedder(np.array([1.0, 0.0]), 1.0, 0.0, 0.0, sigma=sigma_val, threshold=threshold_val)
+    
+    for _ in range(5):
+        r_val = float(rng.uniform(0.1, 5.0))
+        Gamma_val = float(rng.uniform(0.5, 5.0))  # overdamped regime
+        alpha_val = float(rng.uniform(-10.0, 10.0))
+        lamda_val = float(rng.uniform(0.1, 2.0))
+        
+        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        
+        hess = emb.spectrum_hess(frequencies)
+        
+        expected_rr = f_rr(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_ralpha = f_ralpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_rlamda = f_rlamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_rGamma = f_rGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphaalpha = f_alphaalpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphalamda = f_alphalamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphaGamma = f_alphaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_lamdalamd = f_lamdalamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_lamdaGamma = f_lamdaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_GammaGamma = f_GammaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        
+        assert_allclose(hess[0, 0], expected_rr, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dr² mismatch in overdamped regime")
+        assert_allclose(hess[0, 1], expected_ralpha, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdα mismatch in overdamped regime")
+        assert_allclose(hess[0, 2], expected_rlamda, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdλ mismatch in overdamped regime")
+        assert_allclose(hess[0, 3], expected_rGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdΓ mismatch in overdamped regime")
+        assert_allclose(hess[1, 1], expected_alphaalpha, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dα² mismatch in overdamped regime")
+        assert_allclose(hess[1, 2], expected_alphalamda, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dαdλ mismatch in overdamped regime")
+        assert_allclose(hess[1, 3], expected_alphaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dαdΓ mismatch in overdamped regime")
+        assert_allclose(hess[2, 2], expected_lamdalamd, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dλ² mismatch in overdamped regime")
+        assert_allclose(hess[2, 3], expected_lamdaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dλdΓ mismatch in overdamped regime")
+        assert_allclose(hess[3, 3], expected_GammaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dΓ² mismatch in overdamped regime")
+
+
+def test_spectrum_hess_underdamped():
+    """Test spectrum Hessian matches symbolic differentiation in underdamped regime."""
+    sigma_val = 10.0
+    threshold_val = 30.0
+    
+    w, r, alpha, lamda = sp.symbols('omega r alpha lambda', real=True, positive=True)
+    Gamma = sp.symbols('Gamma', real=True, negative=True)
+    
+    # Build symbolic spectrum expression
+    gamma_sym = lamda + symbolic_softmax(
+        Gamma,
+        symbolic_softabs(alpha, sigma_val, threshold_val),
+        sigma_val,
+        threshold_val
+    )
+    w2 = w**2
+    g2 = gamma_sym**2
+    y = -Gamma**2  # underdamped: Gamma < 0, so Gamma*|Gamma| = -Gamma^2
+    
+    numerator = (alpha + gamma_sym)*w2 - (alpha - gamma_sym)*(g2 - y)
+    denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+    spectrum_sym = r**2 * numerator / denominator
+    
+    # Compute symbolic second derivatives
+    d2_rr = sp.diff(spectrum_sym, r, r)
+    d2_ralpha = sp.diff(spectrum_sym, r, alpha)
+    d2_rlamda = sp.diff(spectrum_sym, r, lamda)
+    d2_rGamma = sp.diff(spectrum_sym, r, Gamma)
+    d2_alphaalpha = sp.diff(spectrum_sym, alpha, alpha)
+    d2_alphalamda = sp.diff(spectrum_sym, alpha, lamda)
+    d2_alphaGamma = sp.diff(spectrum_sym, alpha, Gamma)
+    d2_lamdalamd = sp.diff(spectrum_sym, lamda, lamda)
+    d2_lamdaGamma = sp.diff(spectrum_sym, lamda, Gamma)
+    d2_GammaGamma = sp.diff(spectrum_sym, Gamma, Gamma)
+    
+    # Convert to numeric functions
+    f_rr = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rr, 'numpy')
+    f_ralpha = sp.lambdify((w, r, alpha, lamda, Gamma), d2_ralpha, 'numpy')
+    f_rlamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rlamda, 'numpy')
+    f_rGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_rGamma, 'numpy')
+    f_alphaalpha = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphaalpha, 'numpy')
+    f_alphalamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphalamda, 'numpy')
+    f_alphaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_alphaGamma, 'numpy')
+    f_lamdalamda = sp.lambdify((w, r, alpha, lamda, Gamma), d2_lamdalamd, 'numpy')
+    f_lamdaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_lamdaGamma, 'numpy')
+    f_GammaGamma = sp.lambdify((w, r, alpha, lamda, Gamma), d2_GammaGamma, 'numpy')
+    
+    rng = np.random.default_rng(seed=31415)
+    frequencies = np.array([0.5, 1.0, 2.0, 5.0])
+    
+    emb = TwoAuxEmbedder(np.array([1.0, 0.0]), 1.0, 0.0, 0.0, sigma=sigma_val, threshold=threshold_val)
+    
+    for _ in range(5):
+        r_val = float(rng.uniform(0.1, 5.0))
+        Gamma_val = float(rng.uniform(-5.0, -0.5))  # underdamped regime
+        alpha_val = float(rng.uniform(-10.0, 10.0))
+        lamda_val = float(rng.uniform(0.1, 2.0))
+        
+        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        
+        hess = emb.spectrum_hess(frequencies)
+        
+        expected_rr = f_rr(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_ralpha = f_ralpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_rlamda = f_rlamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_rGamma = f_rGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphaalpha = f_alphaalpha(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphalamda = f_alphalamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_alphaGamma = f_alphaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_lamdalamd = f_lamdalamda(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_lamdaGamma = f_lamdaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        expected_GammaGamma = f_GammaGamma(frequencies, r_val, alpha_val, lamda_val, Gamma_val)
+        
+        assert_allclose(hess[0, 0], expected_rr, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dr² mismatch in underdamped regime")
+        assert_allclose(hess[0, 1], expected_ralpha, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdα mismatch in underdamped regime")
+        assert_allclose(hess[0, 2], expected_rlamda, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdλ mismatch in underdamped regime")
+        assert_allclose(hess[0, 3], expected_rGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/drdΓ mismatch in underdamped regime")
+        assert_allclose(hess[1, 1], expected_alphaalpha, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dα² mismatch in underdamped regime")
+        assert_allclose(hess[1, 2], expected_alphalamda, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dαdλ mismatch in underdamped regime")
+        assert_allclose(hess[1, 3], expected_alphaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dαdΓ mismatch in underdamped regime")
+        assert_allclose(hess[2, 2], expected_lamdalamd, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dλ² mismatch in underdamped regime")
+        assert_allclose(hess[2, 3], expected_lamdaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dλdΓ mismatch in underdamped regime")
+        assert_allclose(hess[3, 3], expected_GammaGamma, rtol=1e-9, atol=1e-11,
+                        err_msg="d²S/dΓ² mismatch in underdamped regime")
+
 if __name__ == "__main__":
-    import warnings
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  
-        pytest.main([__file__])
+    pytest.main([__file__])

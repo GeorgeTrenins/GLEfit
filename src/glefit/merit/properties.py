@@ -87,10 +87,10 @@ class MemorySpectrum(BaseArrayProperty):
         y = mat_inv_vec(Q, theta)
         # z = transpose(Q) θ
         z = Q.T @ theta
-        return np.sum(
+        return np.real(np.sum(
             y*z*lamda / (lamda**2 + omega[:,None]**2),
             axis=-1
-        )
+        ))
         
     def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> float:
         if x is None:
@@ -100,9 +100,33 @@ class MemorySpectrum(BaseArrayProperty):
             Ap = emb.compute_drift_matrix(emb._inverse_map(x))
         return self._compute_spec_from_A(Ap, self.array)
     
-    def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]]=None) -> npt.NDArray[np.floating]:
+    def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         if A is None:
             Ap = self.emb.A
         else:
             Ap = np.copy(A)
-        #TODO from here
+        theta = Ap[0, 1:]
+        A = Ap[1:,1:]
+        omega = self.array
+        ans = np.zeros((len(omega),) + Ap.shape)
+        lamda, Q = np.linalg.eig(A)
+        Qinv = np.linalg.inv(Q)
+        # a = inv(Q) θ
+        a = mat_inv_vec(Q, theta)
+        # b = transpose(Q) θ
+        b = Q.T @ theta
+        # y = (A^2 + ω^2)^(-1) θ
+        M1 = 1/(lamda**2 + omega[:,None]**2)
+        y = np.einsum('ij,...j->...i', Q, M1*a)
+        # v = A (A^2 + ω^2)^(-1) θ
+        M2 = lamda*M1
+        v = np.einsum('ij,...j->...i', Q, M2*a)
+        # u = [θ^T A ((A^2 + ω^2)^(-1))]^T
+        u = np.einsum('...j,jk->...k', b*M2, Qinv)
+        # w = [θ^T A ((A^2 + ω^2)^(-1)) A]^T
+        M3 = lamda*M2
+        w = np.einsum('...j,jk->...k', b*M3, Qinv)
+        ans[:,0,1:] = np.real(v)
+        ans[:,1:,0] = -ans[:,0,1:]
+        ans[:,1:,1:] = np.real((theta - w)[:,:,None] * y[:,None,:] - u[:,:,None]*v[:,None,:])
+        return ans

@@ -107,8 +107,28 @@ class TwoAuxEmbedder(BaseEmbedder):
             ans = self.softmax( Gamma, self.softabs(alpha, nu=0), nu=1)
             ans[1] *= self.softabs(alpha, nu=1)
             return ans
+        elif nu == 2:
+            # Second derivatives of γ = Softmax(Γ, Softabs(α))
+            abs_alpha = self.softabs(alpha, nu=0)
+            d_abs_alpha = self.softabs(alpha, nu=1)
+            d2_abs_alpha = self.softabs(alpha, nu=2)
+            
+            # First derivatives of Softmax
+            d_softmax = self.softmax(Gamma, abs_alpha, nu=1)  # shape (2,)
+            # Second derivatives of Softmax
+            d2_softmax = self.softmax(Gamma, abs_alpha, nu=2)  # shape (2,2)
+            
+            # Hessian: [d²γ/dΓ², d²γ/dΓdα; d²γ/dαdΓ, d²γ/dα²]
+            ans = np.empty((2, 2))
+            # d²γ/dΓ²
+            ans[0, 0] = d2_softmax[0, 0]
+            # d²γ/dΓdα = d²γ/dαdΓ (chain rule)
+            ans[0, 1] = ans[1, 0] = d2_softmax[0, 1] * d_abs_alpha
+            # d²γ/dα² (full chain rule)
+            ans[1, 1] = d2_softmax[1, 1] * d_abs_alpha**2 + d_softmax[1] * d2_abs_alpha
+            return ans
         else:
-            raise ValueError(f"Expecting nu = 0 or 1, instead got nu = {nu}")
+            raise ValueError(f"Expecting nu = 0, 1, or 2, instead got nu = {nu}")
 
     def from_conventional(
         self,
@@ -399,7 +419,200 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        raise NotImplementedError
+        """
+        Gradient of the spectrum for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
+        
+        S(ω) = r² · [(α+γ)ω² - (α-γ)(γ²-y)] / [γ⁴ + 2γ²(ω²-y) + (ω²+y)²]
+        where y = Γ·|Γ| and γ = λ + Softmax(Γ, Softabs(α))
+        """
+        freq = np.abs(np.asarray(frequency))
+        r, alpha, lamda, Gamma = self.params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        
+        w2 = freq**2
+        g2 = gamma**2
+        y = Gamma * abs(Gamma)
+        numerator = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
+        denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+        S_base = numerator / denominator
+        ans = np.empty((4, len(freq)))
+        # d/dr:
+        ans[0] = 2 * r * S_base
+        # First derivatives of numerator and denominator w.r.t. γ
+        d_num_gamma = w2 - y - 2*alpha*gamma + 3*g2
+        d_denom_gamma = 4 * gamma * (g2 + w2 - y)
+        # dS/dγ
+        dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma) 
+        # Get dγ/dα and dγ/dΓ
+        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
+        d_gamma_Gamma, d_gamma_alpha = tmp[0, 0], tmp[1, 0]
+        # d/dα: dS/dα + dS/dγ · dγ/dα
+        d_num_alpha = w2 + y - g2
+        dS_dalpha_direct = r**2 * d_num_alpha / denominator
+        ans[1] = dS_dalpha_direct + dS_dgamma * d_gamma_alpha
+        # d/dλ: dS/dγ · dγ/dλ = dS/dγ
+        ans[2] = dS_dgamma
+        # d/dΓ: dS/dy · dy/dΓ + dS/dγ · dγ/dΓ
+        # dy/dΓ = d(Γ·|Γ|)/dΓ = 2|Γ|
+        dy_dGamma = 2 * abs(Gamma)
+        # dS/dy
+        d_num_y = alpha - gamma
+        d_denom_y = 2*(y + w2 - g2)
+        dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
+        ans[3] = dS_dy * dy_dGamma + dS_dgamma * d_gamma_Gamma
+        return ans
     
     def spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        raise NotImplementedError
+        """
+        Hessian of the spectrum for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
+        
+        S(ω) = r² · [(α+γ)ω² - (α-γ)(γ²-y)] / [γ⁴ + 2γ²(ω²-y) + (ω²+y)²]
+        where y = Γ·|Γ| and γ = λ + Softmax(Γ, Softabs(α))
+        
+        Shape: (4, 4, len(freq))
+        """
+        freq = np.abs(np.asarray(frequency))
+        r, alpha, lamda, Gamma = self.params
+        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
+        
+        w2 = freq**2
+        g2 = gamma**2
+        y = Gamma * abs(Gamma)
+        numerator = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
+        denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
+        S_base = numerator / denominator
+        
+        # First derivatives of numerator and denominator
+        d_num_gamma = w2 - y - 2*alpha*gamma + 3*g2
+        d_denom_gamma = 4 * gamma * (g2 + w2 - y)
+        d_num_alpha = w2 - g2 + y
+        d_num_y = alpha - gamma
+        d_denom_y = 2*(w2 + y - g2)
+        
+        # dS/dγ, dS/dy
+        dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma)
+        dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
+        
+        # Get first and second derivatives of γ
+        d_gamma_vec = self._gamma_lower_bound(Gamma, alpha, nu=1)
+        d_gamma_Gamma, d_gamma_alpha = d_gamma_vec[0, 0], d_gamma_vec[1, 0]
+        
+        d2_gamma_mat = self._gamma_lower_bound(Gamma, alpha, nu=2)
+        d2_gamma_Gamma2 = d2_gamma_mat[0, 0]
+        d2_gamma_GammaAlpha = d2_gamma_mat[0, 1]
+        d2_gamma_alpha2 = d2_gamma_mat[1, 1]
+        
+        # dy/dΓ and d²y/dΓ²
+        dy_dGamma = 2 * abs(Gamma)
+        d2y_dGamma2 = 2 * np.sign(Gamma) if Gamma != 0 else 0
+        
+        # Second derivatives of numerator and denominator w.r.t. γ
+        d2_num_gamma2 = -2*alpha + 6*gamma
+        d2_denom_gamma2 = 12*g2 + 4*(w2 - y)
+        
+        # Second derivatives w.r.t. y
+        d2_num_y2 = 0
+        d2_denom_y2 = 2
+        
+        # Cross derivatives
+        d2_num_gamma_alpha = -2*gamma
+        d2_denom_gamma_alpha = 0
+        d2_num_gamma_y = -1
+        d2_denom_gamma_y = -4*gamma
+        d2_num_alpha_y = 1
+        d2_denom_alpha_y = 0
+        
+        # Second derivative d²S/dγ²
+        d2S_dgamma2 = r**2 * (
+            d2_num_gamma2 / denominator 
+            - 2 * d_num_gamma * d_denom_gamma / denominator**2
+            - numerator * d2_denom_gamma2 / denominator**2
+            + 2 * numerator * d_denom_gamma**2 / denominator**3
+        )
+        
+        # d²S/dγdα_direct
+        d2S_dgamma_dalpha = r**2 * (
+            d2_num_gamma_alpha / denominator
+            - d_num_alpha * d_denom_gamma / denominator**2
+        )
+        
+        # d²S/dγdy
+        d2S_dgamma_dy = r**2 * (
+            d2_num_gamma_y / denominator
+            - d_num_y * d_denom_gamma / denominator**2
+            - d_num_gamma * d_denom_y / denominator**2
+            - numerator * d2_denom_gamma_y / denominator**2
+            + 2 * numerator * d_denom_gamma * d_denom_y / denominator**3
+        )
+        
+        # d²S/dα²_direct
+        d2S_dalpha2_direct = 0
+        
+        # d²S/dαdy_direct
+        d2S_dalpha_dy = r**2 * (
+            d2_num_alpha_y / denominator
+            - d_num_alpha * d_denom_y / denominator**2
+        )
+        
+        # d²S/dy²
+        d2S_dy2 = r**2 * (
+            d2_num_y2 / denominator
+            - 2 * d_num_y * d_denom_y / denominator**2
+            - numerator * d2_denom_y2 / denominator**2
+            + 2 * numerator * d_denom_y**2 / denominator**3
+        )
+        
+        # Build the Hessian matrix
+        hess = np.zeros((4, 4, len(freq)))
+        
+        # H[0,0] = d²S/dr²
+        hess[0, 0] = 2 * S_base
+        
+        # H[0,1] = H[1,0] = d²S/drda
+        hess[0, 1] = hess[1, 0] = 2 * r * (d_num_alpha / denominator + dS_dgamma * d_gamma_alpha / r**2)
+        
+        # H[0,2] = H[2,0] = d²S/drdλ
+        hess[0, 2] = hess[2, 0] = 2 * r * dS_dgamma / r**2
+        
+        # H[0,3] = H[3,0] = d²S/drdΓ
+        hess[0, 3] = hess[3, 0] = 2 * r * (dS_dy * dy_dGamma / r**2 + dS_dgamma * d_gamma_Gamma / r**2)
+        
+        # H[1,1] = d²S/dα²
+        hess[1, 1] = (
+            d2S_dalpha2_direct
+            + 2 * d2S_dgamma_dalpha * d_gamma_alpha
+            + d2S_dgamma2 * d_gamma_alpha**2
+            + dS_dgamma * d2_gamma_alpha2
+        )
+        
+        # H[1,2] = H[2,1] = d²S/dαdλ
+        hess[1, 2] = hess[2, 1] = d2S_dgamma_dalpha + d2S_dgamma2 * d_gamma_alpha
+        
+        # H[1,3] = H[3,1] = d²S/dαdΓ
+        hess[1, 3] = hess[3, 1] = (
+            d2S_dalpha_dy * dy_dGamma
+            + d2S_dgamma_dalpha * d_gamma_Gamma
+            + d2S_dgamma_dy * d_gamma_alpha * dy_dGamma
+            + d2S_dgamma2 * d_gamma_alpha * d_gamma_Gamma
+            + dS_dgamma * d2_gamma_GammaAlpha
+        )
+        
+        # H[2,2] = d²S/dλ²
+        hess[2, 2] = d2S_dgamma2
+        
+        # H[2,3] = H[3,2] = d²S/dλdΓ
+        hess[2, 3] = hess[3, 2] = (
+            d2S_dgamma_dy * dy_dGamma
+            + d2S_dgamma2 * d_gamma_Gamma
+        )
+        
+        # H[3,3] = d²S/dΓ²
+        hess[3, 3] = (
+            dS_dy * d2y_dGamma2
+            + 2 * d2S_dgamma_dy * dy_dGamma * d_gamma_Gamma
+            + d2S_dy2 * dy_dGamma**2
+            + d2S_dgamma2 * d_gamma_Gamma**2
+            + dS_dgamma * d2_gamma_Gamma2
+        )
+        
+        return hess
