@@ -66,18 +66,8 @@ class PronyCosineEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        """The drift matrix of the extended Markovian system.
-        
-        Returns
-        -------
-        Drift matrix for the oscillatory Prony embedding,
-           [ 0   θ   0]
-           [-θ   γ   ω]
-           [ 0  -ω   γ]
-        """
         theta, gamma, omega = np.asarray(params)
         A = np.zeros((3,3))
-        A[0,0] = 0.0
         A[0,1] = theta
         A[1,0] = -theta
         A[1,1] = A[2,2] = gamma
@@ -111,87 +101,60 @@ class PronyCosineEmbedder(BaseEmbedder):
         return grad_A
     
     def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Memory kernel function for the oscillatory Prony embedding, K(t) = θ^2 exp(-γt) cos(ωt)
-        """
-        theta, gamma, omega = self.params
-        time = np.abs(time)
-        return theta**2 * np.exp(-gamma * time) * np.cos(omega*time)
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma, omega = self.primitive_params
+        return theta**2 * np.exp(-gamma * t) * np.cos(omega*t)
     
     def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Gradient of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt) cos(ωt),
-        w.r.t. [θ, γ, ω]
-        """
-        time = np.abs(time)
-        theta, gamma, omega = self.params
-        exp_gamma_t = np.exp(-gamma*time)
-        cos_omega_t = np.cos(omega*time)
-        ans = np.empty((3, len(time)))
-        # d/dθ 
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma, omega = self.primitive_params
+        exp_gamma_t = np.exp(-gamma*t)
+        cos_omega_t = np.cos(omega*t)
+        ans = np.empty((3, len(t)))
         ans[0] = 2 * theta * exp_gamma_t * cos_omega_t
-        # d/dγ 
-        ans[1] = -(theta**2) * time * exp_gamma_t * cos_omega_t
-        # d/dω 
-        ans[2] = -(theta**2) * time * exp_gamma_t * np.sin(omega*time)
+        ans[1] = -(theta**2) * t * exp_gamma_t * cos_omega_t
+        ans[2] = -(theta**2) * t * exp_gamma_t * np.sin(omega*t)
         return ans
     
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Hessian of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt) cos(ωt),
-        w.r.t. [θ, γ, ω]
-        """
-        time = np.abs(time)
-        theta, gamma, omega = self.params
-        exp_gamma_t = np.exp(-gamma*time)
-        cos_omega_t = np.cos(omega*time)
-        sin_omega_t = np.sin(omega*time)
-        ans = np.empty((3, 3, len(time)))
-        # d²/dθ² 
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma, omega = self.primitive_params
+        exp_gamma_t = np.exp(-gamma*t)
+        cos_omega_t = np.cos(omega*t)
+        sin_omega_t = np.sin(omega*t)
+        ans = np.empty((3, 3, len(t)))
         ans[0,0] = 2 * exp_gamma_t * cos_omega_t
-        # d²/dθdγ 
-        ans[0,1] = ans[1,0] = -2 * theta * time * exp_gamma_t * cos_omega_t
-        # d²/dθdω 
-        ans[0,2] = ans[2,0] = -2 * theta * time * exp_gamma_t * sin_omega_t
-        # d²/dγ² 
-        ans[1,1] = theta**2 * time**2 * exp_gamma_t * cos_omega_t
-        # d²/dγdω 
-        ans[1,2] = ans[2,1] = theta**2 * time**2 * exp_gamma_t * sin_omega_t
-        # d²/dω² 
-        ans[2,2] = -(theta**2) * time**2 * exp_gamma_t * cos_omega_t
+        ans[0,1] = ans[1,0] = -2 * theta * t * exp_gamma_t * cos_omega_t
+        ans[0,2] = ans[2,0] = -2 * theta * t * exp_gamma_t * sin_omega_t
+        ans[1,1] = theta**2 * t**2 * exp_gamma_t * cos_omega_t
+        ans[1,2] = ans[2,1] = theta**2 * t**2 * exp_gamma_t * sin_omega_t
+        ans[2,2] = -(theta**2) * t**2 * exp_gamma_t * cos_omega_t
         return ans
     
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Spectrum for the oscillatory Prony embedding, 
-        """
-        theta, gamma, omega = self.params = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma, omega = self.primitive_params
         g2 = gamma**2
         gth2 = gamma * theta**2
-        ans = gth2 / (g2 + (frequency - omega)**2)
-        ans += gth2 / (g2 + (frequency + omega)**2)
+        ans = gth2 / (g2 + (freq - omega)**2)
+        ans += gth2 / (g2 + (freq + omega)**2)
         ans /= 2
         return ans
         
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Gradient of the spectrum for the Prony embedding w.r.t. [θ, γ, ω]
-        """
-        theta, gamma, omega = self.params = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma, omega = self.primitive_params
         g2 = gamma**2
-        fdiff = frequency - omega
+        fdiff = freq - omega
         fdiff2 = fdiff**2
-        fsum = frequency + omega
+        fsum = freq + omega
         fsum2 = fsum**2
-        ans = np.empty((3, len(frequency)))
-        # d/dθ
+        ans = np.empty((3, len(freq)))
         ans[0] = gamma * theta * ( 1/(g2 + fdiff2) + 1/(g2 + fsum2) )
-        # d/dγ 
         ans[1] = -(theta**2 / 2) * (
             (g2 - fdiff2) / (g2 + fdiff2)**2 + 
             (g2 - fsum2) / (g2 + fsum2)**2 
         )
-        # d/dω
         ans[2] = gamma * theta**2 * (
             fdiff/(g2 + fdiff2)**2 - 
             fsum/(g2 + fsum2)**2
@@ -199,39 +162,31 @@ class PronyCosineEmbedder(BaseEmbedder):
         return ans
     
     def spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Hessian of the spectrum for the Prony embedding w.r.t. [θ, γ, ω]
-        """
-        theta, gamma, omega = self.params = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma, omega = self.primitive_params
         g2 = gamma**2
-        fdiff = frequency - omega
+        fdiff = freq - omega
         fdiff2 = fdiff**2
-        fsum = frequency + omega
+        fsum = freq + omega
         fsum2 = fsum**2
-        ans = np.empty((3,3,len(frequency)))
-        # d²/dθ² 
+        ans = np.empty((3,3,len(freq)))
         ans[0,0] = gamma * ( 1/(g2 + fdiff2) + 1/(g2 + fsum2) )
-        # d²/dθdγ 
         ans[0,1] = ans[1,0] = -theta * (
             (g2 - fdiff2) / (g2 + fdiff2)**2 + 
             (g2 - fsum2) / (g2 + fsum2)**2 
         )
-        # d²/dθdω 
         ans[0,2] = ans[2,0] = 2 * gamma * theta * (
             fdiff/(g2 + fdiff2)**2 - 
             fsum/(g2 + fsum2)**2
         )
-        # d²/dγ² 
         ans[1,1] = gamma * theta**2 * (
             (g2 - 3*fdiff2) / (g2 + fdiff2)**3 + 
             (g2 - 3*fsum2) / (g2 + fsum2)**3 
         )
-        # d²/dγdω 
         ans[1,2] = ans[2,1] = theta**2 * (
             fdiff * (-3*g2 + fdiff2) / (g2 + fdiff2)**3 - 
             fsum * (-3*g2 + fsum2) / (g2 + fsum2)**3 
         )
-        # d²/dω² 
         ans[2,2] = gamma * theta**2 * (
             (-g2 + 3*fdiff2) / (g2 + fdiff2)**3 + 
             (-g2 + 3*fsum2) / (g2 + fsum2)**3 

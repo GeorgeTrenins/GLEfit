@@ -103,7 +103,7 @@ def test_to_conventional():
         emb = TwoAuxEmbedder(theta, gamma, delta, Omega, sigma=10.0, threshold=30.0)
         times = np.linspace(0, 1, 25)
         K0 = emb.kernel(times)
-        new_params = emb.to_conventional(emb.params)
+        new_params = emb.params
         emb2 = TwoAuxEmbedder(new_params[:2], *new_params[2:], sigma=10.0, threshold=30.0)
         K1 = emb2.kernel(times)
         assert_allclose(
@@ -187,7 +187,7 @@ def test_kernel_values_overdamped():
         Gamma_val = float(rng.uniform(0.5, 5.0))
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.0, 2.0))
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         kernel_vals = emb.kernel_func(times)
         expected_kernel = f_kernel(times, r_val, alpha_val, lamda_val, Gamma_val)
         assert_allclose(
@@ -218,7 +218,7 @@ def test_kernel_values_underdamped():
         Gamma_val = float(rng.uniform(-5.0, -0.5))
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.0, 2.0))
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         kernel_vals = emb.kernel_func(times)
         expected_kernel = f_kernel(times, r_val, alpha_val, lamda_val, Gamma_val)
         assert_allclose(
@@ -259,7 +259,7 @@ def test_kernel_grad_overdamped():
         Gamma_val = float(rng.uniform(0.5, 5.0))   # overdamped / hyperbolic regime
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.0, 2.0))
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         grad = emb.kernel_grad(times)  
         expected0 = f_r(times, r_val, alpha_val, lamda_val, Gamma_val)
         expected1 = f_alpha(times, r_val, alpha_val, lamda_val, Gamma_val)
@@ -304,7 +304,7 @@ def test_kernel_grad_underdamped():
         Gamma_val = float(rng.uniform(-5.0, -0.5))  # underdamped / oscillatory regime
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.0, 2.0))
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         grad = emb.kernel_grad(times)
         expected0 = f_r(times, r_val, alpha_val, lamda_val, Gamma_val)
         expected1 = f_alpha(times, r_val, alpha_val, lamda_val, Gamma_val)
@@ -338,7 +338,7 @@ def test_spectrum_value():
             envelope = gamma_val - Gamma
         else:
             envelope = gamma_val
-        upper_bound = 100.0/envelope
+        upper_bound = 50.0/envelope
         if w == 0.0:
             # For w=0, compute regular integral
             result, _ = quad(kernel_t, 0, upper_bound, limit=100)
@@ -351,7 +351,7 @@ def test_spectrum_value():
         Gamma_val = float(rng.uniform(-5.0, 5.0)) 
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.1, 2.0))
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         spectrum_vals = emb.spectrum_func(frequencies)
         expected_spectrum = np.array([
             spectrum_by_quadrature(w, r_val, alpha_val, lamda_val, Gamma_val)
@@ -408,7 +408,7 @@ def test_spectrum_grad_overdamped():
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.1, 2.0))
         
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         
         grad = emb.spectrum_grad(frequencies)
         
@@ -425,7 +425,6 @@ def test_spectrum_grad_overdamped():
                         err_msg="dS/dλ mismatch in overdamped regime")
         assert_allclose(grad[3], expected3, rtol=1e-10, atol=1e-12,
                         err_msg="dS/dΓ mismatch in overdamped regime")
-
 
 def test_spectrum_grad_underdamped():
     """Test spectrum gradient matches symbolic differentiation in underdamped regime."""
@@ -473,7 +472,7 @@ def test_spectrum_grad_underdamped():
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.1, 2.0))
         
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         
         grad = emb.spectrum_grad(frequencies)
         
@@ -490,7 +489,6 @@ def test_spectrum_grad_underdamped():
                         err_msg="dS/dλ mismatch in underdamped regime")
         assert_allclose(grad[3], expected3, rtol=1e-10, atol=1e-12,
                         err_msg="dS/dΓ mismatch in underdamped regime")
-
 
 def test_spectrum_hess_overdamped():
     """Test spectrum Hessian matches symbolic differentiation in overdamped regime."""
@@ -549,7 +547,7 @@ def test_spectrum_hess_overdamped():
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.1, 2.0))
         
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         
         hess = emb.spectrum_hess(frequencies)
         
@@ -584,7 +582,6 @@ def test_spectrum_hess_overdamped():
                         err_msg="d²S/dλdΓ mismatch in overdamped regime")
         assert_allclose(hess[3, 3], expected_GammaGamma, rtol=1e-9, atol=1e-11,
                         err_msg="d²S/dΓ² mismatch in overdamped regime")
-
 
 def test_spectrum_hess_underdamped():
     """Test spectrum Hessian matches symbolic differentiation in underdamped regime."""
@@ -644,7 +641,7 @@ def test_spectrum_hess_underdamped():
         alpha_val = float(rng.uniform(-10.0, 10.0))
         lamda_val = float(rng.uniform(0.1, 2.0))
         
-        emb.params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
+        emb.primitive_params = np.array([r_val, alpha_val, lamda_val, Gamma_val])
         
         hess = emb.spectrum_hess(frequencies)
         

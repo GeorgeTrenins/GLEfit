@@ -27,9 +27,10 @@ ScalarArr = Union[
 class BaseEmbedder(ABC):
     """Base class for Markovian embedding schemes.
     
-    This class defines the interface for embedding schemes that map
-    a memory kernel onto an extended Markovian system using auxiliary
-    variables.
+    Roles of parameters:
+    - Conventional params: user-facing (identical to primitive for simple embedders).
+    - Primitive params: internal, non-degenerate parameters.
+    - Mapped params x: one-to-one transforms of primitive params imposing constraints; used in optimization.
     """
 
     def __init__(self, *args, **kwargs):
@@ -75,13 +76,28 @@ class BaseEmbedder(ABC):
         return self._get_nparam()
     
     @property
+    def primitive_params(self) -> npt.NDArray[np.floating]:
+        """Internal primitive parameters."""
+        return np.copy(self._params)
+
+    @primitive_params.setter
+    def primitive_params(self, value: npt.ArrayLike) -> None:
+        """Set primitive parameters directly (bypasses conventional mapping)."""
+        cur = self._params
+        arr = np.asarray(value)
+        if arr.shape != cur.shape:
+            raise ValueError(f"primitive_params must have shape {cur.shape}, got {arr.shape}")
+        self._params[:] = arr
+        self._x[:] = self._forward_map(arr)
+
+    @property
     def params(self) -> npt.NDArray[np.floating]:
-        """Return vector of optimizable parameters in the embedding."""
+        """Conventional parameters (defaults to primitive when identical)."""
         return np.copy(self._params)
     
     @params.setter
     def params(self, value: npt.ArrayLike) -> None:
-        """Set vector of optimizable parameters in the embedding."""
+        """Set conventional parameters (defaults to primitive when identical)."""
         cur = self._params
         arr = np.asarray(value)
         if arr.shape != cur.shape:
@@ -345,52 +361,27 @@ class BaseEmbedder(ABC):
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
         """
-        Computes the memory kernel function for the embedding.
-
-        Parameters
-        ----------
-        time : scalar or array-like
-            The input time values for which to compute the kernel.
-        nu : int (optional)
-            Order of the derivative with respect to embedding parameters 
-            (default is 0)
-        mapped : bool (optional)
-            True if the derivatives are with respect to mapped parameters. 
-            Default is False.
-
-        Returns
-        -------
-        np.ndarray
-            The computed kernel values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        TypeError
-            If `nu` is not an integer
+        Computes the memory kernel or its param derivatives.
+        
+        nu: 0 → kernel values; 1 → gradient w.r.t. primitive params; 2 → Hessian w.r.t. primitive params.
+        mapped=True returns derivatives w.r.t. mapped params x.
         """
-        time = np.abs(np.atleast_1d(time))
+        time = np.atleast_1d(time)
         if time.ndim != 1:
-            raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
-                             f"instead got {time.ndim = }.")
+            raise ValueError(f"Expecting `time` to be scalar or a 1D array, instead got {time.ndim = }.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:
             return self.kernel_func(time)
         elif nu == 1:
             grad = self.kernel_grad(time)
-            if mapped:
-                return self.grad_param_to_x(grad, self.x)
-            else:
-                return grad
+            return self.grad_param_to_x(grad, self.x) if mapped else grad
         elif nu == 2:
             hess = self.kernel_hess(time)
             if mapped:
                 grad = self.kernel_grad(time)
                 return self.hess_param_to_x(grad, hess, self.x)
-            else:
-                return hess
+            return hess
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
         
@@ -478,53 +469,27 @@ class BaseEmbedder(ABC):
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
         """
-        Computes the spectrum (Fourier transform of the kernel) for the embedding
-        at the given frequencies.
-
-        Parameters
-        ----------
-        frequency : scalar or array-like
-            Array of frequency values at which to evaluate the spectrum.
-        nu : int (optional)
-            Order of the derivative with respect to embedding parameters 
-            (default is 0)
-        mapped : bool (optional)
-            True if the derivatives are with respect to mapped parameters. 
-            Default is False.
-
-        Returns
-        -------
-        numpy.ndarray
-            Array of floating point values representing the spectrum at the specified frequencies.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        TypeError
-            If `nu` is not an integer
+        Computes the spectrum (cosine transform of the kernel) or its derivatives.
+        
+        nu: 0 → spectrum values; 1 → gradient w.r.t. primitive params; 2 → Hessian w.r.t. primitive params.
+        mapped=True returns derivatives w.r.t. mapped params x.
         """
-        frequency = np.abs(np.atleast_1d(frequency))
+        frequency = np.atleast_1d(frequency)
         if frequency.ndim != 1:
-            raise ValueError(f"Expecting `time` to be scalar or a 1D array, "
-                             f"instead got {frequency.ndim = }.")
+            raise ValueError(f"Expecting `time` to be scalar or a 1D array, instead got {frequency.ndim = }.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:
             return self.spectrum_func(frequency)
         elif nu == 1:
             grad = self.spectrum_grad(frequency)
-            if mapped:
-                return self.grad_param_to_x(grad, self.x)
-            else:
-                return grad
+            return self.grad_param_to_x(grad, self.x) if mapped else grad
         elif nu == 2:
             hess = self.spectrum_hess(frequency)
             if mapped:
                 grad = self.spectrum_grad(frequency)
                 return self.hess_param_to_x(grad, hess, self.x)
-            else:
-                return hess
+            return hess
         else:
             raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
         
@@ -535,29 +500,7 @@ class BaseEmbedder(ABC):
             mapped: Optional[bool]=False
         ) -> npt.NDArray[np.floating]:
         """
-        Computes the spectral density (spectrum multiplied by frequency) for the embedding
-        at the given frequencies.
-
-        Parameters
-        ----------
-        frequency : scalar or array-like
-            Array of frequency values at which to evaluate the spectrum.
-        nu : int (optional)
-            Order of the derivative with respect to embedding parameters 
-            (default is 0)
-        mapped : bool (optional)
-            True if the derivatives are with respect to mapped parameters. 
-            Default is False.
-
-        Returns
-        -------
-        numpy.ndarray
-            Array of floating point values representing the spectral density at the specified frequencies.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
+        Computes the spectral density S(ω)=ω·K̂(ω) and its derivatives.
         """
         freq = np.asarray(frequency)
-        return freq * self.spectrum_func(freq, nu=nu, mapped=mapped)
+        return freq * self.spectrum(freq, nu=nu, mapped=mapped)

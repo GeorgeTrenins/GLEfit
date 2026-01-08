@@ -63,17 +63,8 @@ class PronyEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        """The drift matrix of the extended Markovian system.
-        
-        Returns
-        -------
-        Drift matrix for the Prony embedding,
-           [ 0   θ ]
-           [-θ   γ ]
-        """
         theta, gamma = np.asarray(params)
         A = np.zeros((2,2))
-        A[0,0] =  0.0
         A[0,1] =  theta
         A[1,0] = -theta
         A[1,1] =  gamma
@@ -83,99 +74,66 @@ class PronyEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        """The gradient of the drift matrix of the extended Markovian system.
+        """Gradient of drift matrix w.r.t. [θ, γ].
         
-        Returns
-        -------
-        Derivative of the drift matrix
-           [ 0   θ ]
-           [-θ   γ ]
-        with respect to θ (grad[0]):
-           [ 0   1 ]
-           [-1   0 ]
-        and γ (grad[1]):
-           [ 0   0 ]
-           [ 0   1 ]
+        Returns array of shape (2, 2, 2) where:
+        - grad[0] = dA/dθ
+        - grad[1] = dA/dγ
         """
-        grad_A = np.zeros((2,2,2))
-        # Derivative with respect to θ
-        grad_A[0,0,1] = 1.0
-        grad_A[0,1,0] =-1.0
-        # Derivative with respect to γ
-        grad_A[1,1,1] = 1.0
+        grad_A = np.zeros((2, 2, 2))
+        # dA/dθ
+        grad_A[0, 0, 1] = 1.0
+        grad_A[0, 1, 0] = -1.0
+        # dA/dγ
+        grad_A[1, 1, 1] = 1.0
         return grad_A
     
     def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt)
-        """
-        theta, gamma = self.params
-        return theta**2 * np.exp(-gamma * time)
+        """K(t)=θ² exp(-γ|t|)."""
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma = self.primitive_params
+        return theta**2 * np.exp(-gamma * t)
     
     def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Gradient of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt),
-        w.r.t. [θ, γ]
-        """
-        theta, gamma = self.params
-        exp_gamma_t = np.exp(-gamma*time)
-        ans = np.empty((2, len(time)))
-        # d/dθ
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma = self.primitive_params
+        exp_gamma_t = np.exp(-gamma*t)
+        ans = np.empty((2, len(t)))
         ans[0] = 2 * theta * exp_gamma_t
-        # d/dγ
-        ans[1] = -(theta**2) * time * exp_gamma_t
+        ans[1] = -(theta**2) * t * exp_gamma_t
         return ans
     
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Hessian of the memory kernel function for the Prony embedding, K(t) = θ^2 exp(-γt),
-        w.r.t. [θ, γ]
-        """
-        theta, gamma = self.params
-        exp_gamma_t = np.exp(-gamma*time)
-        ans = np.empty((2, 2, len(time)))
-        # d²/dθ² 
+        t = np.abs(np.atleast_1d(time))
+        theta, gamma = self.primitive_params
+        exp_gamma_t = np.exp(-gamma*t)
+        ans = np.empty((2, 2, len(t)))
         ans[0,0] = 2*exp_gamma_t
-        # d²/dθdγ
-        ans[0,1] = ans[1,0] = -2 * theta * time * exp_gamma_t
-        # d²/dγ² 
-        ans[1,1] = theta**2 * time**2 * exp_gamma_t
+        ans[0,1] = ans[1,0] = -2 * theta * t * exp_gamma_t
+        ans[1,1] = theta**2 * t**2 * exp_gamma_t
         return ans
     
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2)
-        """
-        theta, gamma = self.params
-        return gamma * theta**2 / (gamma**2 + frequency**2)
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma = self.primitive_params
+        return gamma * theta**2 / (gamma**2 + freq**2)
         
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Gradient of the spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2),
-        w.r.t. [θ, γ]
-        """
-        theta, gamma = self.params
-        ans = np.empty((2, len(frequency)))
-        # d/dθ [γ θ^2 / (γ^2 + ω^2)] = 2 θ γ / (γ^2 + ω^2)
-        ans[0] = 2 * theta * gamma / (gamma**2 + frequency**2)
-        # d/dγ [γ * θ^2 / (γ^2 + ω^2)] = θ^2 * (ω^2 - γ^2) / (γ^2 + ω^2)^2
-        ans[1] = theta**2 * (frequency**2 - gamma**2) / (gamma**2 + frequency**2)**2
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma = self.primitive_params
+        ans = np.empty((2, len(freq)))
+        ans[0] = 2 * theta * gamma / (gamma**2 + freq**2)
+        ans[1] = theta**2 * (freq**2 - gamma**2) / (gamma**2 + freq**2)**2
         return ans
     
     def spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Hessian of the spectrum for the Prony embedding, γ * θ^2 / (γ^2 + ω^2),
-        w.r.t. [θ, γ]
-        """
-        theta, gamma = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        theta, gamma = self.primitive_params
         g2 = gamma**2
-        w2 = frequency**2
+        w2 = freq**2
         gw2 = g2 + w2
-        ans = np.empty((2, 2, len(frequency)))
-        # d²/dθ² 
+        ans = np.empty((2, 2, len(freq)))
         ans[0,0] = 2*gamma / gw2
-        # d²/dθdγ 
         ans[0,1] = ans[1,0] = 2*theta * (w2 - g2) / gw2**2
-        # d²/dγ²
         ans[1,1] = 2*gamma*theta**2 * (g2 - 3*w2) / gw2**3
         return ans

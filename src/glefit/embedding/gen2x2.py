@@ -16,7 +16,6 @@ from collections import namedtuple
 import numpy as np
 import numpy.typing as npt
 
-_cparams = namedtuple('CParams', ['theta1', 'theta2', 'gamma', 'delta', 'Omega'])
 _params = namedtuple('Params', ['r', 'alpha', 'lamda', 'Gamma'])
 _DEFAULTS = dict(sigma=5.0, threshold=20.0)
 
@@ -86,9 +85,6 @@ class TwoAuxEmbedder(BaseEmbedder):
         theta = np.asarray(theta, dtype=float)
         if theta.shape != (2,):
             raise ValueError(f"θ must be a length-2 vector, instead got {theta.shape = }")
-        self._cparams = np.concatenate([theta, [gamma, delta, Omega]])
-        self._named_cparams = _cparams(*self._cparams)
-        params = self.from_conventional(self._cparams)
         kwargs.setdefault(
             "mappers", [
                 LowerBoundMapper(), # r > 0
@@ -97,8 +93,37 @@ class TwoAuxEmbedder(BaseEmbedder):
                 IdentityMapper()    # Γ ∈ R
         ])
         super().__init__(*args, **kwargs)
-        self.params = params
-        self._named_params = _params(*self.params)
+        # set primitive params directly
+        cparams = np.concatenate([theta, [gamma, delta, Omega]])
+        prim_params = self.from_conventional(cparams)
+        self._params[:] = prim_params
+        self._x[:] = self._forward_map(prim_params)
+        self._named_params = _params(*self._params)
+
+    @property
+    def primitive_params(self) -> npt.NDArray[np.floating]:
+        """Primitive (internal) parameters [r, α, λ, Γ]."""
+        return np.copy(self._params)
+
+    @primitive_params.setter
+    def primitive_params(self, value: npt.ArrayLike) -> None:
+        """Set primitive (internal) parameters [r, α, λ, Γ]."""
+        BaseEmbedder.primitive_params.fset(self, value)
+
+    @property
+    def params(self) -> npt.NDArray[np.floating]:
+        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
+        return self.to_conventional(self._params)
+    
+    @params.setter
+    def params(self, value: npt.ArrayLike) -> None:
+        """Set conventional parameters; store as primitive internally."""
+        arr_conv = np.asarray(value)
+        if arr_conv.shape != (5,):
+            raise ValueError(f"params must have shape (5,), got {arr_conv.shape}")
+        prim = self.from_conventional(arr_conv)
+        self._params[:] = prim
+        self._x[:] = self._forward_map(prim)
 
     def _gamma_lower_bound(self, Gamma, alpha, nu=0):
         if nu == 0:
@@ -293,16 +318,6 @@ class TwoAuxEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        """The drift matrix of the extended Markovian system expressed in terms of primitive parameters, which are internally converted to the
-        conventional parameters θ[0], θ[1], γ, δ, Ω 
-        
-        Returns
-        -------
-            (  0    θ[0] θ[1])
-        A = (-θ[0]  γ+δ    Ω )
-            (-θ[1]  -Ω   γ-δ )
-        """
-
         theta1, theta2, gamma, delta, Omega = self.to_conventional(params)
         A = np.zeros((3,3))
         A[0,1] = theta1
@@ -359,8 +374,8 @@ class TwoAuxEmbedder(BaseEmbedder):
             K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
             where γ = λ + Softmax(Γ, Softabs(α))
         """
-        t = np.abs(time)
-        r, alpha, lamda, Gamma = self.params
+        t = np.abs(np.atleast_1d(time))
+        r, alpha, lamda, Gamma = self.primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         ans = expcoscosh(Gamma, t, gamma)
         ans -= alpha*t*expsincsinhc(Gamma, t, gamma)
@@ -373,26 +388,20 @@ class TwoAuxEmbedder(BaseEmbedder):
             K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
             where γ = λ + Softmax(Γ, Softabs(α))
         """
-        t = np.abs(time)
-        r, alpha, lamda, Gamma = self.params
+        t = np.abs(np.atleast_1d(time))
+        r, alpha, lamda, Gamma = self.primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         C = expcoscosh(Gamma, t, gamma)
         S = expsincsinhc(Gamma, t, gamma)
         K_base = C - alpha*t*S
-        ans = np.empty((4, len(time)))
-        # d/dr
-        ans[0] = 2*r * K_base
-        # d/dα
+        ans = np.empty((4, len(t)))
         d_gamma_Gamma, d_gamma_alpha  = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        ans[1] = r**2 * (
-            -t * S - d_gamma_alpha * t * K_base)
-        # d/dλ
+        ans[0] = 2*r * K_base
+        ans[1] = r**2 * (-t * S - d_gamma_alpha * t * K_base)
         ans[2] = -r**2 * t * K_base
-        # d/dΓ
         dC = expcoscosh(Gamma, t, gamma, nu=1, wrt="Gamma")
         dS = expsincsinhc(Gamma, t, gamma, nu=1, wrt="Gamma")
-        ans[3] = r**2 * (
-            dC - alpha * t * dS - d_gamma_Gamma * t * K_base)
+        ans[3] = r**2 * (dC - alpha * t * dS - d_gamma_Gamma * t * K_base)
         return ans
 
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
@@ -403,8 +412,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         raise NotImplementedError
     
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        freq = np.abs(np.asarray(frequency))
-        r, alpha, lamda, Gamma = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        r, alpha, lamda, Gamma = self.primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         w2 = freq**2
         g2 = gamma**2
@@ -414,18 +423,10 @@ class TwoAuxEmbedder(BaseEmbedder):
         ans *= r**2
         return ans
 
-    
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        """
-        Gradient of the spectrum for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
-        
-        S(ω) = r² · [(α+γ)ω² - (α-γ)(γ²-y)] / [γ⁴ + 2γ²(ω²-y) + (ω²+y)²]
-        where y = Γ·|Γ| and γ = λ + Softmax(Γ, Softabs(α))
-        """
-        freq = np.abs(np.asarray(frequency))
-        r, alpha, lamda, Gamma = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        r, alpha, lamda, Gamma = self.primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        
         w2 = freq**2
         g2 = gamma**2
         y = Gamma * abs(Gamma)
@@ -433,25 +434,15 @@ class TwoAuxEmbedder(BaseEmbedder):
         denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
         S_base = numerator / denominator
         ans = np.empty((4, len(freq)))
-        # d/dr:
         ans[0] = 2 * r * S_base
-        # First derivatives of numerator and denominator w.r.t. γ
         d_num_gamma = w2 - y - 2*alpha*gamma + 3*g2
         d_denom_gamma = 4 * gamma * (g2 + w2 - y)
-        # dS/dγ
         dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma) 
-        # Get dγ/dα and dγ/dΓ
         d_gamma_Gamma, d_gamma_alpha = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        # d/dα: dS/dα + dS/dγ · dγ/dα
         d_num_alpha = w2 + y - g2
-        dS_dalpha_direct = r**2 * d_num_alpha / denominator
-        ans[1] = dS_dalpha_direct + dS_dgamma * d_gamma_alpha
-        # d/dλ: dS/dγ · dγ/dλ = dS/dγ
+        ans[1] = r**2 * d_num_alpha / denominator + dS_dgamma * d_gamma_alpha
         ans[2] = dS_dgamma
-        # d/dΓ: dS/dy · dy/dΓ + dS/dγ · dγ/dΓ
-        # dy/dΓ = d(Γ·|Γ|)/dΓ = 2|Γ|
         dy_dGamma = 2 * abs(Gamma)
-        # dS/dy
         d_num_y = alpha - gamma
         d_denom_y = 2*(y + w2 - g2)
         dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
@@ -467,8 +458,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         
         Shape: (4, 4, len(freq))
         """
-        freq = np.abs(np.asarray(frequency))
-        r, alpha, lamda, Gamma = self.params
+        freq = np.abs(np.atleast_1d(frequency))
+        r, alpha, lamda, Gamma = self.primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         
         w2 = freq**2
@@ -511,11 +502,9 @@ class TwoAuxEmbedder(BaseEmbedder):
         
         # Cross derivatives
         d2_num_gamma_alpha = -2*gamma
-        d2_denom_gamma_alpha = 0
         d2_num_gamma_y = -1
         d2_denom_gamma_y = -4*gamma
         d2_num_alpha_y = 1
-        d2_denom_alpha_y = 0
         
         # Second derivative d²S/dγ²
         d2S_dgamma2 = r**2 * (
