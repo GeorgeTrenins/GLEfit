@@ -10,7 +10,7 @@
 
 from __future__ import print_function, division, absolute_import
 from glefit.embedding import BaseEmbedder
-from glefit.merit import BaseMerit
+from glefit.merit import BaseProperty
 from pathlib import Path
 from typing import Optional, Union, IO
 from contextlib import ExitStack
@@ -71,7 +71,7 @@ class Optimizer(IOContext):
     def __init__(
             self,
             emb: BaseEmbedder,
-            merit_function: BaseMerit,
+            merit_function: BaseProperty,
             logfile: Optional[Union[IO, str, Path]] = None,
             trajfile: Optional[Union[IO, str, Path]] = None,
             **kwargs
@@ -82,7 +82,7 @@ class Optimizer(IOContext):
         ----------
         emb : BaseEmbedder
             The Markovian embedder to optimize
-        merit_function: BaseMerit
+        merit_function: BaseProperty
             Target function to minimize
         logfile : file-like object, str, or pathlib.Path, optional
             File to log optimization progress. If None, logging is disabled.

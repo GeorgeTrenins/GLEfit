@@ -112,12 +112,10 @@ class TwoAuxEmbedder(BaseEmbedder):
             abs_alpha = self.softabs(alpha, nu=0)
             d_abs_alpha = self.softabs(alpha, nu=1)
             d2_abs_alpha = self.softabs(alpha, nu=2)
-            
             # First derivatives of Softmax
             d_softmax = self.softmax(Gamma, abs_alpha, nu=1)  # shape (2,)
             # Second derivatives of Softmax
             d2_softmax = self.softmax(Gamma, abs_alpha, nu=2)  # shape (2,2)
-            
             # Hessian: [d²γ/dΓ², d²γ/dΓdα; d²γ/dαdΓ, d²γ/dα²]
             ans = np.empty((2, 2))
             # d²γ/dΓ²
@@ -248,9 +246,9 @@ class TwoAuxEmbedder(BaseEmbedder):
             jac[4,3] = -abs_Gamma/Omega
         # γ w.r.t [ r, α, λ, Γ ]
         tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        jac[2,1] = tmp[1,0]
+        jac[2,1] = tmp[1]
         jac[2,2] = 1.0
-        jac[2,3] = tmp[0,0]
+        jac[2,3] = tmp[0]
         cparams = np.asarray([theta1, theta2, gamma, delta, Omega])
         return cparams, jac
     
@@ -385,8 +383,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         # d/dr
         ans[0] = 2*r * K_base
         # d/dα
-        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        d_gamma_Gamma, d_gamma_alpha = tmp[:, 0]
+        d_gamma_Gamma, d_gamma_alpha  = self._gamma_lower_bound(Gamma, alpha, nu=1)
         ans[1] = r**2 * (
             -t * S - d_gamma_alpha * t * K_base)
         # d/dλ
@@ -444,8 +441,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         # dS/dγ
         dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma) 
         # Get dγ/dα and dγ/dΓ
-        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        d_gamma_Gamma, d_gamma_alpha = tmp[0, 0], tmp[1, 0]
+        d_gamma_Gamma, d_gamma_alpha = self._gamma_lower_bound(Gamma, alpha, nu=1)
         # d/dα: dS/dα + dS/dγ · dγ/dα
         d_num_alpha = w2 + y - g2
         dS_dalpha_direct = r**2 * d_num_alpha / denominator
@@ -494,8 +490,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
         
         # Get first and second derivatives of γ
-        d_gamma_vec = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        d_gamma_Gamma, d_gamma_alpha = d_gamma_vec[0, 0], d_gamma_vec[1, 0]
+        d_gamma_Gamma, d_gamma_alpha = self._gamma_lower_bound(Gamma, alpha, nu=1)
         
         d2_gamma_mat = self._gamma_lower_bound(Gamma, alpha, nu=2)
         d2_gamma_Gamma2 = d2_gamma_mat[0, 0]

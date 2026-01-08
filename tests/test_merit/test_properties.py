@@ -152,7 +152,7 @@ class TestKernel:
         x = multi_emb.x
         
         def distance_func(y):
-            return np.array([np.sum(kernel_object.distance_metric(
+            return np.array([np.sum(kernel_object.deviation_metric(
                 kernel_object.function(x=y), target))])
         
         ref_distance_gradient = jacobian(distance_func, x, order=4).flatten()
@@ -275,7 +275,7 @@ class TestSpectrum:
         
 
         def distance_func(y):
-            return np.array([np.sum(spectrum_object.distance_metric(
+            return np.array([np.sum(spectrum_object.deviation_metric(
                 spectrum_object.function(x=y), target))])
         
         ref_distance_gradient = jacobian(distance_func, x, order=4).flatten()

@@ -479,9 +479,11 @@ class Softmax(Softplus):
                 * nu==1: 2d array of shape (2,M) where ans[0,i] = D[Softmax(x1[i], x2[i]), x1[i]] and ans[1,i] = D[Softmax(x1[i], x2[i]), x2[i]]
                 * nu==2: 3d array of shape (2,2,M) where ans[0,0,i] = D[Softmax(x1[i], x2[i]), x1[i], x1[i]], etc.
         """
+        is_scalar = np.isscalar(x1)
         x1 = np.atleast_1d(x1)
         if x1.ndim != 1:
             raise ValueError(f"Expecting a 1d input for x1, instead got ndim = {x1.ndim}")
+        is_scalar = np.isscalar(x2) and is_scalar
         x2 = np.atleast_1d(x2)
         if x2.ndim != 1:
             raise ValueError(f"Expecting a 1d input for x2, instead got ndim = {x2.ndim}")
@@ -490,7 +492,7 @@ class Softmax(Softplus):
         diff = x2 - x1
         if nu == 0:
             ans = x1 + super().__call__(diff, nu=0)
-            if xshape == (1,):
+            if is_scalar:
                 return ans.item()
             else:
                 return ans
@@ -498,12 +500,18 @@ class Softmax(Softplus):
             ans = np.empty((2,)+xshape)
             ans[1] = super().__call__(diff, nu=1)
             ans[0] = 1.0 - ans[1]
-            return ans
+            if is_scalar:
+                return ans[...,0]
+            else:
+                return ans
         elif nu == 2:
             ans = np.empty((2,2)+xshape)
             ans[0,0] = ans[1,1] = super().__call__(diff, nu=2)
             ans[0,1] = ans[1,0] = -ans[0,0]
-            return ans
+            if is_scalar:
+                return ans[...,0]
+            else:
+                return ans
         else:
             raise ValueError(f"Expected nu = 0, 1, or 2 instead got {nu = }")
 
