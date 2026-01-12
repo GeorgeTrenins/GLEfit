@@ -1,0 +1,17 @@
+# data is not a dict
+project:
+  name: "test"
+  output_dir: "./output"
+
+data: "not_a_dict"
+
+merit_function:
+  property: "MemoryKernel"
+  data_ref: "test_data"
+
+embedder:
+  type: "PronyEmbedder"
+
+optimization:
+  optimizer: "NewtonRaphson"
+  max_steps: 100

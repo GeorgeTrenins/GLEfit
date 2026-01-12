@@ -1,0 +1,47 @@
+{
+  "project": {
+    "name": "relative_paths_test",
+    "output_dir": "/home/george/projects/glefit/tests/test_config/fixtures/output"
+  },
+  "data": {
+    "kernel_data": {
+      "source": "external",
+      "path": "/home/george/projects/glefit/tests/test_config/fixtures/test_data.csv",
+      "format": "csv",
+      "columns": [
+        0,
+        1
+      ],
+      "delimiter": ","
+    }
+  },
+  "merit_function": {
+    "property": "MemoryKernel",
+    "data_ref": "kernel_data",
+    "weight": 1.0,
+    "metric": "squared"
+  },
+  "embedder": {
+    "type": "PronyEmbedder",
+    "parameters": {
+      "theta": 1.0,
+      "gamma": 0.5
+    }
+  },
+  "optimization": {
+    "optimizer": "NewtonRaphson",
+    "max_steps": 100,
+    "options": {
+      "gtol": 0.0001
+    }
+  },
+  "optimization_state": {
+    "completed_steps": 0,
+    "max_steps": 100,
+    "timestamp": "2026-01-12T17:00:38.571428Z",
+    "converged": false,
+    "merit_value": null,
+    "gradient_norm": null,
+    "gradient_max_norm": null
+  }
+}

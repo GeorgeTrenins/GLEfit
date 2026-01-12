@@ -1,0 +1,28 @@
+# Configuration with inline data (no paths to resolve)
+project:
+  name: "inline_data_test"
+  output_dir: "./output"
+
+data:
+  kernel_data:
+    source: "inline"
+    grid: [0.0, 0.5, 1.0]
+    target: [1.0, 0.5, 0.1]
+
+merit_function:
+  property: "MemoryKernel"
+  data_ref: "kernel_data"
+  weight: 1.0
+  metric: "squared"
+
+embedder:
+  type: "PronyEmbedder"
+  parameters:
+    theta: 1.0
+    gamma: 0.5
+
+optimization:
+  optimizer: "NewtonRaphson"
+  max_steps: 100
+  options:
+    gtol: 0.0001

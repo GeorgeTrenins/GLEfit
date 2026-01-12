@@ -1,0 +1,20 @@
+# missing merit_function.data_ref
+project:
+  name: "test"
+  output_dir: "./output"
+
+data:
+  test_data:
+    source: "inline"
+    grid: [0.0, 0.5, 1.0]
+    target: [1.0, 0.5, 0.1]
+
+merit_function:
+  property: "MemoryKernel"
+
+embedder:
+  type: "PronyEmbedder"
+
+optimization:
+  optimizer: "NewtonRaphson"
+  max_steps: 100

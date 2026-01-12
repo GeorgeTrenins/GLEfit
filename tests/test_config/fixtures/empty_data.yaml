@@ -1,0 +1,17 @@
+# data dict is empty
+project:
+  name: "test"
+  output_dir: "./output"
+
+data: {}
+
+merit_function:
+  property: "MemoryKernel"
+  data_ref: "test_data"
+
+embedder:
+  type: "PronyEmbedder"
+
+optimization:
+  optimizer: "NewtonRaphson"
+  max_steps: 100
