@@ -13,11 +13,28 @@ from ._base import Optimizer, DEFAULT_MAX_STEPS
 from typing import Optional
 from glefit.utils.linalg import mat_inv_vec
 import numpy as np
+import numpy.typing as npt
 import time
 
 class NewtonRaphson(Optimizer):
+    """Newton-Raphson (quasi-Newton) optimizer for merit function minimization.
+    
+    Computes the step direction as:
+        h = -H⁻¹ ∇f
+    where H is the Hessian and ∇f is the gradient of the merit function.
+    
+    This is a second-order method that converges quadratically near minima
+    when the Hessian is well-conditioned and positive-definite.
+    
+    Convergence Criteria:
+        Converges when ||∇f||∞ < gtol (max-norm of gradient)
+    
+    Options:
+        gtol (float): Convergence threshold for gradient max-norm. Default: 0.05
+        max_step (float): Maximum step size. If None, no limit. Default: None
+    """
 
-    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None):
+    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None) -> None:
         """Run the optimizer.
 
         This method will return whenever the gradient of the merit function drops below `gtol` for all optimizable parameters or when the number of steps exceeds `steps`.
@@ -29,24 +46,52 @@ class NewtonRaphson(Optimizer):
             gtol (float): upper bound on the maximum norm of the gradient of the merit function w.r.t. optimizable parameters.
             max_step (float): maximum size of update step
         """
-        self.gtol = options.get("gtol", 0.05)
-        self.max_step = options.get("max_step")
+        if options is None:
+            options = {}
+        # Validate and extract options with sensible defaults
+        self.gtol = float(options.get("gtol", 0.05))
+        max_step_val = options.get("max_step")
+        self.max_step = float(max_step_val) if max_step_val is not None else None
+        
+        if self.gtol <= 0:
+            raise ValueError(f"gtol must be positive, got {self.gtol}")
+        if self.max_step is not None and self.max_step <= 0:
+            raise ValueError(f"max_step must be positive, got {self.max_step}")
+        
         self._eigvals = None
         super().run(steps=steps, options=options)
 
-    def initialize(self):
+    def initialize(self) -> None:
         self.update()
         
-    def update(self):
+    def update(self) -> None:
         # compute distance value, gradient and hessian
         self._value, self._grad, self._hess = self.merit.all()
 
-    def step(self):
+    def step(self) -> npt.NDArray[np.floating]:
+        """Compute Newton-Raphson step: h = -H⁻¹∇f.
+        
+        Rescales step if max component exceeds max_step constraint.
+        
+        Returns:
+            Step vector of shape (p,) where p = number of parameters
+        """
         h = -mat_inv_vec(self._hess, self._grad) 
         h = self.rescale_step(h)
         return h
     
-    def rescale_step(self, h):
+    def rescale_step(self, h: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+        """Rescale step to respect maximum component constraint.
+        
+        If any component of h exceeds max_step, uniformly scales all
+        components to preserve direction while limiting magnitude.
+        
+        Args:
+            h (ndarray): Proposed step vector of shape (p,)
+            
+        Returns:
+            Rescaled step vector, or h unchanged if no constraint active
+        """
         if self.max_step is None:
             return h
         else:
@@ -56,13 +101,23 @@ class NewtonRaphson(Optimizer):
             else:
                 return self.max_step/max_component * h
     
-    def converged(self):
+    def converged(self) -> bool:
+        """Check convergence based on gradient norm.
+        
+        Returns:
+            bool: True if converged, False otherwise.
+        """
         return np.linalg.norm(self._grad, ord=np.inf) < self.gtol
     
-    def get_eigvals(self):
+    def get_eigvals(self) -> npt.NDArray[np.floating]:
+        """Get eigenvalues of the Hessian.
+        
+        Returns:
+            npt.NDArray[np.floating]: Array of eigenvalues.
+        """
         return np.linalg.eigvalsh(self._hess)
     
-    def log(self, T=None):
+    def log(self, T=None) -> None:
         if T is None:
             T = time.localtime()
         name = self.__class__.__name__
@@ -105,13 +160,23 @@ class NewtonRaphson(Optimizer):
 
 
 class EigenvectorFollowing(NewtonRaphson):
+    """Eigenvalue-aware Newton-Raphson that allows escaping the catchment
+    basins of higher-order saddle points, designed to always locate a 
+    minimum.
+    
+    Transforms the step into the eigenbasis of the Hessian and applies
+    adaptive scaling based on eigenvalue magnitudes.
+    
+    References:
+        - Baker et al. J. Chem. Phys. 1996, 105, 8969-8976
+    """
 
-    def get_eigvals(self):
+    def get_eigvals(self) -> npt.NDArray[np.floating]:
         if self._eigvals is None:
             self._eigvals = np.linalg.eigvalsh(self._hess)
         return np.copy(self._eigvals)
 
-    def step(self):
+    def step(self) -> npt.NDArray[np.floating]:
         self._eigvals, self._eigvecs = np.linalg.eigh(self._hess)
         nm_grad = self._grad @ self._eigvecs
         nm_step = -2 * nm_grad / (np.abs(self._eigvals) * (1 + np.sqrt(

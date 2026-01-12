@@ -18,6 +18,7 @@ import functools
 import os
 import sys 
 import numpy as np
+import numpy.typing as npt
 import time
 
 DEFAULT_MAX_STEPS = 1_000_000
@@ -64,7 +65,37 @@ class IOContext(object):
 
 
 class Optimizer(IOContext):
-    """Base class for all GLE auxiliary variable optimizers."""
+    """Base class for all GLE auxiliary variable optimizers.
+    
+    Optimization Loop:
+    1. Subclass computes step h via step() method
+    2. Update embedder: emb.x = emb.x + h (transformed parameters)
+    3. Embedder automatically maps: x → params (via _inverse_map)
+    4. Recompute merit function and derivatives via update()
+    5. Check convergence via converged()
+    6. Log progress via log()
+    
+    Parameter Mapping:
+    - Conventional params: User-facing embedder parameters
+    - Transformed params (x): Constraint-mapped, used in optimization
+    - The optimization always works in the x space (constraints built-in)
+    
+    Subclasses must implement:
+    - converged(): convergence criterion
+    - step(): compute parameter update direction
+    
+    Subclasses may override:
+    - initialize(): set up initial state
+    - update(): refresh quantities needed for next step
+    - log(): record optimization progress
+    
+    Attributes:
+        emb (BaseEmbedder): The embedder to optimize
+        merit (BaseProperty): Objective function to minimize
+        logfile: File handle for detailed logging (gradient, Hessian, etc.)
+        trajectory: File handle for parameter trajectory output
+        nsteps (int): Number of completed optimization steps
+    """
 
     defaults = {'maxstep': 0.2}
 
@@ -105,7 +136,7 @@ class Optimizer(IOContext):
         self.maxstep = self.defaults['maxstep']
         self.initialize()
 
-    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None):
+    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None) -> bool:
         """Run the optimizer.
 
         This method will return whenever the convergence criteria are fulfilled
@@ -113,9 +144,11 @@ class Optimizer(IOContext):
 
         Args:
             steps (int, optional): Maximum number of steps to take. Defaults to DEFAULT_MAX_STEPS.
+            options (dict, optional): Optimizer-specific options for controlling convergence 
+                (e.g., tolerance thresholds). Defaults to None.
         
-        Options:
-            optimizer-specific options for controlling convergence
+        Returns:
+            bool: True if converged, False if max steps reached.
         """
         # update the maximum number of steps 
         # TODO: this will become relevant if we implement restarts
@@ -135,33 +168,45 @@ class Optimizer(IOContext):
             self.log()
         return is_converged
     
-    def initialize(self):
+    def initialize(self) -> None:
         """Compute any relevant quantities for judging initial convergence
         and making first optimization step
         """
         pass
     
-    def update(self):
+    def update(self) -> None:
         """Update the relevant quantities for judging convergence / making 
         next step
         """
         pass
 
-    def converged(self):
+    def converged(self) -> bool:
         """Optimization convergence criterion"""
         raise NotImplementedError
 
-    def iteration(self):
+    def iteration(self) -> None:
+        """Perform a single optimization iteration.
+        
+        Steps:
+        1. Compute step direction via step()
+        2. Update embedder parameters
+        3. Refresh cached quantities via update()
+        """
         h = self.step()
         x = self.emb.x
-        self.emb.x = x+h
+        self.emb.x = x+h 
         self.update()
 
-    def step(self):
-        """Compute an update step for the optimizable params"""
+    def step(self) -> npt.NDArray[np.floating]:
+        """Compute an update step for the optimizable params.
+        
+        Returns:
+            Step vector h with same shape as embedder parameters.
+            The step is applied as: x_new = x_old + h
+        """
         pass
 
-    def log(self, T=None):
+    def log(self, T: Optional[time.struct_time] = None) -> None:
         if T is None:
             T = time.localtime()
         name = self.__class__.__name__
