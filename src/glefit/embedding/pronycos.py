@@ -14,11 +14,11 @@ from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
 
+
 class PronyCosineEmbedder(BaseEmbedder):
-    _naux = 2
 
     def __len__(self) -> int:
-        return self._naux
+        return 2
     
     def _get_nparam(self) -> int:
         """Number of independent parameters used to define the drift matrix.
@@ -61,6 +61,16 @@ class PronyCosineEmbedder(BaseEmbedder):
         )
         super().__init__(*args, **kwargs)
         self.params = np.asarray([theta, gamma, omega], dtype=float)
+
+    @classmethod
+    def from_dict(
+        cls, 
+        parameters: dict
+    ) -> "PronyCosineEmbedder":
+        theta = parameters.pop("theta")
+        gamma = parameters.pop("gamma")
+        omega = parameters.pop("omega")
+        return cls(theta, gamma, omega, **parameters)
 
     def compute_drift_matrix(
             self, 

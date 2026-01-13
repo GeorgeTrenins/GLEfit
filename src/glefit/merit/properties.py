@@ -48,7 +48,7 @@ class MemoryKernel(BaseArrayProperty):
         A = Ap[1:,1:]
         return np.einsum(
             'ijk,j,k->i', 
-            expm(-self.array[:,None,None] * A), 
+            expm(-self.grid[:,None,None] * A), 
             theta, theta)
     
     @staticmethod
@@ -114,7 +114,7 @@ class MemoryKernel(BaseArrayProperty):
         else:
             Ap = np.copy(A)
         
-        time = self.array
+        time = self.grid
         ans = np.zeros((len(time),) + Ap.shape)
         theta = Ap[0,1:]
         A_aux = Ap[1:,1:]
@@ -181,7 +181,7 @@ class MemorySpectrum(BaseArrayProperty):
         else:
             emb = self.emb
             Ap = emb.compute_drift_matrix(emb._inverse_map(x))
-        return self._compute_spec_from_A(Ap, self.array)
+        return self._compute_spec_from_A(Ap, self.grid)
     
     def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of Λ(ω) w.r.t. full drift matrix: ∂Λ/∂A.
@@ -200,7 +200,7 @@ class MemorySpectrum(BaseArrayProperty):
         
         theta = Ap[0, 1:]
         A_aux = Ap[1:,1:]
-        omega = self.array
+        omega = self.grid
         ans = np.zeros((len(omega),) + Ap.shape)
         
         # Eigenvalue decomposition

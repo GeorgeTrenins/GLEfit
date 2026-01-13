@@ -44,7 +44,7 @@ def load_data(
     Raises:
         DataLoadError: If configuration is invalid or loading fails
     """
-    source = config_dict.get('source')
+    source = config_dict.get('source', 'inline')
     
     if source == 'external':
         return _load_external(config_dict, data_name)
@@ -152,11 +152,15 @@ def _load_inline(
     grid = config_dict.get('grid')
     target = config_dict.get('target')
     
-    if grid is None:
-        raise DataLoadError(f"Data '{data_name}': 'grid' required for inline source")
     if target is None:
         raise DataLoadError(f"Data '{data_name}': 'target' required for inline source")
+    if grid is None:
+        # No grid for scalar quantites
+        if not np.isscalar(target):
+            raise DataLoadError(f"Data '{data_name}': 'grid' required for inline source unless the target is a scalar")
+        return None, float(target)
     
+    # Both grid and target have been specified, treat as arrays
     try:
         grid = np.atleast_1d(np.asarray(grid, dtype=float))
         target = np.atleast_1d(np.asarray(target, dtype=float))

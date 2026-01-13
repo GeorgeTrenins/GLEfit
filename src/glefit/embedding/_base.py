@@ -37,13 +37,22 @@ class BaseEmbedder(ABC):
         naux = self.__len__()
         self._A : np.ndarray = np.empty((naux+1, naux+1))
         nparam = self.nparam
+        ndof = self.ndof
         self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
-        self._params : np.ndarray = np.empty(nparam)
-        self._x : np.ndarray = np.empty(nparam)
+        self._params : np.ndarray = np.empty(ndof)
+        self._x : np.ndarray = np.empty(ndof)
         self._mappers: BaseMapper = kwargs.get("mappers")
         if self._mappers is not None:
-            if len(self._mappers) != self.nparam:
-                raise ValueError(f"The number of constraint mappers should match the number of optimizable parameters, instead got {nparam = } and {len(self._mappers) = }")
+            if len(self._mappers) != self.ndof:
+                raise ValueError(f"The number of constraint mappers should match the number of optimizable parameters, instead got {ndof = } and {len(self._mappers) = }")
+            
+    @classmethod
+    @abstractmethod
+    def from_dict(
+        cls,
+        parameters: dict
+    ) -> "BaseEmbedder":
+        pass
 
 
     @abstractmethod
@@ -65,15 +74,26 @@ class BaseEmbedder(ABC):
 
     @abstractmethod
     def _get_nparam(self) -> int:
-        """Number of independent parameters used to define the drift matrix.
+        """Number of conventional parameters used to define the drift matrix.
         """
         pass
 
     @property
     def nparam(self) -> int:
-        """Number of independent parameters used to define the drift matrix.
+        """Number of conventional parameters used to define the drift matrix.
         """
         return self._get_nparam()
+    
+    def _get_ndof(self) -> int:
+        """Number of primitive (optimizable) parameters.
+        """
+        return self._get_nparam()
+
+    @property
+    def ndof(self) -> int:
+        """Number of primitive (optimizable) parameters.
+        """
+        return self._get_ndof()
     
     @property
     def primitive_params(self) -> npt.NDArray[np.floating]:
@@ -90,20 +110,41 @@ class BaseEmbedder(ABC):
         self._params[:] = arr
         self._x[:] = self._forward_map(arr)
 
+
     @property
     def params(self) -> npt.NDArray[np.floating]:
-        """Conventional parameters (defaults to primitive when identical)."""
-        return np.copy(self._params)
+        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
+        return self.to_conventional(self._params)
     
     @params.setter
     def params(self, value: npt.ArrayLike) -> None:
-        """Set conventional parameters (defaults to primitive when identical)."""
-        cur = self._params
-        arr = np.asarray(value)
-        if arr.shape != cur.shape:
-            raise ValueError(f"params must have shape {cur.shape}, got {arr.shape}")
-        self._params[:] = arr
-        self._x[:] = self._forward_map(arr)
+        """Set conventional parameters; store as primitive internally."""
+        arr_conv = np.asarray(value)
+        if arr_conv.shape != self.nparam:
+            raise ValueError(f"params must have shape ({self.nparam},), got {arr_conv.shape}")
+        prim = self.to_primitive(arr_conv)
+        self._params[:] = prim
+        self._x[:] = self._forward_map(prim)
+
+    def to_primitive(
+        self,
+        cparams: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
+        """
+        if cparams.shape != (self.nparam,):
+           raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {cparams.shape = }")
+        return np.copy(cparams)
+    
+    def to_conventional(
+        self,
+        params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Convert non-degenerate embedding parameters to conventional embedding variables
+        """
+        if params.shape != (self.ndof,):
+           raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {params.shape = }")
+        return np.copy(params)
 
     @property
     def x(self) -> npt.NDArray[np.floating]:
@@ -194,7 +235,7 @@ class BaseEmbedder(ABC):
 
     @abstractmethod
     def compute_drift_matrix(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Calculate the drift matrix for the current parametrization of the embedder
+        """Calculate the drift matrix for a given set of conventional parameters.
 
         Returns
         -------
@@ -226,7 +267,7 @@ class BaseEmbedder(ABC):
         -----
         This matrix is also accessible through the alias 'A'.
         """
-        return self.compute_drift_matrix(self._params)
+        return self.compute_drift_matrix(self.params)
 
     # Alias
     A = drift_matrix

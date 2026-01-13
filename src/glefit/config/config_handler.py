@@ -170,25 +170,22 @@ class ConfigHandler:
         for data_name, data_config in self.config['data'].items():
             if not isinstance(data_config, dict):
                 raise ConfigError(f"Data '{data_name}' must be a dictionary")
-            if 'source' not in data_config:
-                raise ConfigError(f"Data '{data_name}' missing 'source' key")
         
         # Validate merit function
         merit = self.config.get('merit_function')
         if not isinstance(merit, dict):
             raise ConfigError("'merit_function' must be a dictionary")
-        #TODO: modify later for the case of composite merit functions
-        if 'property' not in merit:
-            raise ConfigError("'merit_function.property' is required")
-        if 'data_ref' not in merit:
-            raise ConfigError("'merit_function.data_ref' is required")
+        if 'type' not in merit:
+            raise ConfigError("'merit_function.type' is required")
+        if 'parameters' not in merit:
+            raise ConfigError("'merit_function.parameters' is required")
         
-        # Validate data reference exists
-        if merit['data_ref'] not in self.config['data']:
-            raise ConfigError(
-                f"Merit function references non-existent data '{merit['data_ref']}'. "
-                f"Available datasets: {list(self.config['data'].keys())}"
-            )
+        # # Validate data reference exists
+        # if merit['data_ref'] not in self.config['data']:
+        #     raise ConfigError(
+        #         f"Merit function references non-existent data '{merit['data_ref']}'. "
+        #         f"Available datasets: {list(self.config['data'].keys())}"
+        #     )
         
         # Validate embedder
         if not isinstance(self.config.get('embedder'), dict):
@@ -199,10 +196,12 @@ class ConfigHandler:
         # Validate optimization
         if not isinstance(self.config.get('optimization'), dict):
             raise ConfigError("'optimization' must be a dictionary")
-        if 'optimizer' not in self.config['optimization']:
+        if 'type' not in self.config['optimization']:
             raise ConfigError("'optimization.optimizer' is required")
-        if 'max_steps' not in self.config['optimization']:
-            raise ConfigError("'optimization.max_steps' is required")
+        if 'parameters' not in self.config['optimization']:
+            raise ConfigError("'optimization.parameters' is required")
+        if 'options' not in self.config['optimization']:
+            raise ConfigError("'optimization.options' is required")
         
         # Validate restart section if present
         if 'restart' in self.config:
@@ -367,7 +366,7 @@ class ConfigHandler:
             IOError: If loading fails
             ConfigError: If configuration is invalid
         """
-        filepath = Path(filepath)
+        filepath = Path(filepath).resolve()
         
         if not filepath.exists():
             raise IOError(f"Checkpoint file not found: {filepath}")

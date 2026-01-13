@@ -24,15 +24,25 @@ _DEFAULTS = dict(sigma=5.0, threshold=20.0)
 
 
 class TwoAuxEmbedder(BaseEmbedder):
-    _naux = 2
 
     def __len__(self) -> int:
-        return self._naux
+        return 2
     
     def _get_nparam(self) -> int:
-        """Number of independent parameters used to define the drift matrix.
+        """Number of conventional parameters used to define the drift matrix.
+        """
+        return 5
+    
+    def _get_ndof(self) -> int:
+        """Number of primitive (optimizable) parameters.
         """
         return 4
+
+    @property
+    def ndof(self) -> int:
+        """Number of primitive (optimizable) parameters.
+        """
+        return self._get_ndof()
     
     def __init__(self, theta: npt.NDArray[np.floating], gamma: float, delta: float, Omega: float, *args, **kwargs) -> None:
         """Initialize the two-variable Markovian embedder with the drift matrix
@@ -95,35 +105,21 @@ class TwoAuxEmbedder(BaseEmbedder):
         super().__init__(*args, **kwargs)
         # set primitive params directly
         cparams = np.concatenate([theta, [gamma, delta, Omega]])
-        prim_params = self.from_conventional(cparams)
+        prim_params = self.to_primitive(cparams)
         self._params[:] = prim_params
         self._x[:] = self._forward_map(prim_params)
         self._named_params = _params(*self._params)
 
-    @property
-    def primitive_params(self) -> npt.NDArray[np.floating]:
-        """Primitive (internal) parameters [r, α, λ, Γ]."""
-        return np.copy(self._params)
-
-    @primitive_params.setter
-    def primitive_params(self, value: npt.ArrayLike) -> None:
-        """Set primitive (internal) parameters [r, α, λ, Γ]."""
-        BaseEmbedder.primitive_params.fset(self, value)
-
-    @property
-    def params(self) -> npt.NDArray[np.floating]:
-        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
-        return self.to_conventional(self._params)
-    
-    @params.setter
-    def params(self, value: npt.ArrayLike) -> None:
-        """Set conventional parameters; store as primitive internally."""
-        arr_conv = np.asarray(value)
-        if arr_conv.shape != (5,):
-            raise ValueError(f"params must have shape (5,), got {arr_conv.shape}")
-        prim = self.from_conventional(arr_conv)
-        self._params[:] = prim
-        self._x[:] = self._forward_map(prim)
+    @classmethod
+    def from_dict(
+        cls, 
+        parameters: dict
+    ) -> "TwoAuxEmbedder":
+        theta = parameters.pop("theta")
+        gamma = parameters.pop("gamma")
+        delta = parameters.pop("delta")
+        Omega = parameters.pop("Omega")
+        return cls(theta, gamma, delta, Omega, **parameters)
 
     def _gamma_lower_bound(self, Gamma, alpha, nu=0):
         if nu == 0:
@@ -153,7 +149,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         else:
             raise ValueError(f"Expecting nu = 0, 1, or 2, instead got nu = {nu}")
 
-    def from_conventional(
+    def to_primitive(
         self,
         cparams: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
@@ -318,7 +314,15 @@ class TwoAuxEmbedder(BaseEmbedder):
             self, 
             params: npt.NDArray
         ) -> npt.NDArray[np.floating]:
-        theta1, theta2, gamma, delta, Omega = self.to_conventional(params)
+        """Calculate the drift matrix for a given set of conventional parameters, 
+        packed as a 5-tuple in the order ( θ[0], θ[1], γ, δ, Ω )
+
+        Returns
+        -------
+        numpy.ndarray
+            A 2x2 array.
+        """
+        theta1, theta2, gamma, delta, Omega = params
         A = np.zeros((3,3))
         A[0,1] = theta1
         A[0,2] = theta2

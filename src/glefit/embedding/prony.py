@@ -16,10 +16,9 @@ import numpy.typing as npt
 
 
 class PronyEmbedder(BaseEmbedder):
-    _naux = 1
 
     def __len__(self) -> int:
-        return self._naux
+        return 1
     
     def _get_nparam(self) -> int:
         """Number of independent parameters used to define the drift matrix.
@@ -58,6 +57,15 @@ class PronyEmbedder(BaseEmbedder):
         kwargs.setdefault("mappers", [LowerBoundMapper(), LowerBoundMapper()])
         super().__init__(*args, **kwargs)
         self.params = np.asarray([theta, gamma], dtype=float)
+
+    @classmethod
+    def from_dict(
+        cls, 
+        parameters: dict
+    ) -> "PronyEmbedder":
+        theta = parameters.pop("theta")
+        gamma = parameters.pop("gamma")
+        return cls(theta, gamma, **parameters)
 
     def compute_drift_matrix(
             self, 

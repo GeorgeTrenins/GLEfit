@@ -13,17 +13,33 @@ from typing import Iterable, Optional
 import numpy as np
 import numpy.typing as npt
 
+#TODO: overwrite to_conventional / to_primitive
 
 class MultiEmbedder(BaseEmbedder):
 
-    def __init__(self, embs: Iterable[BaseEmbedder], *args, **kwargs):
-        self._embs = embs
+    def __init__(self, embedders: Iterable[BaseEmbedder], *args, **kwargs):
+        self._embs = embedders
         self._naux = sum([len(emb) for emb in self._embs])
-        self._nparam = sum([emb.nparam for emb in embs])
+        self._nparam = sum([emb.nparam for emb in embedders])
+        self._ndof = sum([emb.ndof for emb in embedders])
         super().__init__(*args, **kwargs)
         # gather the parameters from component embedders
         _ = self.params
         _ = self.x
+
+    @classmethod
+    def from_dict(
+        cls, 
+        parameters: dict
+    ) -> "MultiEmbedder":
+        from glefit.embedding import EMBEDDER_MAP
+        embedder_dict: list[dict] = parameters["embedders"]
+        embedders: list[BaseEmbedder] = []
+        for d in embedder_dict:
+            EmbedderClass: BaseEmbedder = EMBEDDER_MAP[d["type"]]
+            embedder: BaseEmbedder = EmbedderClass.from_dict(d["parameters"])
+            embedders.append(embedder)
+        return cls(embedders)
 
     def __len__(self) -> int:
         return self._naux
@@ -31,42 +47,46 @@ class MultiEmbedder(BaseEmbedder):
     def _get_nparam(self) -> int:
         return self._nparam
     
+    def _get_ndof(self) -> int:
+        return self._ndof
+    
     @BaseEmbedder.params.getter
     def params(self):
         # ----- collect params from component embedders ---- #
-        param_offset = 0
+        primitive_parameters = []
         for emb in self._embs:
-            nparam = emb.nparam
             # set slice boundaries
-            slc = slice(param_offset, param_offset+nparam)
-            self._params[slc] = emb.params
-            param_offset += nparam
-        return np.copy(self._params)
+            primitive_parameters.append(emb.params)
+        return np.concatenate(primitive_parameters)
     
     @params.setter
     def params(self, value):
         arr = np.asarray(value)
         # ---- set params in the component embedders ---- #
-        param_offset = 0
+        primitive_offset = 0
+        conventional_offset = 0
         for emb in self._embs:
-            nparam = emb.nparam
+            ndof = emb.ndof
+            nparams = emb.nparams
             # set slice boundaries
-            slc = slice(param_offset, param_offset+nparam)
-            emb.params = arr[slc] 
-            self._params[slc] = emb._params
-            self._x[slc] = emb._x   
-            param_offset += nparam
+            p_slc = slice(primitive_offset, primitive_offset+ndof)
+            c_slc = slice(conventional_offset, conventional_offset+nparams)
+            emb.params = arr[c_slc]
+            self._params[p_slc] = emb._params
+            self._x[p_slc] = emb._x   
+            primitive_offset += ndof
+            conventional_offset += nparams
 
     @BaseEmbedder.x.getter
     def x(self):
         # ----- collect mapped params from component embedders ---- #
         param_offset = 0
         for emb in self._embs:
-            nparam = emb.nparam
+            ndof = emb.ndof
             # set slice boundaries
-            slc = slice(param_offset, param_offset+nparam)
+            slc = slice(param_offset, param_offset+ndof)
             self._x[slc] = emb.x
-            param_offset += nparam
+            param_offset += ndof
         return np.copy(self._x)
     
     @x.setter
@@ -75,16 +95,43 @@ class MultiEmbedder(BaseEmbedder):
         # ---- set mapped params in the component embedders ---- #
         param_offset = 0
         for emb in self._embs:
-            nparam = emb.nparam
+            ndof = emb.ndof
             # set slice boundaries
-            slc = slice(param_offset, param_offset+nparam)
+            slc = slice(param_offset, param_offset+ndof)
             emb.x = arr[slc] 
             self._params[slc] = emb._params
             self._x[slc] = emb._x   
-            param_offset += nparam
+            param_offset += ndof
+
+    @BaseEmbedder.primitive_params.getter
+    def primitive_params(self) -> npt.NDArray[np.floating]:
+        # ----- collect primitive params from component embedders ---- #
+        param_offset = 0
+        for emb in self._embs:
+            ndof = emb.ndof
+            # set slice boundaries
+            slc = slice(param_offset, param_offset+ndof)
+            self._params[slc] = emb.primitive_params
+            self._x[slc] = emb._x
+            param_offset += ndof
+        return np.copy(self._params)
+
+    @primitive_params.setter
+    def primitive_params(self, value: npt.ArrayLike) -> None:
+        arr = np.asarray(value)
+        # ---- set primitive params in the component embedders ---- #
+        param_offset = 0
+        for emb in self._embs:
+            ndof = emb.ndof
+            # set slice boundaries
+            slc = slice(param_offset, param_offset+ndof)
+            emb.primitive_params = arr[slc] 
+            self._params[slc] = emb._params
+            self._x[slc] = emb._x   
+            param_offset += ndof
 
     def _apply_to_params(self, func_name: str, arr: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Apply a parameter transformation function to each the parameters of every component embedder.
+        """Apply a parameter transformation function to the primitive parameters of every component embedder.
         
         Parameters
         ----------
@@ -101,16 +148,16 @@ class MultiEmbedder(BaseEmbedder):
         ans = np.zeros_like(arr)
         param_offset = 0
         for emb in self._embs:
-            nparam = emb.nparam
-            slc = slice(param_offset, param_offset + nparam)
+            ndof = emb.ndof
+            slc = slice(param_offset, param_offset + ndof)
             # Get the method by name and call it
             transform = getattr(emb, func_name)
             ans[slc] = transform(arr[slc])
-            param_offset += nparam
+            param_offset += ndof
         return ans
 
     def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Transform optimizable params so that inequality constraints are automatically imposed"""
+        """Transform optimizable (primitive) params so that inequality constraints are automatically imposed"""
         return self._apply_to_params('_forward_map', params)
 
     def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:

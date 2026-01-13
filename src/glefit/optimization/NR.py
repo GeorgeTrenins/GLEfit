@@ -9,7 +9,7 @@
 
 
 from __future__ import print_function, division, absolute_import
-from ._base import Optimizer, DEFAULT_MAX_STEPS
+from ._base import Optimizer, MAX_ITERATIONS_DEFAULT
 from typing import Optional
 from glefit.utils.linalg import mat_inv_vec
 import numpy as np
@@ -34,7 +34,7 @@ class NewtonRaphson(Optimizer):
         max_step (float): Maximum step size. If None, no limit. Default: None
     """
 
-    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None) -> None:
+    def run(self, steps: int = MAX_ITERATIONS_DEFAULT, options: Optional[dict] = None) -> None:
         """Run the optimizer.
 
         This method will return whenever the gradient of the merit function drops below `gtol` for all optimizable parameters or when the number of steps exceeds `steps`.

@@ -7,6 +7,7 @@
 @Desc    :   Base class for auxiliary variable parameter optimization - based on ASE's Optimizer
 '''
 
+#TODO: implement restart method (abstract)
 
 from __future__ import print_function, division, absolute_import
 from glefit.embedding import BaseEmbedder
@@ -21,7 +22,7 @@ import numpy as np
 import numpy.typing as npt
 import time
 
-DEFAULT_MAX_STEPS = 1_000_000
+MAX_ITERATIONS_DEFAULT = 1_000_000
 DEFAULT_TRAJ_FILE = "traj.out"
 
 
@@ -97,8 +98,6 @@ class Optimizer(IOContext):
         nsteps (int): Number of completed optimization steps
     """
 
-    defaults = {'maxstep': 0.2}
-
     def __init__(
             self,
             emb: BaseEmbedder,
@@ -132,11 +131,10 @@ class Optimizer(IOContext):
             trajfile = DEFAULT_TRAJ_FILE
         self.trajectory = self.openfile(file=trajfile)
         self.nsteps = 0
-        self.max_steps = 0 # set by run
-        self.maxstep = self.defaults['maxstep']
+        self.max_iter = 0 # set by run
         self.initialize()
 
-    def run(self, steps: int = DEFAULT_MAX_STEPS, options: Optional[dict] = None) -> bool:
+    def run(self, steps: int = MAX_ITERATIONS_DEFAULT, options: Optional[dict] = None) -> bool:
         """Run the optimizer.
 
         This method will return whenever the convergence criteria are fulfilled
@@ -152,7 +150,7 @@ class Optimizer(IOContext):
         """
         # update the maximum number of steps 
         # TODO: this will become relevant if we implement restarts
-        self.max_steps = self.nsteps + steps
+        self.max_iter = self.nsteps + steps
         if self.nsteps == 0:
             self.log()
         # check if we are already converged
@@ -161,7 +159,7 @@ class Optimizer(IOContext):
             # Already converged!
             return True
         # start the actual optimization
-        while not is_converged and self.nsteps < self.max_steps:
+        while not is_converged and self.nsteps < self.max_iter:
             self.iteration()
             is_converged = self.converged()
             self.nsteps += 1

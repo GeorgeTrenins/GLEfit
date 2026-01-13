@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from typing import Union, TypeVar, Callable, Any, Optional, cast
 from glefit.utils.numderiv import jacobian
 import functools
+from glefit.config.config_handler import ConfigError
 
 # ---- Types ---------------------------------------------------------------
 
@@ -244,6 +245,17 @@ class BaseProperty(ABC):
         self._set_weight(weight)
         self.deviation_metric: BaseDeviation = METRICS[metric]()
 
+    @classmethod
+    @abstractmethod
+    def from_dict(
+        cls,
+        parameters: dict,
+        data: dict,
+        embedder: BaseEmbedder
+    ) -> "BaseProperty":
+        pass
+
+
     def _set_weight(self, weight: ScalarArr) -> None:
         """Set and validate weight factor(s).
         """
@@ -400,16 +412,29 @@ class BaseScalarProperty(BaseProperty):
     Example:
         A property that fits K(t=0.5) to a target value.
     """
-    
-    def __init__(
-            self, 
-            target: float,
-            emb: BaseEmbedder,
-            metric: str,
-            weight: Optional[ScalarArr] = 1.0,
-            *args, **kwargs
-    ) -> None:
-        super().__init__(target, emb, metric, weight, *args, **kwargs)
+
+    @classmethod
+    def from_dict(
+        cls,
+        parameters: dict,
+        data: dict,
+        embedder: BaseEmbedder
+    ) -> "BaseScalarProperty":
+        
+        try:
+            data_reference: str = parameters["data"]
+        except KeyError:
+            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'data' that should reference the numerical data used to construct the objective.")
+        try:
+            _, target = data[data_reference]
+        except KeyError:
+            raise ConfigError(f"The data reference {data_reference} for the objective function of type {cls.__name__} is invalid.")
+        try:
+            metric: str = parameters["metric"]
+        except KeyError:
+            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'metric' that determines how to quantify the deviation of the embedder from target.")
+        weight = parameters.get("weight", default=1.0)
+        return cls(target, embedder, metric, weight=weight)
 
     def _set_weight(self, weight: ScalarArr) -> None:
         """Validate and set scalar weight."""
@@ -557,7 +582,7 @@ class BaseArrayProperty(BaseProperty):
         A property that fits K(t₁), K(t₂), ..., K(tₙ) to target values.
     
     Args:
-        array: Grid points (time or frequency) where property is evaluated
+        grid: Grid points (time or frequency) where property is evaluated
         target: Target values at each grid point
         emb: GLE embedding
         metric: Deviation metric name
@@ -566,15 +591,38 @@ class BaseArrayProperty(BaseProperty):
     
     def __init__(
             self, 
-            array: npt.NDArray[np.floating],
+            grid: npt.NDArray[np.floating],
             target: npt.NDArray[np.floating],
             emb: BaseEmbedder,
             metric: str,
             weight: Optional[ScalarArr] = 1.0,
             *args, **kwargs):
         
-        self._array = np.copy(array)
+        self._grid = np.copy(grid)
         super().__init__(target, emb, metric, weight, *args, **kwargs)
+
+    @classmethod
+    def from_dict(
+        cls,
+        parameters: dict,
+        data: dict,
+        embedder: BaseEmbedder
+    ) -> "BaseScalarProperty":
+        
+        try:
+            data_reference: str = parameters["data"]
+        except KeyError:
+            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'data' that should reference the numerical data used to construct the objective.")
+        try:
+            grid, target = data[data_reference]
+        except KeyError:
+            raise ConfigError(f"The data reference {data_reference} for the objective function of type {cls.__name__} is invalid.")
+        try:
+            metric: str = parameters["metric"]
+        except KeyError:
+            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'metric' that determines how to quantify the deviation of the embedder from target.")
+        weight = parameters.get("weight", 1.0)
+        return cls(grid, target, embedder, metric, weight=weight)
 
     def _set_weight(self, weight: ScalarArr) -> None:
         """Set and validate element-wise weights.
@@ -585,14 +633,14 @@ class BaseArrayProperty(BaseProperty):
         if np.ndim(weight) not in {0, 1}:
             raise ValueError(f"Weight should be a scalar or 1D array, instead got ndim = {np.ndim(weight)}")
         try:
-            self.weight = np.ones_like(self._array) * weight
+            self.weight = np.ones_like(self._grid) * weight
         except ValueError as e:
             raise ValueError("Weights could not be broadcast correctly") from e
 
     @property
-    def array(self) -> npt.NDArray[np.floating]:
+    def grid(self) -> npt.NDArray[np.floating]:
         """Grid points where property is evaluated."""
-        return np.copy(self._array)
+        return np.copy(self._grid)
     
     @property
     def target(self) -> npt.NDArray[np.floating]:
