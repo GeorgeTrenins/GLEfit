@@ -60,23 +60,23 @@ class PronyCosineEmbedder(BaseEmbedder):
             "mappers", 3*[LowerBoundMapper(),]
         )
         super().__init__(*args, **kwargs)
-        self.params = np.asarray([theta, gamma, omega], dtype=float)
+        self.conventional_params = np.asarray([theta, gamma, omega], dtype=float)
 
     @classmethod
     def from_dict(
         cls, 
-        parameters: dict
+        kwargs: dict
     ) -> "PronyCosineEmbedder":
-        theta = parameters.pop("theta")
-        gamma = parameters.pop("gamma")
-        omega = parameters.pop("omega")
-        return cls(theta, gamma, omega, **parameters)
+        theta = kwargs.pop("theta")
+        gamma = kwargs.pop("gamma")
+        omega = kwargs.pop("omega")
+        return cls(theta, gamma, omega, **kwargs)
 
     def compute_drift_matrix(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
-        theta, gamma, omega = np.asarray(params)
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
+        theta, gamma, omega = np.asarray(primitive_params)
         A = np.zeros((3,3))
         A[0,1] = theta
         A[1,0] = -theta
@@ -86,9 +86,9 @@ class PronyCosineEmbedder(BaseEmbedder):
         return A
     
     def drift_matrix_param_grad(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
         """The gradient of the drift matrix of the extended Markovian system.
         
         Returns

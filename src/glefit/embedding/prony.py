@@ -56,22 +56,22 @@ class PronyEmbedder(BaseEmbedder):
             raise TypeError(f"γ must be a float, got {type(gamma).__name__}")
         kwargs.setdefault("mappers", [LowerBoundMapper(), LowerBoundMapper()])
         super().__init__(*args, **kwargs)
-        self.params = np.asarray([theta, gamma], dtype=float)
+        self.conventional_params = np.asarray([theta, gamma], dtype=float)
 
     @classmethod
     def from_dict(
         cls, 
-        parameters: dict
+        kwargs: dict
     ) -> "PronyEmbedder":
-        theta = parameters.pop("theta")
-        gamma = parameters.pop("gamma")
-        return cls(theta, gamma, **parameters)
+        theta = kwargs.pop("theta")
+        gamma = kwargs.pop("gamma")
+        return cls(theta, gamma, **kwargs)
 
     def compute_drift_matrix(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
-        theta, gamma = np.asarray(params)
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
+        theta, gamma = self.to_conventional(primitive_params)
         A = np.zeros((2,2))
         A[0,1] =  theta
         A[1,0] = -theta
@@ -79,9 +79,9 @@ class PronyEmbedder(BaseEmbedder):
         return A
     
     def drift_matrix_param_grad(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
         """Gradient of drift matrix w.r.t. [θ, γ].
         
         Returns array of shape (2, 2, 2) where:

@@ -103,7 +103,7 @@ def test_to_conventional():
         emb = TwoAuxEmbedder(theta, gamma, delta, Omega, sigma=10.0, threshold=30.0)
         times = np.linspace(0, 1, 25)
         K0 = emb.kernel(times)
-        new_params = emb.params
+        new_params = emb.conventional_params
         emb2 = TwoAuxEmbedder(new_params[:2], *new_params[2:], sigma=10.0, threshold=30.0)
         K1 = emb2.kernel(times)
         assert_allclose(

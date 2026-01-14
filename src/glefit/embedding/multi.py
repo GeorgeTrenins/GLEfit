@@ -24,7 +24,7 @@ class MultiEmbedder(BaseEmbedder):
         self._ndof = sum([emb.ndof for emb in embedders])
         super().__init__(*args, **kwargs)
         # gather the parameters from component embedders
-        _ = self.params
+        _ = self.conventional_params
         _ = self.x
 
     @classmethod
@@ -50,17 +50,17 @@ class MultiEmbedder(BaseEmbedder):
     def _get_ndof(self) -> int:
         return self._ndof
     
-    @BaseEmbedder.params.getter
-    def params(self):
+    @BaseEmbedder.conventional_params.getter
+    def conventional_params(self):
         # ----- collect params from component embedders ---- #
         primitive_parameters = []
         for emb in self._embs:
             # set slice boundaries
-            primitive_parameters.append(emb.params)
+            primitive_parameters.append(emb.conventional_params)
         return np.concatenate(primitive_parameters)
     
-    @params.setter
-    def params(self, value):
+    @conventional_params.setter
+    def conventional_params(self, value):
         arr = np.asarray(value)
         # ---- set params in the component embedders ---- #
         primitive_offset = 0
@@ -71,8 +71,8 @@ class MultiEmbedder(BaseEmbedder):
             # set slice boundaries
             p_slc = slice(primitive_offset, primitive_offset+ndof)
             c_slc = slice(conventional_offset, conventional_offset+nparams)
-            emb.params = arr[c_slc]
-            self._params[p_slc] = emb._params
+            emb.conventional_params = arr[c_slc]
+            self._primitive_params[p_slc] = emb._primitive_params
             self._x[p_slc] = emb._x   
             primitive_offset += ndof
             conventional_offset += nparams
@@ -99,7 +99,7 @@ class MultiEmbedder(BaseEmbedder):
             # set slice boundaries
             slc = slice(param_offset, param_offset+ndof)
             emb.x = arr[slc] 
-            self._params[slc] = emb._params
+            self._primitive_params[slc] = emb._primitive_params
             self._x[slc] = emb._x   
             param_offset += ndof
 
@@ -111,10 +111,10 @@ class MultiEmbedder(BaseEmbedder):
             ndof = emb.ndof
             # set slice boundaries
             slc = slice(param_offset, param_offset+ndof)
-            self._params[slc] = emb.primitive_params
+            self._primitive_params[slc] = emb.primitive_params
             self._x[slc] = emb._x
             param_offset += ndof
-        return np.copy(self._params)
+        return np.copy(self._primitive_params)
 
     @primitive_params.setter
     def primitive_params(self, value: npt.ArrayLike) -> None:
@@ -126,7 +126,7 @@ class MultiEmbedder(BaseEmbedder):
             # set slice boundaries
             slc = slice(param_offset, param_offset+ndof)
             emb.primitive_params = arr[slc] 
-            self._params[slc] = emb._params
+            self._primitive_params[slc] = emb._primitive_params
             self._x[slc] = emb._x   
             param_offset += ndof
 

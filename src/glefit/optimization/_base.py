@@ -208,7 +208,7 @@ class Optimizer(IOContext):
         if T is None:
             T = time.localtime()
         name = self.__class__.__name__
-        params = self.emb.params
+        params = self.emb.conventional_params
         if self.trajectory is not None:
             args = (" " * len(name), "Step", "Time")
             msg = "%s  %4s %8s\n" % args

@@ -128,7 +128,7 @@ def test_multi_drift_matrix_gradient():
     multi_emb = MultiEmbedder(embs)
     
     np.testing.assert_allclose(
-        multi_emb.drift_matrix_param_grad(multi_emb.params), grad_ref,
+        multi_emb.drift_matrix_param_grad(multi_emb.conventional_params), grad_ref,
         rtol=1e-15,
         err_msg="Combined drift matrix gradient does not match expected structure"
     )

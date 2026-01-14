@@ -1,0 +1,38 @@
+# Configuration using a MultiEmbedder for testing
+project:
+  name: "test_project"
+  output_dir: "./output"
+
+data:
+  test_data:
+    source: "external"
+    path: "./test_data.csv"
+    format: "csv"
+    columns: [0, 1]
+    delimiter: ","
+
+merit_function:
+  type: "kernel"
+  parameters: 
+    data: "test_data"
+    metric: "squared"
+
+embedder:
+  type: "gen2x2"
+  parameters:
+    theta: [1.0, 2.0]
+    gamma: 0.50
+    delta: 0.25
+    Omega: 10.0
+    sigma: 10.0
+    threshold: 30.0
+
+optimization:
+  type: "EF"
+  parameters:
+    trajfile: "trajectory.out"
+    logfile: "-"
+  options:
+    max_iter: 100
+    max_step: 0.2
+    gtol: 0.0001

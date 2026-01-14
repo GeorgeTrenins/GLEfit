@@ -39,7 +39,7 @@ class BaseEmbedder(ABC):
         nparam = self.nparam
         ndof = self.ndof
         self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
-        self._params : np.ndarray = np.empty(ndof)
+        self._primitive_params : np.ndarray = np.empty(ndof)
         self._x : np.ndarray = np.empty(ndof)
         self._mappers: BaseMapper = kwargs.get("mappers")
         if self._mappers is not None:
@@ -61,14 +61,8 @@ class BaseEmbedder(ABC):
         
         Returns
         -------
-        int
+        int:
             The number of auxiliary variables used in the embedding.
-            
-        Example
-        -------
-        >>> emb = ConcreteEmbedder(n=3)  # Some concrete implementation
-        >>> len(emb)  # Returns 3
-        3
         """
         pass
 
@@ -87,6 +81,7 @@ class BaseEmbedder(ABC):
     def _get_ndof(self) -> int:
         """Number of primitive (optimizable) parameters.
         """
+        # By default, same as conventional parameters
         return self._get_nparam()
 
     @property
@@ -94,37 +89,6 @@ class BaseEmbedder(ABC):
         """Number of primitive (optimizable) parameters.
         """
         return self._get_ndof()
-    
-    @property
-    def primitive_params(self) -> npt.NDArray[np.floating]:
-        """Internal primitive parameters."""
-        return np.copy(self._params)
-
-    @primitive_params.setter
-    def primitive_params(self, value: npt.ArrayLike) -> None:
-        """Set primitive parameters directly (bypasses conventional mapping)."""
-        cur = self._params
-        arr = np.asarray(value)
-        if arr.shape != cur.shape:
-            raise ValueError(f"primitive_params must have shape {cur.shape}, got {arr.shape}")
-        self._params[:] = arr
-        self._x[:] = self._forward_map(arr)
-
-
-    @property
-    def params(self) -> npt.NDArray[np.floating]:
-        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
-        return self.to_conventional(self._params)
-    
-    @params.setter
-    def params(self, value: npt.ArrayLike) -> None:
-        """Set conventional parameters; store as primitive internally."""
-        arr_conv = np.asarray(value)
-        if arr_conv.shape != self.nparam:
-            raise ValueError(f"params must have shape ({self.nparam},), got {arr_conv.shape}")
-        prim = self.to_primitive(arr_conv)
-        self._params[:] = prim
-        self._x[:] = self._forward_map(prim)
 
     def to_primitive(
         self,
@@ -132,19 +96,36 @@ class BaseEmbedder(ABC):
     ) -> npt.NDArray[np.floating]:
         """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
         """
+        # By default, assume that the primitive and conventional parameters are identical
         if cparams.shape != (self.nparam,):
            raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {cparams.shape = }")
         return np.copy(cparams)
     
     def to_conventional(
         self,
-        params: npt.NDArray[np.floating]
+        primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         """
-        if params.shape != (self.ndof,):
-           raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {params.shape = }")
-        return np.copy(params)
+        # By default, assume that the primitive and conventional parameters are identical
+        if primitive_params.shape != (self.ndof,):
+           raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {primitive_params.shape = }")
+        return np.copy(primitive_params)
+    
+    @property
+    def primitive_params(self) -> npt.NDArray[np.floating]:
+        """Internal primitive parameters."""
+        return np.copy(self._primitive_params)
+
+    @primitive_params.setter
+    def primitive_params(self, value: npt.ArrayLike) -> None:
+        """Set primitive parameters directly (bypasses conventional mapping)."""
+        cur = self._primitive_params
+        arr = np.asarray(value)
+        if arr.shape != cur.shape:
+            raise ValueError(f"primitive_params must have shape {cur.shape}, got {arr.shape}")
+        self._primitive_params[:] = arr
+        self._x[:] = self._forward_map(arr)
 
     @property
     def x(self) -> npt.NDArray[np.floating]:
@@ -158,15 +139,32 @@ class BaseEmbedder(ABC):
         if arr.shape != cur.shape:
             raise ValueError(f"x must have shape {cur.shape}, got {arr.shape}")
         self._x[:] = arr
-        self._params[:] = self._inverse_map(arr)
+        self._primitive_params[:] = self._inverse_map(arr)
         
-    def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    @property
+    def conventional_params(self) -> npt.NDArray[np.floating]:
+        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
+        return self.to_conventional(self._primitive_params)
+    
+    @conventional_params.setter
+    def conventional_params(self, value: npt.ArrayLike) -> None:
+        """Set conventional parameters; store as primitive internally."""
+        arr = np.asarray(value)
+        if arr.shape != self.nparam:
+            raise ValueError(f"conventional_params must have shape ({self.nparam},), got {arr.shape}")
+        prim = self.to_primitive(arr)
+        self._primitive_params[:] = prim
+        self._x[:] = self._forward_map(prim)
+
+    def _forward_map(
+        self, primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
         """Transform optimizable params so that inequality constraints are automatically imposed"""
         if self._mappers is None:
-            return np.copy(params)
+            return np.copy(primitive_params)
         else:
-            x = np.zeros_like(params)
-            for i, (mapper,p) in enumerate(zip(self._mappers, params)):
+            x = np.zeros_like(primitive_params)
+            for i, (mapper,p) in enumerate(zip(self._mappers, primitive_params)):
                 mapper: BaseMapper
                 x[i] = mapper.forward(p)
             return x
@@ -187,7 +185,7 @@ class BaseEmbedder(ABC):
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
         if self._mappers is None:
-            return np.copy(x)
+            return np.ones_like(x)
         else:
             p = np.zeros_like(x)
             for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
@@ -196,10 +194,10 @@ class BaseEmbedder(ABC):
             return p
     
     def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform.
+        """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is a primitive embedding parameter and x_n is its transform.
         """
         if self._mappers is None:
-            return np.copy(x)
+            return np.zeros_like(x)
         else:
             p = np.zeros_like(x)
             for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
@@ -211,8 +209,8 @@ class BaseEmbedder(ABC):
             self, 
             grad: npt.NDArray[np.floating], 
             x: npt.NDArray[np.floating]
-        ) -> npt.NDArray[np.floating]:
-        """Convert a gradient with respect to the conventional parameters to a gradient w.r.t.
+    ) -> npt.NDArray[np.floating]:
+        """Convert a gradient with respect to the primitive parameters to a gradient w.r.t.
         mapped parameters imposing inequality constraints.
         """
         jac_px = self.jac_px(x)
@@ -223,8 +221,8 @@ class BaseEmbedder(ABC):
             grad: npt.NDArray[np.floating], 
             hess: npt.NDArray[np.floating], 
             x: npt.NDArray[np.floating]
-        ) -> npt.NDArray[np.floating]:
-        """Compute the Hessian w.r.t.mapped parameters from the gradient and Hessian w.r.t conventional parameters.
+    ) -> npt.NDArray[np.floating]:
+        """Compute the Hessian w.r.t.mapped parameters from the gradient and Hessian w.r.t primitive parameters.
         """
         jac_px = self.jac_px(x)
         hess_px = self.hess_px(x)
@@ -234,8 +232,11 @@ class BaseEmbedder(ABC):
         return ans
 
     @abstractmethod
-    def compute_drift_matrix(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Calculate the drift matrix for a given set of conventional parameters.
+    def compute_drift_matrix(
+        self, 
+        primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Calculate the drift matrix for a given set of primitive parameters.
 
         Returns
         -------
@@ -267,15 +268,17 @@ class BaseEmbedder(ABC):
         -----
         This matrix is also accessible through the alias 'A'.
         """
-        return self.compute_drift_matrix(self.params)
+        return self.compute_drift_matrix(self.primitive_params)
 
     # Alias
     A = drift_matrix
 
     @abstractmethod
-    def drift_matrix_param_grad(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Calculate the gradient of the drift matrix for the current parametrization of the embedder
-        (before the mapping)
+    def drift_matrix_param_grad(
+        self, 
+        primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Calculate the gradient of the drift matrix with respect to the primitive parameters
 
         Returns
         -------
@@ -289,22 +292,23 @@ class BaseEmbedder(ABC):
         """
         pass
 
-    def drift_matrix_x_grad(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-        """Calculate the gradient of the drift matrix for the current parametrization of the embedder
-        (after the mapping).
+    def drift_matrix_x_grad(
+        self, x: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Calculate the gradient of the drift matrix with respect to the mapped parameters
 
         Returns
         -------
         numpy.ndarray
             A 3D array of shape (k, n+1, n+1) where k is the number of parameters and n is the number of auxiliary variables. 
         """
-        params = self._inverse_map(x)
-        param_grad_A = self.drift_matrix_param_grad(params)
+        primitive_params = self._inverse_map(x)
+        param_grad_A = self.drift_matrix_param_grad(primitive_params)
         return self.grad_param_to_x(param_grad_A, x)
         
     @property
     def drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
-        """The derivative of the drift matrix with respect to the parameters of the embedder.
+        """The derivative of the drift matrix with respect to the primitive parameters for the current state of the embedder.
         
         Returns
         -------
@@ -326,7 +330,7 @@ class BaseEmbedder(ABC):
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
         """
-        Computes the memory kernel function for the embedding.
+        Computes the memory kernel function for the current state of the embedder.
 
         Parameters
         ----------
@@ -351,7 +355,7 @@ class BaseEmbedder(ABC):
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
         """
-        Computes the gradient of the memory kernel function w.r.t. conventional embedding parameters.
+        Computes the gradient of the memory kernel function w.r.t. primitive parameters for the current state of the embedder.
 
         Parameters
         ----------
@@ -376,7 +380,7 @@ class BaseEmbedder(ABC):
         time: ScalarArr, 
     )-> npt.NDArray[np.floating]:
         """
-        Computes the hessian of the memory kernel function w.r.t. conventional embedding parameters.
+        Computes the hessian of the memory kernel function w.r.t. primitive parameters for the current state of the embedder.
 
         Parameters
         ----------
@@ -459,7 +463,7 @@ class BaseEmbedder(ABC):
         frequency: ScalarArr, 
     )-> npt.NDArray[np.floating]:
         """
-        Computes the gradient of the spectrum w.r.t. conventional embedding parameters.
+        Computes the gradient of the spectrum w.r.t. primitive parameters for the current state of the embedder.
 
         Parameters
         ----------
@@ -484,7 +488,7 @@ class BaseEmbedder(ABC):
         frequency: ScalarArr, 
     )-> npt.NDArray[np.floating]:
         """
-        Computes the hessian of the spectrum w.r.t. conventional embedding parameters.
+        Computes the hessian of the spectrum w.r.t. primitive parameters for the current state of the embedder.
 
         Parameters
         ----------

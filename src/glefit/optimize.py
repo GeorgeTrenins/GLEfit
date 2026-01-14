@@ -57,7 +57,7 @@ def main(args: argparse.Namespace):
     opt: Optimizer = OptClass(embedder, merit, **opt_parameters)
     optimization_options = opt_config["options"]
     max_iter = optimization_options.pop("max_iter")
-    opt.run(steps=max_iter, **optimization_options)
+    opt.run(steps=max_iter, options=optimization_options)
 
 if __name__ == "__main__":
     args = parser.parse_args()

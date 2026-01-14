@@ -12,16 +12,10 @@ from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper, IdentityMapper
 from glefit.utils.special import expcoscosh, expsincsinhc
-from collections import namedtuple
 import numpy as np
 import numpy.typing as npt
 
-_params = namedtuple('Params', ['r', 'alpha', 'lamda', 'Gamma'])
 _DEFAULTS = dict(sigma=5.0, threshold=20.0)
-
-#TODO:
-# * update params setter to also update cparams
-
 
 class TwoAuxEmbedder(BaseEmbedder):
 
@@ -72,6 +66,13 @@ class TwoAuxEmbedder(BaseEmbedder):
             delta : float
             Omega : float
 
+        kwargs
+        ------
+            sigma: float
+                transition steepness for the softmax and softabs functions
+            threshold : float
+                numerical cutoff beyond which softmax/softabs switch to their "hard" counterparts
+
         Raises
         ------
         TypeError
@@ -104,11 +105,10 @@ class TwoAuxEmbedder(BaseEmbedder):
         ])
         super().__init__(*args, **kwargs)
         # set primitive params directly
-        cparams = np.concatenate([theta, [gamma, delta, Omega]])
-        prim_params = self.to_primitive(cparams)
-        self._params[:] = prim_params
-        self._x[:] = self._forward_map(prim_params)
-        self._named_params = _params(*self._params)
+        conventional_parameters = np.concatenate([theta, [gamma, delta, Omega]])
+        primitive_parameters = self.to_primitive(conventional_parameters)
+        self._primitive_params[:] = primitive_parameters
+        self._x[:] = self._forward_map(primitive_parameters)
 
     @classmethod
     def from_dict(
@@ -120,6 +120,27 @@ class TwoAuxEmbedder(BaseEmbedder):
         delta = parameters.pop("delta")
         Omega = parameters.pop("Omega")
         return cls(theta, gamma, delta, Omega, **parameters)
+
+    @classmethod
+    def from_matrix(
+        cls, 
+        theta: npt.NDArray[np.floating],
+        A: npt.NDArray[np.floating],
+        **kwargs
+    ) -> "TwoAuxEmbedder":
+        """Construct the two-variable embedder from a 2x2 drift matrix A and a coupling vector θ.
+        """
+        theta = np.asarray(theta, dtype=float)
+        if theta.shape != (2,):
+           raise ValueError(f"θ must be a length-2 vector, instead got {theta.shape = }")
+        A = np.asarray(A, dtype=float)
+        if A.shape != (2,2):
+           raise ValueError(f"A must be a 2-by-2 array, instead got {A.shape = }") 
+        theta, A = cls.rotate_matrix(theta, A)
+        gamma = (A[0,0] + A[1,1]) / 2
+        delta = (A[0,0] - A[1,1]) / 2
+        Omega = A[0,1]
+        return cls(theta, gamma, delta, Omega, **kwargs)
 
     def _gamma_lower_bound(self, Gamma, alpha, nu=0):
         if nu == 0:
@@ -151,9 +172,9 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def to_primitive(
         self,
-        cparams: npt.NDArray[np.floating]
+        conventional_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
+        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degeneracy
 
         Args:
             cparams : np.ndarray, shape(5,)
@@ -163,22 +184,22 @@ class TwoAuxEmbedder(BaseEmbedder):
             params : np.ndarray, shape(4,)
                 non-degenerate parameters [ r, α, λ, Γ ]
         """
-        cparams = np.asarray(cparams, dtype=float)
-        if cparams.shape != (5,):
-           raise ValueError(f"The conventional parameters must be supplied as a length-5 vector, instead got {cparams.shape = }")
-        th2 = cparams[:2]**2
-        gamma, delta, Omega = cparams[2:]
+        conventional_params = np.asarray(conventional_params, dtype=float)
+        if conventional_params.shape != (5,):
+           raise ValueError(f"The conventional parameters must be supplied as a length-5 vector, instead got {conventional_params.shape = }")
+        th2 = conventional_params[:2]**2
+        gamma, delta, Omega = conventional_params[2:]
         r = np.sqrt(np.sum(th2))
         d2O2 = delta**2 - Omega**2
         Gamma = np.sign(d2O2) * np.sqrt(np.abs(d2O2))
         alpha = delta * (th2[0] - th2[1]) / (th2[0] + th2[1])
         lamda = gamma - self._gamma_lower_bound(Gamma, alpha, nu=0)
-        params = np.array([r, alpha, lamda, Gamma], dtype=float)
-        return params
+        primitive_params = np.array([r, alpha, lamda, Gamma], dtype=float)
+        return primitive_params
     
     def to_conventional(
         self,
-        params: npt.NDArray[np.floating]
+        primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         Args:
@@ -189,10 +210,10 @@ class TwoAuxEmbedder(BaseEmbedder):
             cparams : np.ndarray, shape(5,)
                 conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
         """
-        params = np.asarray(params, dtype=float)
-        if params.shape != (4,):
-           raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {params.shape = }")
-        r, alpha, lamda, Gamma = params
+        primitive_params = np.asarray(primitive_params, dtype=float)
+        if primitive_params.shape != (4,):
+           raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {primitive_params.shape = }")
+        r, alpha, lamda, Gamma = primitive_params
         if abs(alpha) < Gamma:
             delta = Gamma
             Omega = 0.0
@@ -208,24 +229,24 @@ class TwoAuxEmbedder(BaseEmbedder):
     
     def jac_conventional(
         self,
-        params: npt.NDArray[np.floating]
+        primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert non-degenerate embedding parameters to conventional embedding variables and compute the jacobian of the conventional vars w.r.t. params
+        """Convert primitive embedding parameters to conventional embedding variables and compute the jacobian of the conventional vars w.r.t. params
 
         Args:
-            params : np.ndarray, shape(4,)
-                non-degenerate parameters in the order [ r, α, λ, Γ ]
+            primitive_params : np.ndarray, shape(4,)
+                primitive parameters in the order [ r, α, λ, Γ ]
 
         Returns:
-            cparams : np.ndarray, shape(5,)
+            conventional_params : np.ndarray, shape(5,)
                 conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
             jac : np.ndarray, shape(5, 4)
-                jac[i,j] = D[ cparams[i], params[j] ]
+                jac[i,j] = D[ conventional_params[i], primitive_params[j] ]
         """
-        params = np.asarray(params, dtype=float)
-        if params.shape != (4,):
-           raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {params.shape = }")
-        r, alpha, lamda, Gamma = params
+        primitive_params = np.asarray(primitive_params, dtype=float)
+        if primitive_params.shape != (4,):
+           raise ValueError(f"The primitive parameters must be supplied as a length-4 vector, instead got {primitive_params.shape = }")
+        r, alpha, lamda, Gamma = primitive_params
         gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
         jac = np.zeros((5,4))
         if abs(alpha) < Gamma:
@@ -270,8 +291,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         jac[2,1] = tmp[1]
         jac[2,2] = 1.0
         jac[2,3] = tmp[0]
-        cparams = np.asarray([theta1, theta2, gamma, delta, Omega])
-        return cparams, jac
+        conventional_params = np.asarray([theta1, theta2, gamma, delta, Omega])
+        return conventional_params, jac
     
     @staticmethod
     def rotate_matrix(
@@ -289,31 +310,10 @@ class TwoAuxEmbedder(BaseEmbedder):
         new_A = np.linalg.multi_dot([eigs.eigenvectors.T, A, eigs.eigenvectors])
         return new_theta, new_A
 
-    @classmethod
-    def from_matrix(
-        cls, 
-        theta: npt.NDArray[np.floating],
-        A: npt.NDArray[np.floating],
-        **kwargs
-    ) -> "TwoAuxEmbedder":
-        """Construct the two-variable embedder from a 2x2 drift matrix A and a coupling vector θ.
-        """
-        theta = np.asarray(theta, dtype=float)
-        if theta.shape != (2,):
-           raise ValueError(f"θ must be a length-2 vector, instead got {theta.shape = }")
-        A = np.asarray(A, dtype=float)
-        if A.shape != (2,2):
-           raise ValueError(f"A must be a 2-by-2 array, instead got {A.shape = }") 
-        theta, A = cls.rotate_matrix(theta, A)
-        gamma = (A[0,0] + A[1,1]) / 2
-        delta = (A[0,0] - A[1,1]) / 2
-        Omega = A[0,1]
-        return cls(theta, gamma, delta, Omega, **kwargs)
-
     def compute_drift_matrix(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
         """Calculate the drift matrix for a given set of conventional parameters, 
         packed as a 5-tuple in the order ( θ[0], θ[1], γ, δ, Ω )
 
@@ -322,7 +322,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         numpy.ndarray
             A 2x2 array.
         """
-        theta1, theta2, gamma, delta, Omega = params
+        theta1, theta2, gamma, delta, Omega = self.to_conventional(primitive_params)
         A = np.zeros((3,3))
         A[0,1] = theta1
         A[0,2] = theta2
@@ -335,9 +335,9 @@ class TwoAuxEmbedder(BaseEmbedder):
         return A
     
     def drift_matrix_param_grad(
-            self, 
-            params: npt.NDArray
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray
+    ) -> npt.NDArray[np.floating]:
         """The gradient of the drift matrix with respect to the primitive parameters.
 
         In terms of *conventional* parameters 
@@ -365,7 +365,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         grad_A_conventional[4, 1, 2] = 1.0
         grad_A_conventional[4, 2, 1] = -1.0
         # chain rule
-        _, jac = self.jac_conventional(params)
+        _, jac = self.jac_conventional(primitive_params)
         grad_A = np.einsum(
             'lij,lk->kij', 
             grad_A_conventional,
