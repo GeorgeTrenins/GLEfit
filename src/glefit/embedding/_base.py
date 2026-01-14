@@ -36,9 +36,8 @@ class BaseEmbedder(ABC):
     def __init__(self, *args, **kwargs):
         naux = self.__len__()
         self._A : np.ndarray = np.empty((naux+1, naux+1))
-        nparam = self.nparam
         ndof = self.ndof
-        self._grad_A : np.ndarray = np.empty((nparam, naux+1, naux+1))
+        self._grad_A : np.ndarray = np.empty((ndof, naux+1, naux+1))
         self._primitive_params : np.ndarray = np.empty(ndof)
         self._x : np.ndarray = np.empty(ndof)
         self._mappers: BaseMapper = kwargs.get("mappers")
@@ -92,14 +91,14 @@ class BaseEmbedder(ABC):
 
     def to_primitive(
         self,
-        cparams: npt.NDArray[np.floating]
+        conventional_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
         """
         # By default, assume that the primitive and conventional parameters are identical
-        if cparams.shape != (self.nparam,):
-           raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {cparams.shape = }")
-        return np.copy(cparams)
+        if conventional_params.shape != (self.nparam,):
+           raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {conventional_params.shape = }")
+        return np.copy(conventional_params)
     
     def to_conventional(
         self,
@@ -150,7 +149,7 @@ class BaseEmbedder(ABC):
     def conventional_params(self, value: npt.ArrayLike) -> None:
         """Set conventional parameters; store as primitive internally."""
         arr = np.asarray(value)
-        if arr.shape != self.nparam:
+        if arr.shape != (self.nparam,):
             raise ValueError(f"conventional_params must have shape ({self.nparam},), got {arr.shape}")
         prim = self.to_primitive(arr)
         self._primitive_params[:] = prim

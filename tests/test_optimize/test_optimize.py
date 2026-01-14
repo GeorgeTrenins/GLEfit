@@ -42,4 +42,4 @@ def test_optimize_2x2(fixtures_dir):
     optimize.main(args)
 
 if __name__ == "__main__":
-    test_optimize_2x2(Path(__file__).parent / "fixtures")
+    test_optimize(Path(__file__).parent / "fixtures")

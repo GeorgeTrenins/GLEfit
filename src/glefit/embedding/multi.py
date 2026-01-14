@@ -9,11 +9,9 @@
 
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
-from typing import Iterable, Optional
+from typing import Iterable
 import numpy as np
 import numpy.typing as npt
-
-#TODO: overwrite to_conventional / to_primitive
 
 class MultiEmbedder(BaseEmbedder):
 
@@ -49,6 +47,40 @@ class MultiEmbedder(BaseEmbedder):
     
     def _get_ndof(self) -> int:
         return self._ndof
+    
+    def to_primitive(
+        self,
+        conventional_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
+        """
+        if conventional_params.shape != (self.nparam,):
+           raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {conventional_params.shape = }")
+        primitive_params = []
+        i = 0
+        for emb in self._embs:
+            nparams = emb.nparams
+            c = conventional_params[i:i+nparams]
+            primitive_params.append(emb.to_primitive(c))
+            i += nparams
+        return np.concatenate(primitive_params)
+    
+    def to_conventional(
+        self,
+        primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
+        """Convert non-degenerate embedding parameters to conventional embedding variables
+        """
+        if primitive_params.shape != (self.ndof,):
+           raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {primitive_params.shape = }")
+        conventional_params = []
+        i = 0
+        for emb in self._embs:
+            ndof = emb.ndof
+            p = primitive_params[i:i+ndof]
+            conventional_params.append(emb.to_conventional(p))
+            i += ndof
+        return np.concatenate(conventional_params)
     
     @BaseEmbedder.conventional_params.getter
     def conventional_params(self):
@@ -173,9 +205,9 @@ class MultiEmbedder(BaseEmbedder):
         return self._apply_to_params('hess_px', x)
     
     def compute_drift_matrix(
-            self, 
-            params: npt.NDArray[np.floating]
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
         """Construct the drift matrix for the combined embedding system.
     
         Returns
@@ -196,26 +228,26 @@ class MultiEmbedder(BaseEmbedder):
         The first row/column contains all couplings to the system coordinate.
         """
         A = np.zeros_like(self._A)
-        params = np.asarray(params)
+        primitive_params = np.asarray(primitive_params)
         ub = 1
         j = 0
         for emb in self._embs:
             naux = len(emb)
-            nparam = emb.nparam
+            ndof = emb.ndof
             i = j
-            j = i+nparam
+            j = i+ndof
             lb = ub
             ub = ub + naux
-            emb_A = emb.compute_drift_matrix(params[i:j])
+            emb_A = emb.compute_drift_matrix(primitive_params[i:j])
             A[0,lb:ub] = emb_A[0,1:]
             A[lb:ub,0] = emb_A[1:,0]
             A[lb:ub, lb:ub] = emb_A[1:,1:]
         return A
     
     def drift_matrix_param_grad(
-            self, 
-            params: npt.NDArray[np.floating]
-        ) -> npt.NDArray[np.floating]:
+        self, 
+        primitive_params: npt.NDArray[np.floating]
+    ) -> npt.NDArray[np.floating]:
         """Construct the gradient of the drift matrix for the combined system.
 
         Returns
@@ -236,20 +268,20 @@ class MultiEmbedder(BaseEmbedder):
         Parameters are ordered according to the sequence of embedders,
         with all parameters from each embedder appearing consecutively.
         """
-        params = np.asarray(params)
+        primitive_params = np.asarray(primitive_params)
         grad_A = np.zeros_like(self._grad_A)
         ub = 1
         j = 0
         for emb in self._embs:
-            nparam = emb.nparam
+            ndof = emb.ndof
             naux = len(emb)
             # Set block boundaries
             lb = ub
             ub = ub + naux
-            nparam = emb.nparam
+            ndof = emb.ndof
             i = j
-            j = i+nparam
-            emb_grad_A = emb.drift_matrix_param_grad(params[i:j])
+            j = i+ndof
+            emb_grad_A = emb.drift_matrix_param_grad(primitive_params[i:j])
             # Fill gradient blocks for each parameter
             grad_A_slice = grad_A[i:j]
             grad_A_slice[:, 0, lb:ub] = emb_grad_A[:, 0, 1:]

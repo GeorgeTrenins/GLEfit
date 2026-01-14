@@ -39,7 +39,7 @@ optimization:
   type: "EF"
   parameters:
     trajfile: "trajectory.out"
-    logfile: "-"
+    logfile: "log.out"
   options:
     max_iter: 100
     max_step: 0.2
