@@ -120,6 +120,18 @@ class TwoAuxEmbedder(BaseEmbedder):
         delta = parameters.pop("delta")
         Omega = parameters.pop("Omega")
         return cls(theta, gamma, delta, Omega, **parameters)
+    
+    @staticmethod
+    def from_harmonic(
+        weight: float, omega: float, gamma: float 
+    ) -> dict[str, float]:
+        conventional_parameters = {
+            "theta" : [float(np.sqrt(2*weight)/np.pi), 0.0],
+            "gamma" : gamma,
+            "delta" : 0.0,
+            "Omega" : omega
+        }
+        return conventional_parameters
 
     @classmethod
     def from_matrix(

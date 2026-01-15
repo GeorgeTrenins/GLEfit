@@ -71,6 +71,17 @@ class PronyCosineEmbedder(BaseEmbedder):
         gamma = kwargs.pop("gamma")
         omega = kwargs.pop("omega")
         return cls(theta, gamma, omega, **kwargs)
+    
+    @staticmethod
+    def from_harmonic(
+        weight: float, omega: float, gamma: float 
+    ) -> dict[str, float]:
+        conventional_parameters = {
+            "theta" : float(np.sqrt(2*weight)/np.pi),
+            "gamma" : float(gamma),
+            "omega" : float(omega)
+        }
+        return conventional_parameters
 
     def compute_drift_matrix(
         self, 

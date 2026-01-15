@@ -1,0 +1,37 @@
+data:
+  spectrum:
+    columns:
+    - 0
+    - 1
+    delimiter: ','
+    format: csv
+    path: ./expohmic_nm_spectrum.csv
+    source: external
+embedder:
+  parameters:
+    embedders:
+    - parameters:
+        gamma: 0.2648715560524595
+        omega: 10.309029249936543
+        theta: 0.3319534802941491
+      type: pronycos
+    - parameters:
+        gamma: 0.2648715560524595
+        omega: 10.838772362041462
+        theta: 0.3319534802941491
+      type: pronycos
+  type: multi
+merit_function:
+  parameters:
+    data: spectrum
+    metric: squared
+  type: spectrum
+optimization:
+  options:
+    gtol: 0.0001
+    max_iter: 100
+    max_step: 0.2
+  parameters:
+    logfile: log.out
+    trajfile: trajectory.out
+  type: EF

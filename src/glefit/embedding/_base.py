@@ -40,7 +40,7 @@ class BaseEmbedder(ABC):
         self._grad_A : np.ndarray = np.empty((ndof, naux+1, naux+1))
         self._primitive_params : np.ndarray = np.empty(ndof)
         self._x : np.ndarray = np.empty(ndof)
-        self._mappers: BaseMapper = kwargs.get("mappers")
+        self._mappers: list[BaseMapper] = kwargs.get("mappers")
         if self._mappers is not None:
             if len(self._mappers) != self.ndof:
                 raise ValueError(f"The number of constraint mappers should match the number of optimizable parameters, instead got {ndof = } and {len(self._mappers) = }")

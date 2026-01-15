@@ -96,17 +96,10 @@ class ConfigHandler:
         """Convert relative paths to absolute paths relative to config file directory.
         
         Modifies config dict in-place to store absolute paths for:
-        - project.output_dir
         - data[*].path (for external sources)
         - restart.restart_file
         """
         config_dir: Path = self.config_path.parent
-        
-        # Resolve project output directory
-        if 'project' in self.config and 'output_dir' in self.config['project']:
-            output_dir: Path = Path(self.config['project']['output_dir'])
-            if not output_dir.is_absolute():
-                self.config['project']['output_dir'] = str((config_dir / output_dir).resolve())
         
         # Resolve data file paths
         if 'data' in self.config:
@@ -134,7 +127,7 @@ class ConfigHandler:
         Raises:
             ConfigError: If required keys are missing
         """
-        required_keys = {'project', 'data', 'merit_function', 'embedder', 'optimization'}
+        required_keys = {'data', 'merit_function', 'embedder', 'optimization'}
         missing = required_keys - set(config.keys())
         
         if missing:
@@ -151,14 +144,6 @@ class ConfigHandler:
         """
         self._validate_config_structure(self.config)
         self.config: dict
-
-        # Validate project section
-        if not isinstance(self.config.get('project'), dict):
-            raise ConfigError("'project' must be a dictionary")
-        if 'name' not in self.config['project']:
-            raise ConfigError("'project.name' is required")
-        if 'output_dir' not in self.config['project']:
-            raise ConfigError("'project.output_dir' is required")
         
         # Validate data section
         if not isinstance(self.config.get('data'), dict):
@@ -265,14 +250,6 @@ class ConfigHandler:
             Optimization configuration dictionary
         """
         return copy.deepcopy(self.config['optimization'])
-
-    def get_project_config(self) -> Dict[str, Any]:
-        """Get project metadata.
-        
-        Returns:
-            Project configuration dictionary
-        """
-        return copy.deepcopy(self.config['project'])
 
     def get_restart_config(self) -> Optional[Dict[str, Any]]:
         """Get restart configuration if present.
