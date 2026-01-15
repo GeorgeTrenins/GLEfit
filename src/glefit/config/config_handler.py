@@ -13,14 +13,14 @@ from typing import Dict, Any, Optional, Union
 import logging
 import json
 import copy
-from datetime import datetime
-
 import yaml
 import numpy as np
-
 from .data_io import load_data, DataLoadError
 
 logger = logging.getLogger(__name__)
+
+# TODO: parse constraints
+
 
 
 class ConfigError(Exception):
@@ -164,13 +164,6 @@ class ConfigHandler:
             raise ConfigError("'merit_function.type' is required")
         if 'parameters' not in merit:
             raise ConfigError("'merit_function.parameters' is required")
-        
-        # # Validate data reference exists
-        # if merit['data_ref'] not in self.config['data']:
-        #     raise ConfigError(
-        #         f"Merit function references non-existent data '{merit['data_ref']}'. "
-        #         f"Available datasets: {list(self.config['data'].keys())}"
-        #     )
         
         # Validate embedder
         if not isinstance(self.config.get('embedder'), dict):

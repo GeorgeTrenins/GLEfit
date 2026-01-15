@@ -156,6 +156,7 @@ class NewtonRaphson(Optimizer):
             self.logfile.write("===  End of hessian eigenvalues ===\n")
             self.logfile.write("\n")
             self.logfile.flush()
+        # log the current conventional parametrization of the embedder
         super().log(T=T)
 
 

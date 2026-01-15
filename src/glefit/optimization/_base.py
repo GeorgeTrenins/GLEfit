@@ -210,13 +210,9 @@ class Optimizer(IOContext):
         name = self.__class__.__name__
         params = self.emb.conventional_params
         if self.trajectory is not None:
-            args = (" " * len(name), "Step", "Time")
-            msg = "%s  %4s %8s\n" % args
-            self.trajectory.write(msg)
             args = (name, self.nsteps, T[3], T[4], T[5])
-            msg = "%s:  %3d %02d:%02d:%02d\n" % args
+            msg = "%s | Step %3d, Time %02d:%02d:%02d\n" % args
             self.trajectory.write(msg)
-            self.trajectory.write("=== Embedding parameters ===\n")
             self.trajectory.write(np.array2string(
                 params,
                 max_line_width=70,    # wrap lines to 70 chars
@@ -225,9 +221,7 @@ class Optimizer(IOContext):
                 threshold=1_000_000,  # basically, always print full array
                 formatter={'float_kind':lambda x: f"{x: .6e}"}
             ))
-            self.trajectory.write("\n")
-            self.trajectory.write("==== End of parameters =====\n")
-            self.trajectory.write("\n")
+            self.trajectory.write("\n\n")
             self.trajectory.flush()
 
 

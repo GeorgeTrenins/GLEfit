@@ -99,7 +99,7 @@ class MultiEmbedder(BaseEmbedder):
         conventional_offset = 0
         for emb in self._embs:
             ndof = emb.ndof
-            nparams = emb.nparams
+            nparams = emb.nparam
             # set slice boundaries
             p_slc = slice(primitive_offset, primitive_offset+ndof)
             c_slc = slice(conventional_offset, conventional_offset+nparams)
