@@ -8,7 +8,7 @@
 '''
 
 from __future__ import print_function, division, absolute_import
-from collections.abc import Callable
+from typing import Optional
 from scipy.optimize import root_scalar, RootResults
 import numpy as np
 import numpy.typing as npt
@@ -19,7 +19,8 @@ def WAM_discretization(
     omega: npt.NDArray[np.floating], 
     Lambda: npt.NDArray[np.floating], 
     nbath: int,
-    **kwargs
+    wmax: float = np.inf,
+    options: Optional[dict] = None
 ) -> tuple[float, npt.NDArray[np.floating]]:
     """Discretize the bath spectrum Λ(ω) = J(ω)/ω according to the scheme
     by P. L. Walters, T. C. Allen, and N. Makri in J. Comp. Chem., 38, pp. 110-115 (2017) [DOI: 10.1002/jcc.24527]
@@ -33,9 +34,11 @@ def WAM_discretization(
         freqs: np.ndarray
     """
     
-    spline: BSpline = make_interp_spline(omega, Lambda, **kwargs)
+    if options is None:
+        options = {}
+    spline: BSpline = make_interp_spline(omega, Lambda, **options)
     antiderivative: BSpline = spline.antiderivative(nu=1)
-    wmax: float = omega[-1]
+    wmax: float = min(wmax, omega[-1])
     cumulative_spectrum = lambda x: np.nan_to_num(
         antiderivative(x, extrapolate=False), nan=0.0)
     exact_reorganisation = 4/np.pi * cumulative_spectrum(wmax)  # Eq. (2.5)
