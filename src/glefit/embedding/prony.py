@@ -13,6 +13,7 @@ from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
+import copy
 
 
 class PronyEmbedder(BaseEmbedder):
@@ -61,11 +62,12 @@ class PronyEmbedder(BaseEmbedder):
     @classmethod
     def from_dict(
         cls, 
-        kwargs: dict
+        parameters: dict
     ) -> "PronyEmbedder":
-        theta = kwargs.pop("theta")
-        gamma = kwargs.pop("gamma")
-        return cls(theta, gamma, **kwargs)
+        param_copy = copy.deepcopy(parameters)
+        theta = param_copy.pop("theta")
+        gamma = param_copy.pop("gamma")
+        return cls(theta, gamma, **param_copy)
 
     def compute_drift_matrix(
         self, 

@@ -14,6 +14,7 @@ from glefit.mappers import LowerBoundMapper, IdentityMapper
 from glefit.utils.special import expcoscosh, expsincsinhc
 import numpy as np
 import numpy.typing as npt
+import copy
 
 _DEFAULTS = dict(sigma=5.0, threshold=20.0)
 
@@ -82,14 +83,10 @@ class TwoAuxEmbedder(BaseEmbedder):
         """
 
         from glefit.utils.special import Softmax, Softabs
-        self.softmax = Softmax(
-            sigma=kwargs.get("sigma", _DEFAULTS["sigma"]),
-            threshold=kwargs.get("threshold", _DEFAULTS["threshold"]),
-        )
-        self.softabs = Softabs(
-            sigma=kwargs.get("sigma", _DEFAULTS["sigma"]),
-            threshold=kwargs.get("threshold", _DEFAULTS["threshold"]),
-        )
+        sigma = kwargs.get("sigma", _DEFAULTS["sigma"])
+        threshold = kwargs.get("threshold", _DEFAULTS["threshold"])
+        self.softmax = Softmax(sigma=sigma, threshold=threshold)
+        self.softabs = Softabs(sigma=sigma, threshold=threshold)
         for variable, symbol in zip([gamma, Omega, delta], "γδΩ"):
             if not isinstance(variable, (int, float)):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
@@ -115,21 +112,22 @@ class TwoAuxEmbedder(BaseEmbedder):
         cls, 
         parameters: dict
     ) -> "TwoAuxEmbedder":
-        theta = parameters.pop("theta")
-        gamma = parameters.pop("gamma")
-        delta = parameters.pop("delta")
-        Omega = parameters.pop("Omega")
-        return cls(theta, gamma, delta, Omega, **parameters)
+        param_copy = copy.deepcopy(parameters)
+        theta = param_copy.pop("theta")
+        gamma = param_copy.pop("gamma")
+        delta = param_copy.pop("delta")
+        Omega = param_copy.pop("Omega")
+        return cls(theta, gamma, delta, Omega, **param_copy)
     
     @staticmethod
     def from_harmonic(
         weight: float, omega: float, gamma: float 
     ) -> dict[str, float]:
         conventional_parameters = {
-            "theta" : [float(np.sqrt(2*weight)/np.pi), 0.0],
-            "gamma" : gamma,
+            "theta" : [float(np.sqrt(2*weight/np.pi)), 0.0],
+            "gamma" : float(gamma),
             "delta" : 0.0,
-            "Omega" : omega
+            "Omega" : float(omega)
         }
         return conventional_parameters
 

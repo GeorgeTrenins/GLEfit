@@ -13,6 +13,7 @@ from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
+import copy
 
 
 class PronyCosineEmbedder(BaseEmbedder):
@@ -65,19 +66,20 @@ class PronyCosineEmbedder(BaseEmbedder):
     @classmethod
     def from_dict(
         cls, 
-        kwargs: dict
+        parameters: dict
     ) -> "PronyCosineEmbedder":
-        theta = kwargs.pop("theta")
-        gamma = kwargs.pop("gamma")
-        omega = kwargs.pop("omega")
-        return cls(theta, gamma, omega, **kwargs)
+        param_copy = copy.deepcopy(parameters)
+        theta = param_copy.pop("theta")
+        gamma = param_copy.pop("gamma")
+        omega = param_copy.pop("omega")
+        return cls(theta, gamma, omega, **param_copy)
     
     @staticmethod
     def from_harmonic(
         weight: float, omega: float, gamma: float 
     ) -> dict[str, float]:
         conventional_parameters = {
-            "theta" : float(np.sqrt(2*weight)/np.pi),
+            "theta" : float(np.sqrt(2*weight/np.pi)),
             "gamma" : float(gamma),
             "omega" : float(omega)
         }
