@@ -64,6 +64,13 @@ def setup_from_config(config_path: Path) -> tuple[BaseEmbedder, BaseProperty]:
     embedder_config = handler.get_embedder_config()
     EmbedderClass = EMBEDDER_MAP[embedder_config["type"]]
     embedder = EmbedderClass.from_dict(embedder_config["parameters"])
+
+    # Turn off default constraints in the embedder
+    if hasattr(embedder, '_embs'):
+        for emb in embedder._embs:
+            emb._mappers = None
+    else:
+        emb._mappers = None
     
     # Load data and create merit function
     datasets = handler.load_data()
@@ -135,7 +142,7 @@ def plot_trajectory(
     )
     
     # Set fixed axis ranges
-    y_min, y_max = merit.target.min(), merit.target.max()
+    y_min, y_max = min(0, merit.target.min()), merit.target.max()
     y_range = y_max - y_min
     ax.set_xlim(merit.grid.min(), merit.grid.max())
     ax.set_ylim(y_min - 0.05*y_range, y_max + 0.05*y_range)
