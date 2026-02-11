@@ -280,86 +280,87 @@ class ConfigHandler:
         handler.config_path = Path(config_path).resolve() if config_path else None
         return handler
 
-    def save_checkpoint(
-        self,
-        filepath: Union[str, Path],
-        optimization_state: Dict[str, Any]
-    ) -> None:
-        """Save configuration and optimization state as JSON checkpoint.
-        
-        Args:
-            filepath: Path to save checkpoint
-            optimization_state: Dict with required keys:
-                - completed_steps: Number of steps completed
-                - max_steps: Maximum steps configured
-                - timestamp: ISO 8601 timestamp
-                - converged: Whether optimization converged
-                - merit_value: Current merit function value
-                - gradient_norm: Current gradient norm
-                - gradient_max_norm: Current gradient max-norm
-                
-        Raises:
-            IOError: If writing fails
-            ValueError: If optimization_state missing required keys
-        """
-        filepath = Path(filepath)
-        
-        # Validate optimization_state
-        #TODO: add the missing keys for embedder state
-        required_keys = {'completed_steps', 'max_steps', 'timestamp', 'converged', 
-                        'merit_value', 'gradient_norm', 'gradient_max_norm'}
-        missing = required_keys - set(optimization_state.keys())
-        if missing:
-            raise ValueError(f"optimization_state missing required keys: {missing}")
-        
-        checkpoint = copy.deepcopy(self.config)
-        checkpoint['optimization_state'] = optimization_state
-        
-        try:
-            with open(filepath, 'w') as f:
-                json.dump(checkpoint, f, indent=2, default=_json_encoder)
-            logger.info(f"Saved checkpoint to {filepath}")
-        except (IOError, OSError, TypeError) as e:
-            raise IOError(f"Failed to save checkpoint: {e}")
 
-    @staticmethod
-    def load_checkpoint(filepath: Union[str, Path]) -> tuple:
-        """Load configuration and optimization state from JSON checkpoint.
+    # def save_checkpoint(
+    #     self,
+    #     filepath: Union[str, Path],
+    #     optimization_state: Dict[str, Any]
+    # ) -> None:
+    #     """Save configuration and optimization state as JSON checkpoint.
         
-        Args:
-            filepath: Path to checkpoint file
+    #     Args:
+    #         filepath: Path to save checkpoint
+    #         optimization_state: Dict with required keys:
+    #             - completed_steps: Number of steps completed
+    #             - max_steps: Maximum steps configured
+    #             - timestamp: ISO 8601 timestamp
+    #             - converged: Whether optimization converged
+    #             - merit_value: Current merit function value
+    #             - gradient_norm: Current gradient norm
+    #             - gradient_max_norm: Current gradient max-norm
+                
+    #     Raises:
+    #         IOError: If writing fails
+    #         ValueError: If optimization_state missing required keys
+    #     """
+    #     filepath = Path(filepath)
+        
+    #     # Validate optimization_state
+    #     #TODO: add the missing keys for embedder state
+    #     required_keys = {'completed_steps', 'max_steps', 'timestamp', 'converged', 
+    #                     'merit_value', 'gradient_norm', 'gradient_max_norm'}
+    #     missing = required_keys - set(optimization_state.keys())
+    #     if missing:
+    #         raise ValueError(f"optimization_state missing required keys: {missing}")
+        
+    #     checkpoint = copy.deepcopy(self.config)
+    #     checkpoint['optimization_state'] = optimization_state
+        
+    #     try:
+    #         with open(filepath, 'w') as f:
+    #             json.dump(checkpoint, f, indent=2, default=_json_encoder)
+    #         logger.info(f"Saved checkpoint to {filepath}")
+    #     except (IOError, OSError, TypeError) as e:
+    #         raise IOError(f"Failed to save checkpoint: {e}")
+
+    # @staticmethod
+    # def load_checkpoint(filepath: Union[str, Path]) -> tuple:
+    #     """Load configuration and optimization state from JSON checkpoint.
+        
+    #     Args:
+    #         filepath: Path to checkpoint file
             
-        Returns:
-            Tuple of (ConfigHandler, optimization_state_dict)
+    #     Returns:
+    #         Tuple of (ConfigHandler, optimization_state_dict)
             
-        Raises:
-            IOError: If loading fails
-            ConfigError: If configuration is invalid
-        """
-        filepath = Path(filepath).resolve()
+    #     Raises:
+    #         IOError: If loading fails
+    #         ConfigError: If configuration is invalid
+    #     """
+    #     filepath = Path(filepath).resolve()
         
-        if not filepath.exists():
-            raise IOError(f"Checkpoint file not found: {filepath}")
+    #     if not filepath.exists():
+    #         raise IOError(f"Checkpoint file not found: {filepath}")
         
-        try:
-            with open(filepath, 'r') as f:
-                checkpoint = json.load(f)
-        except (IOError, OSError, json.JSONDecodeError) as e:
-            raise IOError(f"Failed to load checkpoint: {e}")
+    #     try:
+    #         with open(filepath, 'r') as f:
+    #             checkpoint = json.load(f)
+    #     except (IOError, OSError, json.JSONDecodeError) as e:
+    #         raise IOError(f"Failed to load checkpoint: {e}")
         
-        # Extract optimization state (must be present in checkpoints)
-        if 'optimization_state' not in checkpoint:
-            raise ConfigError("Checkpoint missing 'optimization_state' section")
+    #     # Extract optimization state (must be present in checkpoints)
+    #     if 'optimization_state' not in checkpoint:
+    #         raise ConfigError("Checkpoint missing 'optimization_state' section")
         
-        optimization_state = checkpoint.pop('optimization_state')
+    #     optimization_state = checkpoint.pop('optimization_state')
         
-        # Reconstruct ConfigHandler from checkpoint config
-        try:
-            handler = ConfigHandler.from_dict(checkpoint, config_path=filepath)
-            logger.info(f"Loaded checkpoint from {filepath}")
-            return handler, optimization_state
-        except ConfigError as e:
-            raise ConfigError(f"Checkpoint contains invalid configuration: {e}")
+    #     # Reconstruct ConfigHandler from checkpoint config
+    #     try:
+    #         handler = ConfigHandler.from_dict(checkpoint, config_path=filepath)
+    #         logger.info(f"Loaded checkpoint from {filepath}")
+    #         return handler, optimization_state
+    #     except ConfigError as e:
+    #         raise ConfigError(f"Checkpoint contains invalid configuration: {e}")
 
 
 def _json_encoder(obj: Any) -> Any:
