@@ -82,14 +82,16 @@ def main(args: argparse.Namespace):
         print("YAY!")
         output_path: Path = Path("optimized_Ap_matrix.json")
         with open(output_path, 'w') as f:
-            f.write('[\n')
+            f.write('{\n')
+            f.write('"Ap": [\n')
             for i, row in enumerate(optimization.emb.A.tolist()):
                 formatted_row = [f"{x:14.7e}" for x in row] 
-                f.write('    ' + ','.join(formatted_row))
+                f.write('          [' + ','.join(formatted_row)+']')
                 if i < len(optimization.emb.A) - 1:
                     f.write(',')
                 f.write('\n')
-            f.write(']\n')
+            f.write('      ]\n')
+            f.write('}\n')
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GLE parameter optimization driver.")
