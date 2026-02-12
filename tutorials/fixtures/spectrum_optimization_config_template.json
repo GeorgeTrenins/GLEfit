@@ -1,0 +1,36 @@
+{
+    "data" : {
+        "spectrum" : {
+            "source" : "external",
+            "path" : "../../../fixtures/target_spectrum.csv",
+            "format" : "csv",
+            "columns" : [0, 1],
+            "delimiter" : ","
+        }
+    },
+    "merit_function" : {
+        "type" : "spectrum",
+        "parameters" : {
+            "data" : "spectrum",
+            "metric" : "squared"
+        }
+    },
+    "embedder" : {
+        "type" : "multi",
+        "parameters" : {
+            "embedders" : []
+        }
+    },
+    "optimization" : {
+        "type" : "EF",
+        "parameters" : {
+            "trajfile" : "trajectory.out",
+            "logfile" : "log.out"
+        },
+        "options" : {
+            "max_iter": 100,
+            "max_step": 0.2,
+            "gtol": 0.01
+        }
+    }
+}
