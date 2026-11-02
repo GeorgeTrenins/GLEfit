@@ -10,10 +10,7 @@ This defines Kantorovich-style Markovian embeddings for generalized Langevin dyn
 Ap = [[ 0, θᵀ],      K(t) = θᵀ exp(-tA) θ
       [-θ, A ]]      Λ(ω) = θᵀ A (A² + ω²)⁻¹ θ
 ```
-
-Row and column 0 belong to the physical coordinate. The vector θ couples it to the auxiliary variables, and the n×n block A describes how they relax. The embedding is stable only if the symmetric part of A is positive definite, so that the auxiliary variables decay.
-
-An **embedder** builds `Ap` from a small set of parameters. The optimizer adjusts those parameters until K or Λ matches target data.
+The embedding is stable only if the symmetric part of A is positive definite, so that the auxiliary variables decay. An `embedder` builds `Ap` from a small set of parameters. The `optimizer` adjusts those parameters until K or Λ matches target data.
 
 ## Contents
 
@@ -102,17 +99,17 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 ### Wrong results
 
-- **Wrong fit gradient at α = 0 with Γ < 0.** `jac_conventional` sets `jac[3,1] = np.sign(alpha)`, which is 0 at α = 0, so the fit gradient for α is 0 when it should not be. Every `from_harmonic` start is at this point, as is any input with θ₁ = θ₂ and |δ| < |Ω|. An `EF` fit still reached its target in one trial, so this can go unnoticed. Fix: `jac[3,1] = 1.0 if alpha > 0 else -1.0`.
+- **Wrong fit gradient at α = 0 with Γ < 0.** `jac_conventional` sets `jac[3,1] = np.sign(alpha)`, which is 0 at α = 0, so the fit gradient for α is 0 when it should not be, and the Hessian entries linking α to the other parameters come out at half their true value. Every `from_harmonic` start is at this point, as is any input with θ₁ = θ₂ and |δ| < |Ω|. An `EF` fit still reached its target in one trial, so this can go unnoticed. Fix: `jac[3,1] = 1.0 if alpha > 0 else -1.0`.
 - **`gen2x2` kernels with integer times.** `kernel(t, nu=1)` silently truncates to integers and can return all zeros, while `nu=0` raises `UFuncTypeError`. The cause is `np.empty_like(t)` in `expcoscosh` and `expsincsinhc`. Pass floats, or convert `t` at the top of `kernel_*`.
 - **Spectrum fits at Γ = 0 with α ≠ 0 (|δ| = |Ω|).** A cannot be diagonalized here, and `MemorySpectrum` relies on that. Its value was wrong by 0.5 in one check, and its gradient was also wrong. The closed form and `MemoryKernel` are correct. The error fades quickly away from Γ = 0 (about 2e-9 at Γ = 1e-8). The fix belongs in `merit/properties.py`.
-- **Infinite or NaN gradients at |α| = Γ exactly.** `drift_matrix_param_grad` divides by zero here, which includes δ = Ω = 0 and Ω = 0 with θ₁ or θ₂ = 0. Gradients are accurate just off this line, so avoid these exact values in starting guesses.
+- **Infinite or NaN gradients at |α| = Γ exactly.** `drift_matrix_param_grad` divides by zero here, which includes δ = Ω = 0 and Ω = 0 with θ₁ or θ₂ = 0. `EF` then raises `LinAlgError`. Gradients are accurate just off this line, so avoid these exact values in starting guesses.
 - **`MultiEmbedder.to_primitive` raises `AttributeError`.** It uses `emb.nparams` instead of `emb.nparam`. Nothing on the fitting path calls it.
 - **`MultiEmbedder.grad_A` can be out of date.** After a component is edited directly, it returns old values until another getter runs.
 
 ### Surprising limits
 
 - **Stable `gen2x2` inputs can be rejected.** The code requires γ > Softmax(Γ, Softabs(α)), which is stricter than stability (γ > |δ|). `TwoAuxEmbedder([1.0, 0.0], 0.1, 0.0, 2.0)` raises `ValueError`, but succeeds with `sigma=50`. `from_harmonic` input and `from_matrix` are affected too. `test_param_conversion` catches this error, which hides it.
-- **Zero starting values never move.** `LowerBoundMapper` turns p = 0 into x = -inf, with only a NumPy warning, and dp/dx is then 0. `gen2x2` with θ = [0, 0] gives NaN parameters.
+- **Zero starting values crash fits.** `LowerBoundMapper` turns p = 0 into x = -inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. `gen2x2` with θ = [0, 0] gives NaN parameters.
 - **Silent or unclear input handling.** `from_dict` ignores unknown keys, so a misspelled `sigma` has no effect. Mappers cannot be set from a config file, which can only supply plain values. `MultiEmbedder` ignores `mappers`, and it needs a list or tuple because a generator fails with an unclear `ValueError`. Constructors reject `np.float32` and `np.int64`.
 
 ### Missing features
@@ -142,7 +139,8 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 2. Implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and `kernel_func`, `kernel_grad`, `kernel_hess`, `spectrum_func`, `spectrum_grad`, `spectrum_hess`.
 3. If different parameter values can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`. Then apply the chain rule in `drift_matrix_param_grad`, as `TwoAuxEmbedder` does.
 4. Import the class in `__init__.py` and add it to `EMBEDDER_MAP`. No other registration is needed: the config validator checks only `embedder.type`, and `MultiEmbedder` accepts any `BaseEmbedder`.
-5. Add `tests/test_embedding/test_<name>.py`.
+5. If A is not symmetric and θ uses more than one entry, first fix `grad_wrt_A` in `glefit/merit/properties.py`, which gives wrong θ gradients for such matrices.
+6. Add `tests/test_embedding/test_<name>.py`.
 
 ### Other changes
 
