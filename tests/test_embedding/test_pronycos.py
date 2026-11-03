@@ -35,7 +35,7 @@ def reference(sympy_reference):
     # "omega" is the frequency variable of SympyReference
     theta, gamma, Omega = sp.symbols("theta gamma Omega", positive=True)
     A = sp.Matrix([[gamma, Omega], [-Omega, gamma]])
-    return sympy_reference(sp.Matrix([theta, 0]), A, (theta, gamma, Omega))
+    return sympy_reference.from_drift_matrix(sp.Matrix([theta, 0]), A, (theta, gamma, Omega))
 
 
 def test_drift_matrix_has_rotating_auxiliary_block(emb):

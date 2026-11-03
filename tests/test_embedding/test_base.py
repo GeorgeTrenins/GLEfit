@@ -39,7 +39,7 @@ def mixed_emb():
 def mapped_reference(sympy_reference):
     # mixed_emb: θ = x₀, γ = exp(x₁)
     x = sp.symbols("x0 x1", real=True)
-    return sympy_reference(sp.Matrix([x[0]]), sp.Matrix([[sp.exp(x[1])]]), x)
+    return sympy_reference.from_drift_matrix(sp.Matrix([x[0]]), sp.Matrix([[sp.exp(x[1])]]), x)
 
 
 def test_conventional_params_setter_updates_primitive_params_and_x(emb):

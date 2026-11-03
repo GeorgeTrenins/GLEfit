@@ -31,7 +31,7 @@ def emb():
 @pytest.fixture
 def reference(sympy_reference):
     theta, gamma = sp.symbols("theta gamma", positive=True)
-    return sympy_reference(sp.Matrix([theta]), sp.Matrix([[gamma]]), (theta, gamma))
+    return sympy_reference.from_drift_matrix(sp.Matrix([theta]), sp.Matrix([[gamma]]), (theta, gamma))
 
 
 def test_drift_matrix_couples_theta_skew_symmetrically(emb):
