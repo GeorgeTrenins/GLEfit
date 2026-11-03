@@ -17,7 +17,7 @@ from glefit.embedding import PronyEmbedder
 from glefit.mappers import IdentityMapper
 
 
-RTOL = 1.0e-12  # refactor tolerance, CODING_ASSIGNMENT.md
+RTOL = 1.0e-12
 THETA, GAMMA = 1.3, 0.7
 TIME = np.array([0.0, 0.3, 1.7, 5.0])
 FREQ = np.array([0.0, 0.9, 2.5, 10.0])

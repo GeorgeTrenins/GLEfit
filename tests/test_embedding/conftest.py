@@ -9,10 +9,22 @@
 
 
 from __future__ import print_function, division, absolute_import
+from contextlib import contextmanager
+import warnings
 import mpmath
 import numpy as np
 import pytest
 import sympy as sp
+
+
+@contextmanager
+def _ignore_sympy_bitcount_warning():
+    """SymPy 1.14 calls mpmath.libmp.bitcount (sympy/core/evalf.py), deprecated in mpmath 1.4,
+    from assumption checks that run in random order. The returned value is unaffected."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="bitcount function is deprecated", category=DeprecationWarning)
+        yield
 
 
 class SympyReference:
@@ -25,6 +37,7 @@ class SympyReference:
 
     t, omega = sp.symbols("t omega", nonnegative=True)
 
+    @_ignore_sympy_bitcount_warning()
     def __init__(self, theta: sp.Matrix, A: sp.Matrix, params: tuple) -> None:
         """`theta` (column) and `A` (square) are expressions in the symbols `params`."""
         self.params = tuple(params)
@@ -41,6 +54,7 @@ class SympyReference:
         """Λ(ω), or its derivatives, as for `kernel`."""
         return self._derivatives(self.spectrum_expr, self.omega, values, frequency, nu)
 
+    @_ignore_sympy_bitcount_warning()
     def _derivatives(self, expr, var, values, grid, nu):
         if nu == 0:
             return self._evaluate(expr, var, values, grid)
