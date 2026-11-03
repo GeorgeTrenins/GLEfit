@@ -239,10 +239,11 @@ def test_from_matrix_rejects_indefinite_symmetric_part():
 
 
 def test_from_harmonic_puts_the_coupling_on_the_first_variable():
-    actual = TwoAuxEmbedder.from_harmonic(np.pi / 2, 2.0, 0.5)
+    # weight 2π gives θ₁² = 2·weight/π = 4
+    actual = TwoAuxEmbedder.from_harmonic(2 * np.pi, 2.0, 0.5)
 
     assert actual == {
-        "theta": [1.0, 0.0], 
+        "theta": [2.0, 0.0],
         "gamma": 0.5, 
         "delta": 0.0, 
         "Omega": 2.0

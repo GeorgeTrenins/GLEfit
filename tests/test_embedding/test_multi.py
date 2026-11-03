@@ -106,10 +106,11 @@ def test_drift_matrix_and_its_gradient_use_their_argument_not_stored_params(
 
 
 @pytest.mark.parametrize("method, grid", GRIDS, ids=["kernel", "spectrum"])
-def test_mapped_gradient_matches_chain_rule_wrt_drift_matrix(
-        emb, drift_matrix_reference, method, grid):
-    _, expected = getattr(drift_matrix_reference, method)(
-        emb.drift_matrix, grid, emb.drift_matrix_x_grad(emb.x))
+def test_mapped_gradient_applies_each_component_mapper_jacobian(emb, method, grid):
+    p = emb.primitive_params
+    # default mappers: p = exp(x), except α and Γ of gen2x2 (indices 3 and 5), which are unbounded
+    dp_dx = np.array([p[0], p[1], p[2], 1.0, p[4], 1.0, p[6], p[7], p[8]])
+    expected = dp_dx[:, None] * getattr(emb, method)(grid, nu=1)
 
     actual = getattr(emb, method)(grid, nu=1, mapped=True)
 
@@ -155,11 +156,12 @@ def test_param_setter_updates_each_component_by_its_slice(emb, components, name,
     assert_allclose(getattr(components[2], name), values[2], rtol=RTOL)
 
 
-def test_from_dict_builds_the_components():
+def test_from_dict_builds_the_components_in_order():
+    # gen2x2 reads back in standard form
     params = {"embedders": [
         {"type": "prony", "parameters": {"theta": 1.0, "gamma": 0.5}},
         {"type": "gen2x2", "parameters": {
-            "theta": [1.0, 2.0], "gamma": 1.5, "delta": 0.25, "Omega": 3.0, "sigma": 10.0}},
+            "theta": [1.0, 2.0], "gamma": 1.5, "delta": 0.25, "Omega": 3.0}},
     ]}
 
     emb = MultiEmbedder.from_dict(params)
@@ -168,3 +170,15 @@ def test_from_dict_builds_the_components():
         emb.conventional_params,
         [1.0, 0.5, 0.0, np.sqrt(5.0), 1.5, 0.15, np.sqrt(8.96)],
         rtol=RTOL)
+
+
+def test_from_dict_passes_keyword_arguments_to_the_components():
+    # as in test_gen2x2: at σ = 50, λ = γ - |α| = 2.5 exactly; the default σ = 5 gives less
+    params = {"embedders": [
+        {"type": "gen2x2", "parameters": {
+            "theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "Omega": 2.0, "sigma": 50.0}},
+    ]}
+
+    emb = MultiEmbedder.from_dict(params)
+
+    assert emb.primitive_params[2] == 2.5

@@ -98,7 +98,9 @@ def test_grad_A_is_drift_matrix_derivative_wrt_x(emb):
     assert_allclose(emb.grad_A, expected, rtol=RTOL)
 
 
-def test_drift_matrix_x_grad_uses_its_argument_not_stored_params(emb):
+def test_drift_matrix_x_grad_applies_mapper_jacobian_at_its_argument(emb):
+    # dAp/dp is constant for Prony, so only dp/dx depends on the argument;
+    # test_gen2x2 checks that dAp/dp is also evaluated at the argument
     expected = [[[0.0, 3.0], [-3.0, 0.0]],
                 [[0.0, 0.0], [0.0, 0.25]]]
 

@@ -89,9 +89,10 @@ def test_closed_forms_are_even_in_their_argument(emb, method, nu):
 
 
 def test_from_harmonic_gives_theta_squared_of_two_weight_over_pi():
-    actual = PronyCosineEmbedder.from_harmonic(np.pi / 2, OMEGA, GAMMA)
+    # weight 2π gives θ² = 4, so θ = 2 tells the square root apart from θ = 2·weight/π
+    actual = PronyCosineEmbedder.from_harmonic(2 * np.pi, OMEGA, GAMMA)
 
-    assert actual == {"theta": 1.0, "gamma": GAMMA, "omega": OMEGA}
+    assert actual == {"theta": 2.0, "gamma": GAMMA, "omega": OMEGA}
 
 
 @pytest.mark.parametrize("params", [
