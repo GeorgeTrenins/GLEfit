@@ -34,7 +34,7 @@ def reference(sympy_reference):
     return sympy_reference.from_drift_matrix(sp.Matrix([theta]), sp.Matrix([[gamma]]), (theta, gamma))
 
 
-def test_drift_matrix_couples_theta_skew_symmetrically(emb):
+def test_drift_matrix_has_kantorovich_form(emb):
     assert_array_equal(emb.drift_matrix, [[0.0, THETA], [-THETA, GAMMA]])
 
 
@@ -44,13 +44,16 @@ def test_compute_drift_matrix_uses_its_argument_not_stored_params(emb):
     assert_array_equal(actual, [[0.0, 3.0], [-3.0, 0.25]])
 
 
-def test_drift_matrix_param_grad_is_constant(emb):
-    expected = [[[0.0, 1.0], [-1.0, 0.0]],   # d/dθ
-                [[0.0, 0.0], [0.0, 1.0]]]    # d/dγ
+@pytest.mark.parametrize("method, grid", [("kernel", TIME), ("spectrum", FREQ)],
+                         ids=["kernel", "spectrum"])
+def test_derivatives_via_chain_rule_wrt_drift_matrix_match_sympy(
+        emb, reference, drift_matrix_reference, method, grid):
+    p = np.array([3.0, 0.25])  # away from the stored parameters
 
-    actual = emb.drift_matrix_param_grad(np.array([3.0, 0.25]))
+    _, actual = getattr(drift_matrix_reference, method)(
+        emb.compute_drift_matrix(p), grid, emb.drift_matrix_param_grad(p))
 
-    assert_array_equal(actual, expected)
+    assert_allclose(actual, getattr(reference, method)(p, grid, nu=1), rtol=RTOL)
 
 
 @pytest.mark.parametrize("nu", [0, 1, 2], ids=["value", "gradient", "hessian"])

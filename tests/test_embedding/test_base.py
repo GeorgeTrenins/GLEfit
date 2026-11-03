@@ -84,7 +84,7 @@ def test_mapper_count_must_match_ndof():
         PronyEmbedder(THETA, GAMMA, mappers=[IdentityMapper()])
 
 
-def test_identity_mappers_make_x_equal_to_primitive_params():
+def test_custom_mappers_replace_the_defaults():
     emb = PronyEmbedder(-THETA, GAMMA, mappers=[IdentityMapper(), IdentityMapper()])
 
     assert_array_equal(emb.x, [-THETA, GAMMA])

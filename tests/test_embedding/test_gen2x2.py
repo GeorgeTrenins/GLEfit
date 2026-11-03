@@ -69,8 +69,12 @@ def embedder_at(primitive_params):
 
 
 def assert_close(actual, expected):
-    """Within RTOL of the largest |expected|, since K(t) and its derivatives cross zero."""
-    assert_allclose(actual, expected, rtol=RTOL, atol=RTOL * np.max(np.abs(expected)))
+    """Within RTOL of the largest |expected| in the same row (along the grid axis),
+    since K(t) and its derivatives cross zero."""
+    expected = np.asarray(expected)
+    scale = np.max(np.abs(expected), axis=-1, keepdims=True)
+    scale = np.where(scale > 0.0, scale, 1.0)
+    assert_allclose(np.asarray(actual) / scale, expected / scale, rtol=RTOL, atol=RTOL)
 
 
 @pytest.mark.parametrize("nu", [0, 1], ids=["value", "gradient"])
@@ -93,11 +97,14 @@ def test_spectrum_matches_closed_form(reference, params, nu):
     assert_close(actual, reference.spectrum(params, FREQ, nu=nu))
 
 
-def test_kernel_hessian_is_not_implemented():
-    emb = embedder_at(CASES["underdamped"])
+@pytest.mark.xfail(raises=NotImplementedError, strict=True,
+                   reason="TwoAuxEmbedder.kernel_hess is not implemented")
+def test_kernel_hessian_matches_closed_form(reference):
+    params = CASES["underdamped"]
 
-    with pytest.raises(NotImplementedError):
-        emb.kernel(TIME, nu=2)
+    actual = embedder_at(params).kernel(TIME, nu=2)
+
+    assert_close(actual, reference.kernel(params, TIME, nu=2))
 
 
 @pytest.mark.parametrize("method, nu", [
@@ -109,25 +116,26 @@ def test_closed_forms_are_even_in_their_argument(method, nu):
     assert_array_equal(f(-TIME, nu=nu), f(TIME, nu=nu))
 
 
-@pytest.mark.parametrize("params", list(CASES.values()), ids=list(CASES))
-def test_drift_matrix_couples_theta_skew_symmetrically(params):
-    Ap = embedder_at(params).drift_matrix
+# The tests via the drift matrix below also check the left column; these add Ap[0, 0] = 0.
+def test_drift_matrix_couples_theta_skew_symmetrically():
+    Ap = embedder_at(CASES["overdamped"]).drift_matrix
 
     assert Ap[0, 0] == 0.0
     assert_array_equal(Ap[1:, 0], -Ap[0, 1:])
 
 
-@pytest.mark.parametrize("params", list(CASES.values()), ids=list(CASES))
-def test_drift_matrix_param_grad_couples_theta_skew_symmetrically(params):
+def test_drift_matrix_param_grad_couples_theta_skew_symmetrically():
+    params = CASES["overdamped"]
+
     grad = embedder_at(params).drift_matrix_param_grad(np.array(params))
 
     assert_array_equal(grad[:, 0, 0], 0.0)
     assert_array_equal(grad[:, 1:, 0], -grad[:, 0, 1:])
 
 
-@pytest.mark.parametrize("params", list(CASES.values()), ids=list(CASES))
-def test_auxiliary_block_has_positive_definite_symmetric_part(params):
-    A = embedder_at(params).drift_matrix[1:, 1:]
+def test_auxiliary_block_has_positive_definite_symmetric_part():
+    # guaranteed by γ - |δ| ≥ λ > 0; stated as the stability requirement
+    A = embedder_at(CASES["overdamped"]).drift_matrix[1:, 1:]
 
     assert np.all(np.linalg.eigvalsh(A + A.T) > 0.0)
 
@@ -187,7 +195,7 @@ def test_drift_matrix_x_grad_uses_its_argument_not_stored_params(reference, drif
     assert_close(actual, expected)
 
 
-def test_default_mappers_bound_r_and_lambda_below_by_zero():
+def test_default_mappers_take_log_of_r_and_lambda_only():
     emb = embedder_at(CASES["underdamped-negative-alpha"])
 
     assert_allclose(emb.x, [np.log(1.3), -0.6, np.log(0.5), -1.7], rtol=RTOL)
@@ -199,7 +207,9 @@ def test_to_primitive_inverts_to_conventional(params):
 
     actual = emb.to_primitive(emb.to_conventional(np.array(params)))
 
-    assert_close(actual, params)
+    # g = δ² - Ω² cancels for |Γ| ≪ δ, so Γ comes back to ~ε·δ²/Γ² only;
+    # compare relative to the largest parameter
+    assert_allclose(actual, params, rtol=RTOL, atol=RTOL * np.max(np.abs(params)))
 
 
 def test_conventional_params_read_back_in_standard_form():

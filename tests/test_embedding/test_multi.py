@@ -47,8 +47,12 @@ def emb(components):
 
 
 def assert_close(actual, expected):
-    """Within RTOL of the largest |expected|, since K(t) and its derivatives cross zero."""
-    assert_allclose(actual, expected, rtol=RTOL, atol=RTOL * np.max(np.abs(expected)))
+    """Within RTOL of the largest |expected| in the same row (along the grid axis),
+    since K(t) and its derivatives cross zero."""
+    expected = np.asarray(expected)
+    scale = np.max(np.abs(expected), axis=-1, keepdims=True)
+    scale = np.where(scale > 0.0, scale, 1.0)
+    assert_allclose(np.asarray(actual) / scale, expected / scale, rtol=RTOL, atol=RTOL)
 
 
 def test_sizes_add_up_over_components(emb):
