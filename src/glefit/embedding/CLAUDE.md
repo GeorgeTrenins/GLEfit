@@ -145,7 +145,7 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 ### Other changes
 
 - **New parameter limit:** subclass `BaseMapper` in `glefit/mappers/` and pass one mapper per primitive parameter through `mappers`.
-- **`gen2x2` `kernel_hess`:** follow `spectrum_hess`. `expcoscosh` and `expsincsinhc` accept `nu=2, wrt="Gamma"`, and `_gamma_lower_bound(..., nu=2)` gives the derivatives of γ.
+- **`gen2x2` `kernel_hess`:** follow `spectrum_hess`. `expcoscosh` and `expsincsinhc` accept `nu=2, wrt="Gamma"`, and `_gamma_lower_bound(..., nu=2)` gives the derivatives of γ. First fix `expsincsinhc(..., nu=2, wrt="Gamma")`, which is wrong for Γt ≥ 0.01: see `glefit/utils/CLAUDE.md`. The second Γ-derivative also changes sign at Γ = 0, so test on both sides of it.
 - **New quantity to fit:** this belongs in `glefit/merit`, not here, because every fitted quantity is computed from `Ap`.
 
 ## Testing
