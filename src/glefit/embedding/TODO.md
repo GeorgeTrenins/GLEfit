@@ -20,28 +20,37 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 - `conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits) and `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). It also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because they are known defects or undecided: EMB-1 to EMB-8.
 - `legacy_tests/`: 133 pass, 31 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p).
-- Point 3 is drafted and awaits review: `ISSUES.md` holds the embedding issues as EMB-1 to EMB-19, and the module `CLAUDE.md` is cut to conventions and pitfalls. A fix marks its issue resolved in `ISSUES.md` in the same commit.
+- Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
+- The gen2x2 note in `docs/` was revised (`4590c6d`..`67441e9`) and now describes the agreed redesign, EMB-20. It replaces the planned fix of EMB-1 in the current code.
 
-## Point 4: gen2x2 Jacobian at α = 0 (EMB-1, EMB-5)
+## Point 4: gen2x2 redesign (EMB-20)
 
-- `jac_conventional` sets `jac[3, 1] = np.sign(alpha)`, which is 0 at α = 0 on the |α| ≥ Γ branch (Γ ≤ 0), so dAp/dα misses dδ/dα. Every `from_harmonic` start lands here.
-- First ask the maintainer which convention applies at α = 0 (EMB-5):
-  - docs: `alpha >= 0` in `to_conventional`, and `jac[3, 1] = 1.0 if alpha >= 0 else -1.0`. This changes the standard form at α = 0, so state the behaviour change in the fix.
-  - code: keep `alpha > 0`, and `jac[3, 1] = 1.0 if alpha > 0 else -1.0`.
-- Failing test first: add an underdamped α = 0 case (for example [1.3, 0.0, 0.5, −1.7]) to the chain-rule tests in `test_gen2x2.py`.
+- The design is in `ISSUES.md` (EMB-20) and `docs/Generalised Brownian oscillator auxiliary variables.md`. Do not fix EMB-1, EMB-5, EMB-7, EMB-8 or EMB-9 separately.
+- Ask the maintainer before starting:
+  - whether EMB-2 is fixed inside EMB-20 or first, in the current code;
+  - whether `sigma` and `threshold` should raise an error or be ignored;
+  - whether `kernel_hess` (EMB-16) is part of EMB-20;
+  - how `optimize.py` gets the minimal-gauge Ap.
+- Steps, one commit each:
+  1. `fix(merit)`: the θ column of `grad_wrt_A` (`glefit/merit/CLAUDE.md`). Failing test first, with a maximal-gauge Ap.
+  2. EMB-20 in `gen2x2.py`, with its tests: the `SympyReference` and `DriftMatrixReference` cases in `test_gen2x2.py` move to [r, α, g, y].
+  3. The minimal-gauge Ap in `optimized_Ap_matrix.json`.
+  4. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
+- Pitfalls: d/dg of sinhc(t√g) is (cosh(t√g) − sinhc(t√g))/(2g), which cancels for small |g|t², so use a series there. y(γ) cancels near the boundary (absolute error 1.5e-11 at y = −5).
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
+Independent of point 4, so they can go first.
+
 - EMB-4: `MultiEmbedder.to_primitive` uses `emb.nparams` instead of `emb.nparam` (AttributeError).
-- EMB-2: gen2x2 `kernel_*` with integer times. Agreed fix: rewrite `kernel_func` and `kernel_grad` in the style of `rpmdgle/sysbath/spectral/brownian.py` (three regimes in Γ, whole-array expressions, `expm1`); formulas in `ISSUES.md`.
 - EMB-3: integer input to the setters.
 - EMB-6: `MultiEmbedder.grad_A` returns stale values after a component is edited directly. Ask the maintainer whether to fix it or to document it as unsupported (the conventions say to set values on the `MultiEmbedder`).
 - EMB-17 (agreed feature): `MultiEmbedder` raises on a `mappers` argument.
 
 ## Later
 
-- EMB-19, docstring corrections (pure refactor).
+- EMB-19, docstring corrections (pure refactor). The gen2x2 items go with EMB-20.
 - Structural simplification of `_base.py` and `multi.py` (not planned yet).
 - Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
-- Undecided behaviour; ask before changing: EMB-7 to EMB-11.
+- Undecided behaviour; ask before changing: EMB-10 and EMB-11.
 - Outside this module: see "Tracked in other modules" in `ISSUES.md`.
