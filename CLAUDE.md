@@ -24,15 +24,17 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 ## Test status
 
-At commit `85e5b71`, 133 tests pass and 31 fail. These are known failures, caused by tests lagging the code:
+Open issues are listed in `ISSUES.md`.
 
-- `test_config/test_config_handler.py` (27): written for the config schema in `e1dc6d0` (`merit_function.property`, `data_ref`, `optimization.optimizer`, `max_steps`, `project.*`) and for the checkpoint methods that `7da42a9` commented out. For the current schema, read `tests/test_optimize/fixtures/` and `tutorials/fixtures/`.
-- `test_embedding/test_multi.py` (3): expects the drift-matrix signs from before the fix in `e2299f6`.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers only `glefit.embedding`: at `a7550da`, `tests/test_embedding` has 240 passing tests and 1 strict xfail (EMB-16). Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+
+`legacy_tests/` is the original suite and must not be edited. At `a7550da`, 133 tests pass and 31 fail. These are known failures, caused by tests lagging the code:
+
+- `test_config/test_config_handler.py` (27): written for the config schema in `e1dc6d0` (`merit_function.property`, `data_ref`, `optimization.optimizer`, `max_steps`, `project.*`) and for the checkpoint methods that `7da42a9` commented out. For the current schema, read `legacy_tests/test_optimize/fixtures/` and `tutorials/fixtures/`.
+- `test_embedding/test_multi.py` (3): expects the drift-matrix signs from before the fix in `e2299f6`. `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs.
 - `test_config/test_data_io.py::test_missing_source` (1): expects an error, but `load_data` defaults `source` to `inline`.
 
-`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge.
-
-Embedder derivative tests compare against SymPy or `glefit.utils.numderiv`.
+`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory, so run `legacy_tests` from a scratch directory.
 
 ## Architecture
 
@@ -45,7 +47,7 @@ Config behavior that the validator does not make obvious:
 - `optimization.parameters` goes to the optimizer constructor (`logfile`, `trajfile`). `optimization.options` goes to `run()` (`gtol`, `max_step`), after the driver pops `max_iter`.
 - Input paths resolve against the config file's directory. Output paths resolve against the working directory.
 - `project` is never read. `restart` is validated but ignored, because restarts are not implemented.
-- Mappers cannot be set from a config, so each embedder's defaults apply.
+- Mappers cannot be set from a config, so each embedder's defaults apply. This is by design: custom mappers are for debugging only.
 
 ### The drift matrix
 
@@ -63,7 +65,7 @@ Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which ma
 
 ### Two independent derivative paths
 
-- **Fitting path:** `BaseProperty.grad_wrt_params` contracts the analytic `grad_wrt_A` with `emb.drift_matrix_x_grad`. The Hessian is a 4th-order finite difference of that gradient (`gradhess_wrt_params`), not an analytic expression.
+- **Derivatives via chain rule w.r.t. drift matrix:** `BaseProperty.grad_wrt_params` contracts the analytic `grad_wrt_A` with `emb.drift_matrix_x_grad`. The Hessian is a 4th-order finite difference of that gradient (`gradhess_wrt_params`), not an analytic expression.
 - **Closed-form path:** `kernel_*` and `spectrum_*` on each embedder, exposed through `kernel()`, `spectrum()` and `spectral_density()`. The optimizers and merit functions never call these.
 
 Fits therefore depend only on `compute_drift_matrix` and `drift_matrix_param_grad`. A bug on one path does not show up on the other.

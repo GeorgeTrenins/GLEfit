@@ -18,43 +18,30 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 - Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 240 tests and 1 strict xfail and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits) and `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). It also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
-- Not tested yet, because they are known defects or undecided: gen2x2 at α = 0 with Γ < 0, at |α| = Γ and at Γ = 0; integer times; integer setter input; `MultiEmbedder.to_primitive`; `MultiEmbedder.grad_A` after a direct component edit.
+- Not tested yet, because they are known defects or undecided: EMB-1 to EMB-8.
 - `legacy_tests/`: 133 pass, 31 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p).
+- Point 3 is drafted and awaits review: `ISSUES.md` holds the embedding issues as EMB-1 to EMB-19, and the module `CLAUDE.md` is cut to conventions and pitfalls. A fix marks its issue resolved in `ISSUES.md` in the same commit.
 
-## Point 3: `ISSUES.md` and a shorter module `CLAUDE.md`
-
-- Move "Known gaps" from `src/glefit/embedding/CLAUDE.md` into a new `ISSUES.md` at the repo root, one ID per issue, so that fixes can mark them resolved.
-- Cut the module `CLAUDE.md` to about 40 lines of conventions and pitfalls.
-- Add the issues found in this session:
-  1. Integer arrays given to the `conventional_params`, `primitive_params` or `x` setters are truncated in the mapped space: `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `_base.py` allocate with `np.zeros_like(input)`. `primitive_params = [3, 1]` stores x = [1, 0]. Constructors convert to float, so configs are not affected.
-  2. `glefit.merit` reads θ only from the top row of Ap (`merit/properties.py` lines 47, 119, 156, 201), and its gradient fills only `[:, 0, 1:]` (line 126). A wrong left column is invisible to fits but ends up in `optimized_Ap_matrix.json`, which simulations propagate.
-  3. At α = 0, `docs/Generalised Brownian oscillator auxiliary variables.md` puts θ = (r, 0) (α ≥ 0), but `to_conventional` and `jac_conventional` use `alpha > 0`, giving θ = (0, r).
-  4. `to_primitive` recovers Γ only to about ε·δ²/Γ² relative, because g = δ² − Ω² cancels for |Γ| ≪ δ (1–4e-11 at Γ = ±1e-3). Conditioning, not a bug.
-  5. The spectrum has no second Γ-derivative at Γ = 0 (the one-sided limits differ); `spectrum_hess` returns their mean (`d2y_dGamma2 = 0`). Behaviour undecided; untested.
-  6. `numderiv` with `max_step` raises `TypeError` on numpy 2 (`np.clip` without `a_min`).
-  7. `mpmath.expm` never returns for NaN input. This matters for test helpers; `DriftMatrixReference` guards against it.
-- Replace "fitting path" in the repo `CLAUDE.md` and the module `CLAUDE.md`.
-- Update stale testing text: the repo `CLAUDE.md` test status describes the old `tests/` layout (now `legacy_tests/`); the module `CLAUDE.md` recommends `numderiv.jacobian` as a reference and runs `tests/test_merit`, which does not exist yet.
-
-## Point 4: gen2x2 Jacobian at α = 0
+## Point 4: gen2x2 Jacobian at α = 0 (EMB-1, EMB-5)
 
 - `jac_conventional` sets `jac[3, 1] = np.sign(alpha)`, which is 0 at α = 0 on the |α| ≥ Γ branch (Γ ≤ 0), so dAp/dα misses dδ/dα. Every `from_harmonic` start lands here.
-- First ask the maintainer which convention applies at α = 0 (issue 3):
+- First ask the maintainer which convention applies at α = 0 (EMB-5):
   - docs: `alpha >= 0` in `to_conventional`, and `jac[3, 1] = 1.0 if alpha >= 0 else -1.0`. This changes the standard form at α = 0, so state the behaviour change in the fix.
   - code: keep `alpha > 0`, and `jac[3, 1] = 1.0 if alpha > 0 else -1.0`.
 - Failing test first: add an underdamped α = 0 case (for example [1.3, 0.0, 0.5, −1.7]) to the chain-rule tests in `test_gen2x2.py`.
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
-- `MultiEmbedder.to_primitive` uses `emb.nparams` instead of `emb.nparam` (AttributeError).
-- gen2x2 `kernel_*` with integer times: `expcoscosh` and `expsincsinhc` allocate with `np.empty_like(t)`. Decide whether to convert in `utils/special.py` or at the top of `kernel_*`.
-- Integer input to the setters (issue 1).
-- `MultiEmbedder.grad_A` returns stale values after a component is edited directly. Ask the maintainer whether to fix it or to document it as unsupported (the conventions say to set values on the `MultiEmbedder`).
+- EMB-4: `MultiEmbedder.to_primitive` uses `emb.nparams` instead of `emb.nparam` (AttributeError).
+- EMB-2: gen2x2 `kernel_*` with integer times. Agreed fix: rewrite `kernel_func` and `kernel_grad` in the style of `rpmdgle/sysbath/spectral/brownian.py` (three regimes in Γ, whole-array expressions, `expm1`); formulas in `ISSUES.md`.
+- EMB-3: integer input to the setters.
+- EMB-6: `MultiEmbedder.grad_A` returns stale values after a component is edited directly. Ask the maintainer whether to fix it or to document it as unsupported (the conventions say to set values on the `MultiEmbedder`).
+- EMB-17 (agreed feature): `MultiEmbedder` raises on a `mappers` argument.
 
 ## Later
 
-- Docstring corrections (pure refactor): the list under "Outdated text in the code" in the module `CLAUDE.md`; the shape convention in the `kernel()` and `spectrum()` docstrings ((ngrid,), (ndof, ngrid), (ndof, ndof, ngrid), with the grid axis kept for scalar input, as agreed); annotations that say `NDArray` where lists are accepted.
+- EMB-19, docstring corrections (pure refactor).
 - Structural simplification of `_base.py` and `multi.py` (not planned yet).
 - Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
-- Undecided behaviour; ask before changing: Γ = 0; infinite gradients at |α| = Γ exactly; a stability check stricter than γ ≥ max(√max(g, 0), |α|); zero starting values; `from_dict` ignoring unknown keys.
-- Outside this module: `MemorySpectrum` at Γ = 0 (`merit`); `expsincsinhc(..., nu=2, wrt="Gamma")` wrong for Γt ≥ 0.01 (`utils`).
+- Undecided behaviour; ask before changing: EMB-7 to EMB-11.
+- Outside this module: see "Tracked in other modules" in `ISSUES.md`.
