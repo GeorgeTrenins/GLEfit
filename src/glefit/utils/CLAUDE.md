@@ -11,7 +11,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | File | Provides | Used by |
 | --- | --- | --- |
 | `numderiv.py` | `diff`, `jacobian`: central finite differences | Fitting Hessian in `glefit.merit`, tests |
-| `special.py` | `coscosh`, `sincsinhc`, `expcoscosh`, `expsincsinhc`, `Softplus`, `Softmax`, `Softabs` | `gen2x2` embedder |
+| `special.py` | `sinc`; `coscosh`, `sincsinhc`, `expcoscosh`, `expsincsinhc`, `Softplus`, `Softmax`, `Softabs` | `gen2x2` embedder. `sinc` is not used yet |
 | `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step, `MemorySpectrum`. `symmat_inv_vec` is unused |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
 | `rp.py` | `nmfreq`: ring-polymer normal-mode frequencies | Unused. Gives ωₙ for the `nm` methods in `glefit.spectral` |
@@ -33,7 +33,9 @@ jacobian(f, x, *, fshape=None, h=None, rel_step=None, max_step=None, order=2, va
 
 ## `special.py`
 
-These are the building blocks of the `gen2x2` kernel, K(t) = r² [expcoscosh − α t·expsincsinhc]:
+`sinc(x, nu=0)` is sin(x)/x or its nu'th derivative, without a factor of π, for real or complex x. It is copied unchanged from `rpmdgle/utils/special.py` in rpgle-model-dynamics. It sums spherical Bessel functions, so it is accurate to about 4e-15 relative even at small |x|, where closed forms of the derivatives cancel. For complex x, SciPy overflows when |Im x| > 700.9.
+
+The other functions are the building blocks of the `gen2x2` kernel, K(t) = r² [expcoscosh − α t·expsincsinhc]:
 
 ```text
 coscosh(G, t)          = cos(G t) if G < 0,           cosh(G t) if G ≥ 0
@@ -94,8 +96,9 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 
 ### Test gaps
 
-- `tests/test_utils/test_special.py` tests derivatives with respect to t only. Nothing tests `wrt="Gamma"`, which is how the `expsincsinhc` bug went unnoticed. `tests/test_embedding/test_gen2x2.py` covers the first G-derivatives indirectly.
-- `tests/test_utils/test_numderiv.py` does not test `max_step`, the error paths or integer inputs.
+- `tests/test_utils/test_special.py` tests only `sinc`, against SymPy.
+- `legacy_tests/test_utils/test_special.py` tests derivatives with respect to t only. Nothing tests `wrt="Gamma"`, which is how the `expsincsinhc` bug went unnoticed. `tests/test_embedding/test_gen2x2.py` covers the first G-derivatives indirectly.
+- `legacy_tests/test_utils/test_numderiv.py` does not test `max_step`, the error paths or integer inputs.
 - `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
 
 ### Outdated text in the code

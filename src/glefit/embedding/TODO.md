@@ -27,13 +27,18 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 
 - The design is in `ISSUES.md` (EMB-20) and `docs/Generalised Brownian oscillator auxiliary variables.md`. Do not fix EMB-1, EMB-5, EMB-7, EMB-8 or EMB-9 separately.
 - Decided on 2026-11-04: EMB-2 is fixed inside EMB-20; `sigma` and `threshold` raise an error; `kernel_hess` is added (EMB-16); a new embedder method returns the Ap for propagation.
-- Done: the θ-column fix of `grad_wrt_A` in `glefit.merit`, tested in `tests/test_merit/test_properties.py` (`c1c86e3`).
+- Done: the θ-column fix of `grad_wrt_A` in `glefit.merit`, tested in `tests/test_merit/test_properties.py` (`c1c86e3`). `sinc` copied into `glefit.utils.special` from rpgle-model-dynamics, tested in `tests/test_utils/test_special.py`.
 - Remaining steps, one commit each:
   1. `feat(embedding)`: EMB-20 in `gen2x2.py`, including the closed forms of EMB-2 and the error for `sigma` and `threshold`. The `SympyReference` and `DriftMatrixReference` cases in `test_gen2x2.py` move to [r, α, g, y].
   2. `feat(embedding)`: `kernel_hess` (EMB-16).
   3. The method that returns the Ap for propagation, and `optimize.py` writing it to `optimized_Ap_matrix.json`.
   4. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
-- Pitfalls: d/dg of sinhc(t√g) is (cosh(t√g) − sinhc(t√g))/(2g), which cancels for small |g|t², so use a series there. y(γ) cancels near the boundary (absolute error 1.5e-11 at y = −5).
+- Agreed details of step 1 (plan sent to the maintainer on 2026-11-04):
+  - `_gamma(alpha, g, y, nu=0)` gives γ, its gradient (3,) or its Hessian (3, 3) with respect to (α, g, y). Compute γ², γ² − g and γ² − α² from D = hypot((g − α²)/2, eʸ) without cancellation.
+  - The kernel value follows EMB-2. Its g-derivatives use `sinc` at z = t√(−g), complex for g > 0, with no division by z: ∂S/∂g = (t²/4)[s + s″](z) and ∂²S/∂g² = (t⁴/32)[s + 2s″ + s⁗](z), where S = sinhc(t√g) and s = sinc; ∂C/∂g = (t²/2)S for C = cosh(t√g). Where √g·t > 700.9, SciPy overflows, so use the decaying exponentials there.
+  - The SymPy reference writes cosh(t√g) = ₀F₁(;½; gt²/4) and sinhc(t√g) = ₀F₁(;3/2; gt²/4), which SymPy differentiates in g and mpmath evaluates at g = 0.
+  - Leave `tutorials/` alone for now.
+- Pitfall: y(γ) cancels near the boundary (absolute error 1.5e-11 at y = −5).
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
