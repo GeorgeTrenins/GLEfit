@@ -58,6 +58,8 @@ r^2 = \theta_1^2 + \theta_2^2, \qquad
 \Omega^2 = \gamma^2 - \delta^2 + \epsilon^2, \qquad
 \cos 2\phi = \frac{\delta\,(\theta_1^2 - \theta_2^2)}{\gamma\, r^2}.
 $$
+Note that $\Omega$ is not the off-diagonal entry $\epsilon$ of the drift matrix: the two coincide only in the maximal gauge (below). The `gen2x2` embedder of GLEFit currently calls $\epsilon$ `Omega`.
+
 The [[Spectral density|spectral density]] is
 $$
 J(\omega) = 2 \gamma r^2 \omega\, \frac{\omega^2 \cos^2\phi + \Omega^2 \sin^2\phi}{(\omega^2 - \Omega^2)^2 + 4\gamma^2\omega^2},
@@ -79,7 +81,20 @@ in which $s_2$ is undamped. This is the 2×2 block form of Li et al.
 
 **Claim.** Every kernel realisable by (1) is realised in the maximal gauge, and the realisable kernels are exactly those with $r, \gamma, \Omega \geq 0$ and $0 \leq \phi \leq \pi/2$.
 
-*Proof.* By (2), $K$ is fixed by $(r, \gamma, \Omega, \phi)$. For any embedding, $\gamma \geq \lvert\delta\rvert$ implies $\Omega^2 \geq \epsilon^2 \geq 0$ and, since $\lvert\theta_1^2 - \theta_2^2\rvert \leq r^2$, also $\lvert\cos 2\phi\rvert \leq \lvert\delta\rvert/\gamma \leq 1$. Hence $(r, \gamma, \Omega, \phi)$ lies in the stated set ($\phi$ is arbitrary if $\gamma = 0$). Conversely, for any point of this set the maximal gauge satisfies $\gamma \geq \lvert\delta\rvert$ and is therefore a valid embedding with that kernel. $\blacksquare$
+*Proof.* By (2), $K$ is fixed by $(r, \gamma, \Omega, \phi)$. For any embedding, $\gamma \geq \lvert\delta\rvert$ implies $\Omega^2 \geq \epsilon^2 \geq 0$ and, since $\lvert\theta_1^2 - \theta_2^2\rvert \leq r^2$, also $\lvert\cos 2\phi\rvert \leq \lvert\delta\rvert/\gamma \leq 1$. Hence $(r, \gamma, \Omega, \phi)$ lies in the stated set ($\phi$ is arbitrary if $\gamma = 0$ or $r = 0$). Conversely, for any point of this set the maximal gauge satisfies $\gamma \geq \lvert\delta\rvert$ and is therefore a valid embedding with that kernel. $\blacksquare$
+
+**Generality.** The realisable kernels are also exactly the bounded kernels $K(t) = \boldsymbol{\theta}^\top e^{-\boldsymbol{A}\lvert t\rvert}\boldsymbol{\theta}$ with a non-negative spectral density, for any real $\boldsymbol{\theta}$ and any real 2×2 matrix $\boldsymbol{A}$. This includes matrices whose symmetric part is indefinite, which admit no noise term $\boldsymbol{B}$.
+
+*Proof.* The Laplace transform of such a kernel is
+$$
+\hat{K}(s) = \boldsymbol{\theta}^\top (s + \boldsymbol{A})^{-1} \boldsymbol{\theta} = \frac{b_1 s + b_0}{s^2 + a_1 s + a_0},
+\qquad
+b_1 = \lvert\boldsymbol{\theta}\rvert^2,\quad
+b_0 = \boldsymbol{\theta}^\top \operatorname{adj}(\boldsymbol{A})\, \boldsymbol{\theta},\quad
+a_1 = \operatorname{tr}\boldsymbol{A},\quad
+a_0 = \det\boldsymbol{A},
+$$
+and $J(\omega) = \omega \operatorname{Re}\hat{K}(i\omega) = \omega\,[a_0 b_0 + (a_1 b_1 - b_0)\,\omega^2]/[(a_0 - \omega^2)^2 + a_1^2\omega^2]$. If the numerator and the denominator share a root, $K = c\, e^{-\lambda \lvert t\rvert}$, which is bounded with $J \geq 0$ if and only if $c, \lambda \geq 0$: the Debye case below. Otherwise, $K$ is bounded with $J \geq 0$ if and only if $a_0, a_1 \geq 0$ and $0 \leq b_0 \leq a_1 b_1$; for $a_0 = 0$, the condition $b_0 \geq 0$ comes from the constant $b_0/a_1$ in $K$, a peak of $J$ at $\omega = 0$. The maximal gauge has $b_1 = r^2$, $b_0 = 2\gamma r^2 \sin^2\phi$, $a_1 = 2\gamma$ and $a_0 = \Omega^2$, so these conditions describe the stated set, and every admissible $(b_1, b_0, a_1, a_0)$ is reached with $r^2 = b_1$, $\gamma = a_1/2$, $\Omega^2 = a_0$ and $\sin^2\phi = b_0/(a_1 b_1)$. $\blacksquare$
 
 # Minimal gauge
 
@@ -108,6 +123,8 @@ The minimal gauge takes the lower bound. The first argument of the maximum domin
 | $\Omega < \gamma \, \lvert \sin(2\phi) \rvert$    | $\sqrt{\gamma^2 - \Omega^2}$         | $0$                                      | $r\sqrt{\tfrac12\left(1 \pm \gamma\cos(2\phi)/\delta\right)}$                                                              |
 | $\Omega \geq \gamma \, \lvert \sin(2\phi) \rvert$ | $\gamma \, \lvert \cos 2\phi \rvert$ | $\sqrt{\Omega^2 - \gamma^2\sin^2 2\phi}$ | $\left\{ \!\! \begin{array}{ll} (r, 0) & \text{if} \ \cos(2 \phi) \geq 0 \\ (0, r) & \text{otherwise} \end{array} \right.$ |
 In the last row, $\theta_1^2 - \theta_2^2 = r^2 \mathrm{sgn}(\cos 2\phi)$. At $\phi = \pi/4$ ($\delta = 0$), $\boldsymbol{\theta}$ can be any vector of length $r$, and $(r, 0)$ is chosen.
+
+The minimal gauge is therefore discontinuous in $\phi$: for $\Omega > \gamma$, $\boldsymbol{\theta}$ jumps from $(r, 0)$ to $(0, r)$ as $\phi$ increases through $\pi/4$, where $\delta = 0$ and both choices give the same kernel. This is harmless for a single drift matrix used in propagation.
 
 # Properties
 
