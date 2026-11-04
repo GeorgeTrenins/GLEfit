@@ -21,10 +21,11 @@ TIME = np.array([0.0, 0.3, 1.1, 4.0])
 FREQ = np.array([0.0, 0.9, 2.0, 10.0])
 GRIDS = [("kernel", TIME), ("spectrum", FREQ)]
 SETTER_CASES = {
+    # gen2x2 in the maximal gauge (δ = γ), so that it reads back unchanged
     "conventional_params": [
-        [2.0, 1.0], [1.0, 0.0, 2.5, 0.3, 1.0], [1.5, 0.5, 3.0]],  
+        [2.0, 1.0], [1.0, 0.5, 2.5, 2.5, 1.0], [1.5, 0.5, 3.0]],
     "primitive_params": [
-        [2.0, 1.0], [1.1, 0.3, 0.6, -1.2], [1.5, 0.5, 3.0]],
+        [2.0, 1.0], [1.1, 0.3, -1.44, -0.5], [1.5, 0.5, 3.0]],
     "x": [
         [0.1, -0.2], [0.2, 0.4, -0.5, -1.0], [0.3, 0.0, 0.5]],
 }
@@ -32,11 +33,11 @@ SETTER_CASES = {
 
 @pytest.fixture
 def components():
-    # gen2x2 is given in standard form, so its conventional parameters
-    # read back unchanged
+    # gen2x2 is given in the maximal gauge (δ = γ), so its conventional
+    # parameters read back unchanged
     return [
         PronyEmbedder(1.3, 0.7),
-        TwoAuxEmbedder([1.2, 0.0], 2.0, 0.5, 1.5),
+        TwoAuxEmbedder([1.2, 0.5], 2.0, 2.0, 1.5),
         PronyCosineEmbedder(0.9, 0.4, 2.0),
     ]
 
@@ -112,8 +113,8 @@ def test_drift_matrix_and_its_gradient_use_their_argument_not_stored_params(
 @pytest.mark.parametrize("method, grid", GRIDS, ids=["kernel", "spectrum"])
 def test_mapped_gradient_applies_each_component_mapper_jacobian(emb, method, grid):
     p = emb.primitive_params
-    # default mappers: p = exp(x), except α and Γ of gen2x2 (indices 3 and 5), which are unbounded
-    dp_dx = np.array([p[0], p[1], p[2], 1.0, p[4], 1.0, p[6], p[7], p[8]])
+    # default mappers: p = exp(x), except α, g and y of gen2x2 (indices 3 to 5), which are unbounded
+    dp_dx = np.array([p[0], p[1], p[2], 1.0, 1.0, 1.0, p[6], p[7], p[8]])
     expected = dp_dx[:, None] * getattr(emb, method)(grid, nu=1)
 
     actual = getattr(emb, method)(grid, nu=1, mapped=True)
@@ -146,7 +147,7 @@ def test_kernel_hessian_is_block_diagonal_in_the_components():
 
 
 def test_conventional_params_concatenate_the_components(emb):
-    expected = [1.3, 0.7, 1.2, 0.0, 2.0, 0.5, 1.5, 0.9, 0.4, 2.0]
+    expected = [1.3, 0.7, 1.2, 0.5, 2.0, 2.0, 1.5, 0.9, 0.4, 2.0]
 
     assert_allclose(emb.conventional_params, expected, rtol=RTOL)
 
@@ -161,7 +162,7 @@ def test_param_setter_updates_each_component_by_its_slice(emb, components, name,
 
 
 def test_from_dict_builds_the_components_in_order():
-    # gen2x2 reads back in standard form
+    # gen2x2 reads back in the maximal gauge, as in test_gen2x2
     params = {"embedders": [
         {"type": "prony", "parameters": {"theta": 1.0, "gamma": 0.5}},
         {"type": "gen2x2", "parameters": {
@@ -172,17 +173,16 @@ def test_from_dict_builds_the_components_in_order():
 
     assert_allclose(
         emb.conventional_params,
-        [1.0, 0.5, 0.0, np.sqrt(5.0), 1.5, 0.15, np.sqrt(8.96)],
+        [1.0, 0.5, 1.5, np.sqrt(2.75), 1.5, 1.5, np.sqrt(11.1875)],
         rtol=RTOL)
 
 
 def test_from_dict_passes_keyword_arguments_to_the_components():
-    # as in test_gen2x2: at σ = 50, λ = γ - |α| = 2.5 exactly; the default σ = 5 gives less
+    # gen2x2 rejects the keyword, which shows that it arrived
     params = {"embedders": [
         {"type": "gen2x2", "parameters": {
             "theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "Omega": 2.0, "sigma": 50.0}},
     ]}
 
-    emb = MultiEmbedder.from_dict(params)
-
-    assert emb.primitive_params[2] == 2.5
+    with pytest.raises(TypeError, match="no longer takes 'sigma'"):
+        MultiEmbedder.from_dict(params)

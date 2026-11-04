@@ -15,11 +15,11 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 240 tests and 1 strict xfail and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 257 tests and 1 strict xfail and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
-- Not tested yet, because they are known defects or undecided: EMB-1 to EMB-8.
-- `legacy_tests/`: 133 pass, 31 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p).
+- Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
+- `legacy_tests/`: 114 pass, 50 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
 - Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
 - The gen2x2 note in `docs/` was revised (`4590c6d`..`67441e9`) and now describes the agreed redesign, EMB-20. It replaces the planned fix of EMB-1 in the current code.
 
@@ -27,18 +27,17 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 
 - The design is in `ISSUES.md` (EMB-20) and `docs/Generalised Brownian oscillator auxiliary variables.md`. Do not fix EMB-1, EMB-5, EMB-7, EMB-8 or EMB-9 separately.
 - Decided on 2026-11-04: EMB-2 is fixed inside EMB-20; `sigma` and `threshold` raise an error; `kernel_hess` is added (EMB-16); a new embedder method returns the Ap for propagation.
-- Done: the θ-column fix of `grad_wrt_A` in `glefit.merit`, tested in `tests/test_merit/test_properties.py` (`c1c86e3`). `sinc` copied into `glefit.utils.special` from rpgle-model-dynamics, tested in `tests/test_utils/test_special.py`.
+- Done: the θ-column fix of `grad_wrt_A` in `glefit.merit`, tested in `tests/test_merit/test_properties.py` (`c1c86e3`). `sinc` copied into `glefit.utils.special` from rpgle-model-dynamics, tested in `tests/test_utils/test_special.py` (`7ecf50a`). The reparametrisation itself (the EMB-20 commit).
 - Remaining steps, one commit each:
-  1. `feat(embedding)`: EMB-20 in `gen2x2.py`, including the closed forms of EMB-2 and the error for `sigma` and `threshold`. The `SympyReference` and `DriftMatrixReference` cases in `test_gen2x2.py` move to [r, α, g, y].
-  2. `feat(embedding)`: `kernel_hess` (EMB-16).
-  3. The method that returns the Ap for propagation, and `optimize.py` writing it to `optimized_Ap_matrix.json`.
-  4. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
-- Agreed details of step 1 (plan sent to the maintainer on 2026-11-04):
-  - `_gamma(alpha, g, y, nu=0)` gives γ, its gradient (3,) or its Hessian (3, 3) with respect to (α, g, y). Compute γ², γ² − g and γ² − α² from D = hypot((g − α²)/2, eʸ) without cancellation.
-  - The kernel value follows EMB-2. Its g-derivatives use `sinc` at z = t√(−g), complex for g > 0, with no division by z: ∂S/∂g = (t²/4)[s + s″](z) and ∂²S/∂g² = (t⁴/32)[s + 2s″ + s⁗](z), where S = sinhc(t√g) and s = sinc; ∂C/∂g = (t²/2)S for C = cosh(t√g). Where √g·t > 700.9, SciPy overflows, so use the decaying exponentials there.
-  - The SymPy reference writes cosh(t√g) = ₀F₁(;½; gt²/4) and sinhc(t√g) = ₀F₁(;3/2; gt²/4), which SymPy differentiates in g and mpmath evaluates at g = 0.
-  - Leave `tutorials/` alone for now.
-- Pitfall: y(γ) cancels near the boundary (absolute error 1.5e-11 at y = −5).
+  1. `feat(embedding)`: `kernel_hess` (EMB-16). Replace "the EMB-20 commit" in `ISSUES.md` with its hash.
+  2. The method that returns the Ap for propagation, and `optimize.py` writing it to `optimized_Ap_matrix.json`.
+  3. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
+- How the EMB-20 commit differs from the plan sent on 2026-11-04 (reported to the maintainer):
+  - The g-derivative of sinhc(t√g) switches from `sinc` to decaying exponentials at √g·t = 1, not at SciPy's overflow at 700.9. For imaginary z, s(z) + s″(z) cancels by a factor of about |z|/2, which cost 3e-11 at √g·t = 660.
+  - The spectrum is differentiated with respect to (α, G, γ), with G = γ² − g, and N and M are written as sums of non-negative terms. With (α, g, γ), ∂²Λ/∂g² was off by 2% at y = −8.
+  - The Jacobian of the conventional parameters uses logarithmic derivatives of the gaps, and `to_primitive` computes γ ∓ α and γ² − g as sums of terms that are non-negative when γ ≥ |δ|.
+- For `kernel_hess`: extend `_kernel_partials` to nu = 2 with ∂²sinhc(t√g)/∂g² = (t⁴/32)[s + 2s″ + s⁗](z) for √g·t ≤ 1, its exponential form above, and ∂²cosh(t√g)/∂g² = (t²/2)∂sinhc/∂g; `_chain_rule` already takes d2f. Test both sides of √g·t = 1 and g = 0.
+- Leave `tutorials/` alone for now.
 
 ## Point 5: small bug fixes, one commit each, failing test first
 

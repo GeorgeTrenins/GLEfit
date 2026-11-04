@@ -11,7 +11,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | File | Provides | Used by |
 | --- | --- | --- |
 | `numderiv.py` | `diff`, `jacobian`: central finite differences | Fitting Hessian in `glefit.merit`, tests |
-| `special.py` | `sinc`; `coscosh`, `sincsinhc`, `expcoscosh`, `expsincsinhc`, `Softplus`, `Softmax`, `Softabs` | `gen2x2` embedder. `sinc` is not used yet |
+| `special.py` | `sinc`; `coscosh`, `sincsinhc`, `expcoscosh`, `expsincsinhc`, `Softplus`, `Softmax`, `Softabs` | `sinc`: `gen2x2` embedder. The others are unused since EMB-20 |
 | `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step, `MemorySpectrum`. `symmat_inv_vec` is unused |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
 | `rp.py` | `nmfreq`: ring-polymer normal-mode frequencies | Unused. Gives ωₙ for the `nm` methods in `glefit.spectral` |
@@ -35,7 +35,7 @@ jacobian(f, x, *, fshape=None, h=None, rel_step=None, max_step=None, order=2, va
 
 `sinc(x, nu=0)` is sin(x)/x or its nu'th derivative, without a factor of π, for real or complex x. It is copied unchanged from `rpmdgle/utils/special.py` in rpgle-model-dynamics. It sums spherical Bessel functions, so it is accurate to about 4e-15 relative even at small |x|, where closed forms of the derivatives cancel. For complex x, SciPy overflows when |Im x| > 700.9.
 
-The other functions are the building blocks of the `gen2x2` kernel, K(t) = r² [expcoscosh − α t·expsincsinhc]:
+The other functions were the building blocks of the `gen2x2` kernel before EMB-20, K(t) = r² [expcoscosh − α t·expsincsinhc], and are now unused in `src/`:
 
 ```text
 coscosh(G, t)          = cos(G t) if G < 0,           cosh(G t) if G ≥ 0
@@ -77,7 +77,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 
 ### Wrong results
 
-- **`expsincsinhc(G, t, λ, nu=2, wrt="Gamma")` is wrong for G·t ≥ 0.01.** At G = 1.1, t = 0.3 and λ = 2 it gave 0.569, while SymPy gives 0.0170. Two terms of the hyperbolic branch are wrong. With N = E₋ − E₊ and E∓ = exp(−(λ ∓ G)t), the correct result is t·N/(2G) − (E₋ + E₊)/G² + N/(tG³). The code has −t·N/(2G) and −N/G² for the first two terms. Nothing calls it today, and the fix agreed for EMB-2 in `ISSUES.md` removes the remaining uses of `expcoscosh` and `expsincsinhc` from `src/`.
+- **`expsincsinhc(G, t, λ, nu=2, wrt="Gamma")` is wrong for G·t ≥ 0.01.** At G = 1.1, t = 0.3 and λ = 2 it gave 0.569, while SymPy gives 0.0170. Two terms of the hyperbolic branch are wrong. With N = E₋ − E₊ and E∓ = exp(−(λ ∓ G)t), the correct result is t·N/(2G) − (E₋ + E₊)/G² + N/(tG³). The code has −t·N/(2G) and −N/G² for the first two terms. Nothing in `src/` calls it since EMB-20.
 - **`max_step` crashes `diff` and `jacobian`.** `np.clip(h, a_max=max_step)` raises `TypeError` for the missing `a_min` in NumPy 2.4.2. Fix: `np.minimum(h, max_step)`.
 - **Error paths in `numderiv.py` raise the wrong error.** `raise e(...)` calls a caught exception object, so an unsupported `nu` or `order`, or a wrongly shaped `h` in `jacobian`, raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
 - **Integer times break `expcoscosh` and `expsincsinhc`.** Both create their output with `np.empty_like(t)`. `expsincsinhc(1.0, np.array([0, 1, 2]), 2.0)` returned `[1, 0, 0]`, and `expcoscosh(..., nu=1)` raised `UFuncTypeError`. Fix: convert `t` to float at the top.

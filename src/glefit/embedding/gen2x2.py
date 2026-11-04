@@ -11,12 +11,15 @@
 from __future__ import print_function, division, absolute_import
 from ._base import BaseEmbedder, ScalarArr
 from glefit.mappers import LowerBoundMapper, IdentityMapper
-from glefit.utils.special import expcoscosh, expsincsinhc
+from glefit.utils.special import sinc
 import numpy as np
 import numpy.typing as npt
 import copy
 
-_DEFAULTS = dict(sigma=5.0, threshold=20.0)
+# In the overdamped regime, the code needs sinhc(x) - sinhc''(x), 
+# which loses accuracy for large x. Set a switch above which evaluation
+# is in terms of decaying exponentials.
+_SINHC_SWITCH = 1.0
 
 class TwoAuxEmbedder(BaseEmbedder):
 
@@ -40,54 +43,41 @@ class TwoAuxEmbedder(BaseEmbedder):
         return self._get_ndof()
     
     def __init__(self, theta: npt.NDArray[np.floating], gamma: float, delta: float, Omega: float, *args, **kwargs) -> None:
-        """Initialize the two-variable Markovian embedder with the drift matrix
+        """Initialise the embedder from conventional parameters.
 
-            (  0    θ[0] θ[1])
-        A = (-θ[0]  γ+δ    Ω )
-            (-θ[1]  -Ω   γ-δ )
+        Args:
+            theta (array-like): the couplings [θ₁, θ₂]
+            gamma (float): the mean decay rate γ
+            delta (float): half the difference δ between the decay rates of s₁ and s₂
+            Omega (float): the antisymmetric coupling Ω between s₁ and s₂
+            *args, **kwargs: passed to BaseEmbedder; `mappers` replaces the default mappers
 
-        with the corresponding kernel
-            K(t) = exp(-γ·t) [
-                (θ[0]²+θ[1]²) cosh(t·sqrt(δ²-Ω²)) - 
-                (θ[0]²-θ[1]²) sinh(t·sqrt(δ²-Ω²)) · δ/sqrt(δ²-Ω²)
-            ]
-        which, under the hood, is converted to the four-parameter function imposing the Lyapunov stability condition,
-            K(t) = r² exp(-λt) exp(-max(Γ,|α|)·t) [ C(Γ,t) - αt·S(Γ,t) ]
-        where
-            C(Γ,t) = cosh(Γt) if Γ > 0 else cos(Γt)
-        and
-            S(Γ,t) = sinhc(Γt) if Γ > 0 else sinc(Γt)
-        with
-            r, λ > 0 and Γ, α ∈ R.
+        Raises:
+            TypeError: if gamma, delta or Omega is not a float or int, or if `sigma` or
+                `threshold` is passed, which belonged to the previous parametrisation
+            ValueError: if theta does not have two entries, or if the kernel lies outside
+                the admissible region γ > |α|, γ² > g
 
-        Parameters
-        ----------
-            theta : np.ndarray, shape(2,)
-            gamma : float
-            delta : float
-            Omega : float
+        Notes:
+            The drift matrix is
 
-        kwargs
-        ------
-            sigma: float
-                transition steepness for the softmax and softabs functions
-            threshold : float
-                numerical cutoff beyond which softmax/softabs switch to their "hard" counterparts
+                    (  0    θ₁    θ₂ )
+                A = ( -θ₁  γ+δ    Ω  )
+                    ( -θ₂  -Ω    γ-δ )
 
-        Raises
-        ------
-        TypeError
-            If input are not float values.
-        ValueError
-            If input arguments fall outside their respective domains.
+            and the kernel is 
+                     K(t) = r² exp(-γ|t|)[cosh(t√g) - α|t| sinhc(t√g)], 
+            with
+                  r² = θ₁² + θ₂²,     α = δ(θ₁² - θ₂²)/r²,         g = δ² - Ω² 
+            The embedder fits the primitive parameters [r, α, g, y], where
+                  γ² = (g + α²)/2 + sqrt(((g - α²)/2)² + exp(2y)), 
+            and builds the drift matrix in the maximal gauge δ = γ.
         """
 
-        from glefit.utils.special import Softmax, Softabs
-        sigma = kwargs.get("sigma", _DEFAULTS["sigma"])
-        threshold = kwargs.get("threshold", _DEFAULTS["threshold"])
-        self.softmax = Softmax(sigma=sigma, threshold=threshold)
-        self.softabs = Softabs(sigma=sigma, threshold=threshold)
-        for variable, symbol in zip([gamma, Omega, delta], "γδΩ"):
+        for key in ("sigma", "threshold"):
+            if key in kwargs:
+                raise TypeError(f"TwoAuxEmbedder no longer takes '{key}': γ now follows from y, without Softmax or Softabs")
+        for variable, symbol in zip([gamma, delta, Omega], "γδΩ"):
             if not isinstance(variable, (int, float)):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
         theta = np.asarray(theta, dtype=float)
@@ -97,8 +87,8 @@ class TwoAuxEmbedder(BaseEmbedder):
             "mappers", [
                 LowerBoundMapper(), # r > 0
                 IdentityMapper(),   # α ∈ R
-                LowerBoundMapper(), # λ > 0
-                IdentityMapper()    # Γ ∈ R
+                IdentityMapper(),   # g ∈ R
+                IdentityMapper()    # y ∈ R
         ])
         super().__init__(*args, **kwargs)
         # set primitive params directly
@@ -112,6 +102,15 @@ class TwoAuxEmbedder(BaseEmbedder):
         cls, 
         parameters: dict
     ) -> "TwoAuxEmbedder":
+        """Return an embedder built from a config dictionary.
+
+        Args:
+            parameters (dict): `theta`, `gamma`, `delta` and `Omega`, plus keyword
+                arguments for the constructor. It is not modified.
+
+        Returns:
+            TwoAuxEmbedder: the new embedder
+        """
         param_copy = copy.deepcopy(parameters)
         theta = param_copy.pop("theta")
         gamma = param_copy.pop("gamma")
@@ -123,6 +122,19 @@ class TwoAuxEmbedder(BaseEmbedder):
     def from_harmonic(
         weight: float, omega: float, gamma: float 
     ) -> dict[str, float]:
+        """Return the conventional parameters of a damped harmonic mode, for from_dict.
+
+        Args:
+            weight (float): the weight of the mode, as from WAM_discretization
+            omega (float): the frequency of the mode
+            gamma (float): its damping rate
+
+        Returns:
+            dict: `theta` = [sqrt(2·weight/π), 0], `gamma`, `delta` = 0 and `Omega` = omega
+
+        Notes:
+            The kernel is (2·weight/π)·exp(-γ|t|)·cos(ωt).
+        """
         conventional_parameters = {
             "theta" : [float(np.sqrt(2*weight/np.pi)), 0.0],
             "gamma" : float(gamma),
@@ -138,7 +150,23 @@ class TwoAuxEmbedder(BaseEmbedder):
         A: npt.NDArray[np.floating],
         **kwargs
     ) -> "TwoAuxEmbedder":
-        """Construct the two-variable embedder from a 2x2 drift matrix A and a coupling vector θ.
+        """Return an embedder with the given auxiliary drift matrix and couplings.
+
+        Args:
+            theta (array-like): the couplings [θ₁, θ₂]
+            A (array-like): the 2×2 drift matrix of the auxiliary variables
+            **kwargs: passed to the constructor
+
+        Returns:
+            TwoAuxEmbedder: an embedder with the same kernel, in the maximal gauge
+
+        Raises:
+            ValueError: if theta or A has the wrong shape, if the symmetric part of A has
+                a negative eigenvalue, or if the kernel is not admissible
+
+        Notes:
+            θ and A are first rotated so that the symmetric part of A is diagonal, which
+            gives the form [[γ+δ, Ω], [-Ω, γ-δ]].
         """
         theta = np.asarray(theta, dtype=float)
         if theta.shape != (2,):
@@ -152,156 +180,255 @@ class TwoAuxEmbedder(BaseEmbedder):
         Omega = A[0,1]
         return cls(theta, gamma, delta, Omega, **kwargs)
 
-    def _gamma_lower_bound(self, Gamma, alpha, nu=0):
+    @staticmethod
+    def _gaps(alpha, g, y):
+        """Return the gaps γ² - α² and γ² - g, and D = sqrt(h² + exp(2y)) with h = (g - α²)/2.
+
+        Args:
+            alpha (float): the asymmetry α
+            g (float): δ² - Ω²
+            y (float): the primitive parameter that sets γ
+
+        Returns:
+            tuple of float: γ² - α², γ² - g and D
+
+        Notes:
+            γ² = (g + α²)/2 + D, so the gaps are D + h and D - h, and their product
+            is exp(2y). The smaller gap is computed as exp(2y) divided by the larger,
+            which avoids cancellation near the boundary of the admissible region.
+        """
+        h = (g - alpha**2) / 2
+        e = np.exp(y)
+        D = np.hypot(h, e)
+        if h >= 0:
+            gap_alpha = D + h
+            gap_g = e * (e / gap_alpha)
+        else:
+            gap_g = D - h
+            gap_alpha = e * (e / gap_g)
+        return gap_alpha, gap_g, D
+
+    @staticmethod
+    def _gamma_pm(gamma, alpha, gap_alpha):
+        """Return γ + α and γ - α.
+
+        Args:
+            gamma (float): the mean decay rate γ
+            alpha (float): the asymmetry α
+            gap_alpha (float): γ² - α², from _gaps
+
+        Returns:
+            tuple of float: γ + α and γ - α
+
+        Notes:
+            The larger factor, γ + |α|, is computed directly, and the smaller one as
+            (γ² - α²) divided by the larger, which avoids cancellation when γ ≈ |α|.
+        """
+        larger = gamma + abs(alpha)
+        smaller = gap_alpha / larger
+        return (larger, smaller) if alpha >= 0 else (smaller, larger)
+
+    @classmethod
+    def _gamma(cls, alpha, g, y, nu=0):
+        """Return γ, or its first or second derivatives with respect to (α, g, y).
+
+        Args:
+            alpha (float): the asymmetry α
+            g (float): δ² - Ω²
+            y (float): the primitive parameter that sets γ
+            nu (int): 0 for γ, 1 for the gradient, 2 for the Hessian
+
+        Returns:
+            float or ndarray: γ, or an array of shape (3,) or (3, 3)
+
+        Raises:
+            ValueError: if nu is not 0, 1 or 2
+        """
+        gap_alpha, gap_g, D = cls._gaps(alpha, g, y)
+        gamma = np.sqrt(alpha**2 + gap_alpha)
         if nu == 0:
-            return self.softmax( Gamma, self.softabs(alpha, nu=0), nu=0)
-        elif nu == 1:
-            ans = self.softmax( Gamma, self.softabs(alpha, nu=0), nu=1)
-            ans[1] *= self.softabs(alpha, nu=1)
-            return ans
+            return gamma
+        # gradient of s = γ² with respect to (α, g, y)
+        ds = np.array([alpha * gap_g / D, gap_alpha / (2*D), gap_alpha * gap_g / D])
+        if nu == 1:
+            return ds / (2*gamma)
         elif nu == 2:
-            # Second derivatives of γ = Softmax(Γ, Softabs(α))
-            abs_alpha = self.softabs(alpha, nu=0)
-            d_abs_alpha = self.softabs(alpha, nu=1)
-            d2_abs_alpha = self.softabs(alpha, nu=2)
-            # First derivatives of Softmax
-            d_softmax = self.softmax(Gamma, abs_alpha, nu=1)  # shape (2,)
-            # Second derivatives of Softmax
-            d2_softmax = self.softmax(Gamma, abs_alpha, nu=2)  # shape (2,2)
-            # Hessian: [d²γ/dΓ², d²γ/dΓdα; d²γ/dαdΓ, d²γ/dα²]
-            ans = np.empty((2, 2))
-            # d²γ/dΓ²
-            ans[0, 0] = d2_softmax[0, 0]
-            # d²γ/dΓdα = d²γ/dαdΓ (chain rule)
-            ans[0, 1] = ans[1, 0] = d2_softmax[0, 1] * d_abs_alpha
-            # d²γ/dα² (full chain rule)
-            ans[1, 1] = d2_softmax[1, 1] * d_abs_alpha**2 + d_softmax[1] * d2_abs_alpha
-            return ans
+            d2s = cls._d2_gamma_squared(alpha, gap_alpha, gap_g, D)
+            return d2s / (2*gamma) - np.outer(ds, ds) / (4*gamma**3)
         else:
             raise ValueError(f"Expecting nu = 0, 1, or 2, instead got nu = {nu}")
+
+    @classmethod
+    def _gap_g(cls, alpha, g, y, nu=0):
+        """Return G = γ² - g, or its first or second derivatives with respect to (α, g, y).
+
+        Args:
+            alpha (float): the asymmetry α
+            g (float): δ² - Ω²
+            y (float): the primitive parameter that sets γ
+            nu (int): 0 for G, 1 for the gradient, 2 for the Hessian
+
+        Returns:
+            float or ndarray: G, or an array of shape (3,) or (3, 3)
+
+        Raises:
+            ValueError: if nu is not 0, 1 or 2
+
+        Notes:
+            The gradient is G·[α/D, -1/(2D), (γ² - α²)/D], which stays accurate as G → 0.
+        """
+        gap_alpha, gap_g, D = cls._gaps(alpha, g, y)
+        if nu == 0:
+            return gap_g
+        elif nu == 1:
+            return gap_g * np.array([alpha/D, -1/(2*D), gap_alpha/D])
+        elif nu == 2:
+            # g enters G linearly
+            return cls._d2_gamma_squared(alpha, gap_alpha, gap_g, D)
+        else:
+            raise ValueError(f"Expecting nu = 0, 1, or 2, instead got nu = {nu}")
+
+    @staticmethod
+    def _d2_gamma_squared(alpha, gap_alpha, gap_g, D):
+        """Return the Hessian of γ² with respect to (α, g, y).
+
+        Args:
+            alpha (float): the asymmetry α
+            gap_alpha (float): γ² - α², from _gaps
+            gap_g (float): γ² - g, from _gaps
+            D (float): D, from _gaps
+
+        Returns:
+            ndarray: shape (3, 3)
+        """
+        e2 = gap_alpha * gap_g  # exp(2y)
+        h = (gap_alpha - gap_g) / 2
+        c = e2 / D**3
+        return np.array([
+            [gap_g/D + alpha**2 * c, -alpha * c/2,  alpha * h * c],
+            [-alpha * c/2,            c/4,           -h * c/2],
+            [alpha * h * c,           -h * c/2,      c * (2*h**2 + e2)]])
 
     def to_primitive(
         self,
         conventional_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degeneracy
+        """Return the primitive parameters [r, α, g, y] of conventional parameters.
 
         Args:
-            cparams : np.ndarray, shape(5,)
-                conventional parameters in the order [ θ[0], θ[1], γ, δ, Ω ]
+            conventional_params (array-like): [θ₁, θ₂, γ, δ, Ω]
 
         Returns:
-            params : np.ndarray, shape(4,)
-                non-degenerate parameters [ r, α, λ, Γ ]
+            ndarray: [r, α, g, y], with y = ln[(γ² - α²)(γ² - g)]/2
+
+        Raises:
+            ValueError: if conventional_params does not have five entries, or if the
+                kernel is not inside the admissible region γ > |α|, γ² > g
+
+        Notes:
+            γ ∓ α and γ² - g are computed as sums of terms that are non-negative when
+            γ ≥ |δ|, which keeps y accurate near the boundary.
         """
         conventional_params = np.asarray(conventional_params, dtype=float)
         if conventional_params.shape != (5,):
-           raise ValueError(f"The conventional parameters must be supplied as a length-5 vector, instead got {conventional_params.shape = }")
+           raise ValueError(f"The conventional parameters must be supplied "
+                            f"as a length-5 vector, instead got {conventional_params.shape = }")
         th2 = conventional_params[:2]**2
         gamma, delta, Omega = conventional_params[2:]
-        r = np.sqrt(np.sum(th2))
-        d2O2 = delta**2 - Omega**2
-        Gamma = np.sign(d2O2) * np.sqrt(np.abs(d2O2))
-        alpha = delta * (th2[0] - th2[1]) / (th2[0] + th2[1])
-        lamda = gamma - self._gamma_lower_bound(Gamma, alpha, nu=0)
-        primitive_params = np.array([r, alpha, lamda, Gamma], dtype=float)
+        r2 = th2[0] + th2[1]
+        alpha = delta * (th2[0] - th2[1]) / r2
+        g = delta**2 - Omega**2
+        # γ ∓ α and γ² - g as sums of terms that are non-negative when γ ≥ |δ|
+        gamma_minus_alpha = ((gamma - delta)*th2[0] + (gamma + delta)*th2[1]) / r2
+        gamma_plus_alpha = ((gamma + delta)*th2[0] + (gamma - delta)*th2[1]) / r2
+        gap_g = (gamma - delta)*(gamma + delta) + Omega**2
+        if not (gamma_minus_alpha > 0 and gamma_plus_alpha > 0 and gap_g > 0):
+            raise ValueError(
+                f"The memory kernel must lie inside the admissible region "
+                f"γ > |α|, γ² > g, instead got γ = {gamma}, α = {alpha}, g = {g}")
+        y = (np.log(gamma_minus_alpha * gamma_plus_alpha) + np.log(gap_g)) / 2
+        primitive_params = np.array([np.sqrt(r2), alpha, g, y], dtype=float)
         return primitive_params
-    
+
     def to_conventional(
         self,
         primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert non-degenerate embedding parameters to conventional embedding variables
+        """Return the conventional parameters of primitive parameters, in the maximal gauge δ = γ.
+
         Args:
-            params : np.ndarray, shape(4,)
-                non-degenerate parameters in the order [ r, α, λ, Γ ]
+            primitive_params (array-like): [r, α, g, y]
 
         Returns:
-            cparams : np.ndarray, shape(5,)
-                conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
+            ndarray: [θ₁, θ₂, γ, δ, Ω], with θ₁,₂ = r·sqrt((1 ± α/γ)/2), δ = γ and
+            Ω = sqrt(γ² - g)
+
+        Raises:
+            ValueError: if primitive_params does not have four entries
         """
         primitive_params = np.asarray(primitive_params, dtype=float)
         if primitive_params.shape != (4,):
-           raise ValueError(f"The non-degenerate parameters must be supplied as a length-4 vector, instead got {primitive_params.shape = }")
-        r, alpha, lamda, Gamma = primitive_params
-        if abs(alpha) < Gamma:
-            delta = Gamma
-            Omega = 0.0
-            theta1 = r * np.sqrt((1 + alpha/Gamma)/2)
-            theta2 = r * np.sqrt((1 - alpha/Gamma)/2)
-        else:
-            delta = abs(alpha)
-            Omega = np.sqrt(alpha**2 - np.sign(Gamma)*Gamma**2)
-            theta1 = r if alpha > 0 else 0.0 
-            theta2 = 0.0 if alpha > 0 else r
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        return np.asarray([theta1, theta2, gamma, delta, Omega])
-    
+           raise ValueError(
+               f"The non-degenerate parameters must be supplied "
+               f"as a length-4 vector, instead got {primitive_params.shape = }")
+        r, alpha, g, y = primitive_params
+        gap_alpha, gap_g, _ = self._gaps(alpha, g, y)
+        gamma = np.sqrt(alpha**2 + gap_alpha)
+        gamma_plus_alpha, gamma_minus_alpha = self._gamma_pm(gamma, alpha, gap_alpha)
+        theta1 = r * np.sqrt(gamma_plus_alpha / (2*gamma))
+        theta2 = r * np.sqrt(gamma_minus_alpha / (2*gamma))
+        return np.asarray([theta1, theta2, gamma, gamma, np.sqrt(gap_g)])
+
     def jac_conventional(
         self,
         primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Convert primitive embedding parameters to conventional embedding variables and compute the jacobian of the conventional vars w.r.t. params
+        """Return the conventional parameters and their Jacobian with respect to the primitive ones.
 
         Args:
-            primitive_params : np.ndarray, shape(4,)
-                primitive parameters in the order [ r, α, λ, Γ ]
+            primitive_params (array-like): [r, α, g, y]
 
         Returns:
-            conventional_params : np.ndarray, shape(5,)
-                conventional parameters [ θ[0], θ[1], γ, δ, Ω ]
-            jac : np.ndarray, shape(5, 4)
-                jac[i,j] = D[ conventional_params[i], primitive_params[j] ]
+            tuple of ndarray: [θ₁, θ₂, γ, δ, Ω], as from to_conventional, and the Jacobian
+            jac[i, j] = ∂conventional[i]/∂primitive[j], shape (5, 4)
+
+        Raises:
+            ValueError: if primitive_params does not have four entries
+
+        Notes:
+            The rows are built from logarithmic derivatives of the gaps (see _gaps),
+            which stay accurate near the boundary of the admissible region.
         """
         primitive_params = np.asarray(primitive_params, dtype=float)
         if primitive_params.shape != (4,):
            raise ValueError(f"The primitive parameters must be supplied as a length-4 vector, instead got {primitive_params.shape = }")
-        r, alpha, lamda, Gamma = primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        jac = np.zeros((5,4))
-        if abs(alpha) < Gamma:
-            delta = Gamma
-            Omega = 0.0
-            sqrt_p = np.sqrt((1 + alpha/Gamma)/2)
-            sqrt_m = np.sqrt((1 - alpha/Gamma)/2)
-            theta1 = r * sqrt_p
-            theta2 = r * sqrt_m
-            # θ[0] w.r.t. [ r, α, λ, Γ ]
-            jac[0,0] = sqrt_p
-            jac[0,1] = r / (4 * Gamma * sqrt_p)
-            jac[0,3] = -r*alpha / (4*Gamma**2) / sqrt_p
-            # θ[1] w.r.t. [ r, α, λ, Γ ]
-            jac[1,0] = sqrt_m
-            jac[1,1] = -r / (4 * Gamma * sqrt_m)
-            jac[1,3] = r*alpha / (4*Gamma**2) / sqrt_m
-            # δ w.r.t [ r, α, λ, Γ ]
-            jac[3,3] = 1.0
-            # Ω w.r.t [ r, α, λ, Γ ], but Ω = 0
+        r, alpha, g, y = primitive_params
+        conventional_params = self.to_conventional(primitive_params)
+        theta1, theta2, gamma, _, Omega = conventional_params
+        gap_alpha, gap_g, D = self._gaps(alpha, g, y)
+        gamma_plus_alpha, gamma_minus_alpha = self._gamma_pm(gamma, alpha, gap_alpha)
+        # Logarithmic derivatives with respect to [ r, α, g, y ]. Near the boundary of the
+        # admissible region, the gaps and the smaller of γ ± α are small; differentiating
+        # them directly avoids the cancellation in, e.g., ∂(γ² - g)/∂g = 2γ·∂γ/∂g - 1.
+        d_alpha = np.array([0.0, 1.0, 0.0, 0.0])
+        dlog_r = np.array([1/r, 0.0, 0.0, 0.0])
+        d_gamma = np.concatenate([[0.0], self._gamma(alpha, g, y, nu=1)])
+        dlog_gap_alpha = np.array([0.0, -alpha/D, 1/(2*D), gap_g/D])
+        dlog_gap_g = np.array([0.0, alpha/D, -1/(2*D), gap_alpha/D])
+        if alpha >= 0:
+            dlog_plus = (d_gamma + d_alpha) / gamma_plus_alpha
+            dlog_minus = dlog_gap_alpha - dlog_plus
         else:
-            delta = abs(alpha)
-            abs_Gamma = abs(Gamma)
-            Omega = np.sqrt(alpha**2 - abs_Gamma*Gamma)
-            if alpha > 0:
-                theta1 = r
-                # θ[0] w.r.t. [ r, α, λ, Γ ]
-                jac[0,0] = 1.0
-                theta2 = 0.0
-            else:
-                theta1 = 0.0
-                theta2 = r
-                # θ[1] w.r.t. [ r, α, λ, Γ ]
-                jac[1,0] = 1.0
-            # δ w.r.t [ r, α, λ, Γ ]
-            jac[3,1] = np.sign(alpha)
-            # Ω w.r.t [ r, α, λ, Γ ]
-            jac[4,1] = alpha/Omega
-            jac[4,3] = -abs_Gamma/Omega
-        # γ w.r.t [ r, α, λ, Γ ]
-        tmp = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        jac[2,1] = tmp[1]
-        jac[2,2] = 1.0
-        jac[2,3] = tmp[0]
-        conventional_params = np.asarray([theta1, theta2, gamma, delta, Omega])
+            dlog_minus = (d_gamma - d_alpha) / gamma_minus_alpha
+            dlog_plus = dlog_gap_alpha - dlog_minus
+        jac = np.empty((5,4))
+        # θ[0], θ[1] = r·sqrt((γ ± α)/(2γ))
+        jac[0] = theta1 * (dlog_r + (dlog_plus - d_gamma/gamma)/2)
+        jac[1] = theta2 * (dlog_r + (dlog_minus - d_gamma/gamma)/2)
+        # γ and δ = γ
+        jac[2] = jac[3] = d_gamma
+        # Ω = sqrt(γ² - g)
+        jac[4] = Omega * dlog_gap_g/2
         return conventional_params, jac
     
     @staticmethod
@@ -309,13 +436,25 @@ class TwoAuxEmbedder(BaseEmbedder):
         theta: npt.NDArray[np.floating],
         A: npt.NDArray[np.floating]
     ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Rotate the drift matrix A and coupling vector theta into a basis where
-        the symmetric component of A is diagonal
+        """Return θ and A in the basis where the symmetric part of A is diagonal.
+
+        Args:
+            theta (ndarray): the couplings, shape (2,)
+            A (ndarray): the auxiliary drift matrix, shape (2, 2)
+
+        Returns:
+            tuple of ndarray: the rotated θ and A
+
+        Raises:
+            ValueError: if the symmetric part of A has a negative eigenvalue
         """
         Asym = (A + A.T)/2
         eigs = np.linalg.eigh(Asym)
         if np.any(eigs.eigenvalues < 0):
-            raise ValueError(f"The auxiliary variable drift matrix must be positive-definite. Instead, the symmetric component {Asym = } was found to have the eigenvalues {eigs.eigenvalues}.")
+            raise ValueError(
+                f"The auxiliary variable drift matrix must be positive-definite. "
+                f"Instead, the symmetric component {Asym = } was found to have "
+                f"the eigenvalues {eigs.eigenvalues}.")
         new_theta = np.dot(eigs.eigenvectors.T, theta)
         new_A = np.linalg.multi_dot([eigs.eigenvectors.T, A, eigs.eigenvectors])
         return new_theta, new_A
@@ -324,13 +463,13 @@ class TwoAuxEmbedder(BaseEmbedder):
         self, 
         primitive_params: npt.NDArray
     ) -> npt.NDArray[np.floating]:
-        """Calculate the drift matrix for a given set of conventional parameters, 
-        packed as a 5-tuple in the order ( θ[0], θ[1], γ, δ, Ω )
+        """Return the drift matrix Ap in the maximal gauge.
 
-        Returns
-        -------
-        numpy.ndarray
-            A 2x2 array.
+        Args:
+            primitive_params (array-like): [r, α, g, y]
+
+        Returns:
+            ndarray: shape (3, 3)
         """
         theta1, theta2, gamma, delta, Omega = self.to_conventional(primitive_params)
         A = np.zeros((3,3))
@@ -348,14 +487,17 @@ class TwoAuxEmbedder(BaseEmbedder):
         self, 
         primitive_params: npt.NDArray
     ) -> npt.NDArray[np.floating]:
-        """The gradient of the drift matrix with respect to the primitive parameters.
+        """Return the derivatives of the drift matrix with respect to the primitive parameters.
 
-        In terms of *conventional* parameters 
-        cparams = [θ[0], θ[1], γ, δ, Ω]
-            
-                (  0    θ[0] θ[1])
-            A = (-θ[0]  γ+δ    Ω )
-                (-θ[1]  -Ω   γ-δ )
+        Args:
+            primitive_params (array-like): [r, α, g, y]
+
+        Returns:
+            ndarray: ∂Ap/∂p, shape (4, 3, 3)
+
+        Notes:
+            The derivatives with respect to the conventional parameters [θ₁, θ₂, γ, δ, Ω]
+            are constant, and jac_conventional supplies the chain rule.
         """
     
         grad_A_conventional = np.zeros((5, 3, 3), dtype=float)
@@ -382,235 +524,257 @@ class TwoAuxEmbedder(BaseEmbedder):
             jac)
         return grad_A
     
-    def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+    @staticmethod
+    def _abs_grid(grid: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return the absolute values of a time or frequency grid as a 1-d float array.
+
+        Args:
+            grid (float or array-like): times or frequencies
+
+        Returns:
+            ndarray: shape (ngrid,)
+
+        Notes:
+            The closed forms are even in t and ω. The cast to float stops integer
+            input from being truncated.
         """
-        Memory kernel function for the two-variable embedding, 
-            K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
-            where γ = λ + Softmax(Γ, Softabs(α))
+        return np.abs(np.atleast_1d(np.asarray(grid, dtype=float)))
+
+    @staticmethod
+    def _damped_cosh_sinhc(g, gamma, gap_g, t):
+        """Return exp(-γt)·cosh(t√g) and exp(-γt)·t·sinhc(t√g).
+
+        Args:
+            g (float): δ² - Ω²; g > 0 is overdamped, g ≤ 0 underdamped or critical
+            gamma (float): the mean decay rate γ
+            gap_g (float): γ² - g, from _gaps
+            t (ndarray): non-negative times, as floats
+
+        Returns:
+            tuple of ndarray: the two functions at each time, each with the shape of t
+
+        Notes:
+            For g < 0, cosh and t·sinhc become cos(ω̄t) and sin(ω̄t)/ω̄ with ω̄ = √(-g),
+            and for g = 0 they are 1 and t. For g > 0 they are written with decaying
+            exponentials, so nothing overflows. The slow rate γ - √g is computed as
+            (γ² - g)/(γ + √g).
         """
-        t = np.abs(np.atleast_1d(time))
-        r, alpha, lamda, Gamma = self.primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        ans = expcoscosh(Gamma, t, gamma)
-        ans -= alpha*t*expsincsinhc(Gamma, t, gamma)
-        return r**2 * ans
-    
-    def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        if g < 0:
+            omega_bar = np.sqrt(-g)
+            decay = np.exp(-gamma*t)
+            return decay*np.cos(omega_bar*t), decay*np.sin(omega_bar*t)/omega_bar
+        if g == 0:
+            decay = np.exp(-gamma*t)
+            return decay, decay*t
+        kappa = np.sqrt(g)
+        decay = np.exp(-gap_g/(gamma + kappa)*t)
+        em1 = np.expm1(-2*kappa*t)
+        return decay*(1 + em1/2), -decay*em1/(2*kappa)
+
+    @staticmethod
+    def _damped_sinhc_g_derivative(g, gamma, gap_g, t):
+        """Return exp(-γt) times the derivative of sinhc(t√g) with respect to g.
+
+        Args:
+            g (float): δ² - Ω²; g > 0 is overdamped, g ≤ 0 underdamped or critical
+            gamma (float): the mean decay rate γ
+            gap_g (float): γ² - g, from _gaps
+            t (ndarray): non-negative times, as floats
+
+        Returns:
+            ndarray: the damped derivative at each time, with the shape of t
+
+        Notes:
+            With s = sinc and z = t√(-g), the derivative is (t²/4)[s(z) + s''(z)].
+            This form is used for g ≤ 0, where z is real, and for g > 0 at short
+            times, √g·t ≤ _SINHC_SWITCH, where z is imaginary. At longer times it
+            loses accuracy, so (cosh - sinhc)/(2g) is evaluated with decaying
+            exponentials instead.
         """
-        Gradient of the memory kernel function for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
-        
-            K(t) = r² exp(-γt) [ C(Γt) - α·t·S(Γt) ]
-            where γ = λ + Softmax(Γ, Softabs(α))
-        """
-        t = np.abs(np.atleast_1d(time))
-        r, alpha, lamda, Gamma = self.primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        C = expcoscosh(Gamma, t, gamma)
-        S = expsincsinhc(Gamma, t, gamma)
-        K_base = C - alpha*t*S
-        ans = np.empty((4, len(t)))
-        d_gamma_Gamma, d_gamma_alpha  = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        ans[0] = 2*r * K_base
-        ans[1] = r**2 * (-t * S - d_gamma_alpha * t * K_base)
-        ans[2] = -r**2 * t * K_base
-        dC = expcoscosh(Gamma, t, gamma, nu=1, wrt="Gamma")
-        dS = expsincsinhc(Gamma, t, gamma, nu=1, wrt="Gamma")
-        ans[3] = r**2 * (dC - alpha * t * dS - d_gamma_Gamma * t * K_base)
+        if g <= 0:
+            z = t*np.sqrt(-g)
+            return np.exp(-gamma*t) * t**2/4 * (sinc(z) + sinc(z, nu=2))
+        kappa = np.sqrt(g)
+        ans = np.empty_like(t)
+        small = kappa*t <= _SINHC_SWITCH
+        ts, tl = t[small], t[~small]
+        z = 1j*kappa*ts
+        ans[small] = np.exp(-gamma*ts) * ts**2/4 * np.real(sinc(z) + sinc(z, nu=2))
+        em1 = np.expm1(-2*kappa*tl)
+        decay = np.exp(-gap_g/(gamma + kappa)*tl)
+        ans[~small] = decay * (1 + em1/2 + em1/(2*kappa*tl)) / (2*g)
         return ans
+
+    def _kernel_partials(self, t, nu):
+        """Return K/r² and, for nu = 1, its partial derivatives with respect to (α, g, γ).
+
+        Args:
+            t (ndarray): non-negative times, as floats
+            nu (int): 0 for the value only, 1 to add the partial derivatives
+
+        Returns:
+            ndarray or tuple of ndarray: f = exp(-γt)[cosh(t√g) - α·t·sinhc(t√g)],
+            shape (len(t),), and for nu = 1 also its partial derivatives, shape (3, len(t))
+
+        Notes:
+            Each partial derivative holds the other two of (α, g, γ) fixed.
+            _chain_rule converts them to derivatives with respect to [r, α, g, y].
+        """
+        r, alpha, g, y = self.primitive_params
+        gap_alpha, gap_g, _ = self._gaps(alpha, g, y)
+        gamma = np.sqrt(alpha**2 + gap_alpha)
+        C, tS = self._damped_cosh_sinhc(g, gamma, gap_g, t)
+        f = C - alpha*tS
+        if nu == 0:
+            return f
+        # ∂cosh(t√g)/∂g = (t²/2)·sinhc(t√g)
+        dS_dg = self._damped_sinhc_g_derivative(g, gamma, gap_g, t)
+        return f, np.array([-tS, t*tS/2 - alpha*t*dS_dg, -t*f])
+
+    def _spectrum_partials(self, freq, nu):
+        """Return Λ/r² and, for nu ≥ 1, its partial derivatives with respect to (α, G, γ),
+        where G = γ² - g.
+
+        Args:
+            freq (ndarray): non-negative frequencies, as floats
+            nu (int): 0 for the value only, 1 to add the gradient, 2 to add the Hessian
+
+        Returns:
+            ndarray or tuple of ndarray: f = N/M, shape (len(freq),), then for nu ≥ 1
+            its gradient, shape (3, len(freq)), and for nu = 2 its Hessian,
+            shape (3, 3, len(freq))
+
+        Notes:
+            N = (γ+α)ω² + (γ-α)G and M = (G-ω²)² + 4γ²ω² are sums of non-negative terms.
+            G replaces g as a variable because the chain rule through g cancels near
+            the boundary γ² = g.
+        """
+        r, alpha, g, y = self.primitive_params
+        gap_alpha, G, _ = self._gaps(alpha, g, y)
+        gamma = np.sqrt(alpha**2 + gap_alpha)
+        gamma_plus_alpha, gamma_minus_alpha = self._gamma_pm(gamma, alpha, gap_alpha)
+        w2 = freq**2
+        N = gamma_plus_alpha*w2 + gamma_minus_alpha*G
+        M = (G - w2)**2 + 4*gamma**2*w2
+        f = N / M
+        if nu == 0:
+            return f
+        one = np.ones_like(w2)
+        dN = np.array([w2 - G, gamma_minus_alpha*one, w2 + G])
+        dM = np.array([0*one, 2*(G - w2), 8*gamma*w2])
+        # f·M = N, differentiated once and twice
+        df = (dN - f*dM) / M
+        if nu == 1:
+            return f, df
+        d2N = np.array([
+            [0.0, -1.0, 0.0],
+            [-1.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0]])
+        d2M = np.zeros((3, 3, len(w2)))
+        d2M[1, 1] = 2.0
+        d2M[2, 2] = 8*w2
+        d2f = (d2N[:, :, None] - df[:, None]*dM[None, :] - dM[:, None]*df[None, :] - f*d2M) / M
+        return f, df, d2f
+
+    def _chain_rule(self, f, df, d2f=None, wrt_gap=False):
+        """Return the gradient or the Hessian of r²·f with respect to [r, α, g, y].
+
+        Args:
+            f (ndarray): f on the grid, shape (ngrid,)
+            df (ndarray): the partial derivatives of f with respect to v, shape (3, ngrid)
+            d2f (ndarray, optional): the second partial derivatives of f, shape
+                (3, 3, ngrid). If given, the Hessian is returned.
+            wrt_gap (bool): v = (α, γ² - g, γ) if True, and v = (α, g, γ) otherwise
+
+        Returns:
+            ndarray: the gradient, shape (4, ngrid), or the Hessian, shape (4, 4, ngrid)
+        """
+        r, alpha, g, y = self.primitive_params
+        # ∂v/∂(α, g, y)
+        jac = np.eye(3)
+        jac[2] = self._gamma(alpha, g, y, nu=1)
+        if wrt_gap:
+            jac[1] = self._gap_g(alpha, g, y, nu=1)
+        grad = np.einsum('ki,kn->in', jac, df)
+        if d2f is None:
+            return np.concatenate([[2*r*f], r**2*grad])
+        hess = np.einsum('ki,kln,lj->ijn', jac, d2f, jac)
+        hess += self._gamma(alpha, g, y, nu=2)[:, :, None] * df[2]
+        if wrt_gap:
+            hess += self._gap_g(alpha, g, y, nu=2)[:, :, None] * df[1]
+        ans = np.empty((4, 4, len(f)))
+        ans[0, 0] = 2*f
+        ans[0, 1:] = ans[1:, 0] = 2*r*grad
+        ans[1:, 1:] = r**2*hess
+        return ans
+
+    def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return the memory kernel K(t) = r² exp(-γ|t|)[cosh(t√g) - α|t| sinhc(t√g)].
+
+        Args:
+            time (float or array-like): times
+
+        Returns:
+            ndarray: shape (len(time),)
+        """
+        r = self.primitive_params[0]
+        return r**2 * self._kernel_partials(self._abs_grid(time), nu=0)
+
+    def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return the gradient of the memory kernel with respect to [r, α, g, y].
+
+        Args:
+            time (float or array-like): times
+
+        Returns:
+            ndarray: shape (4, len(time))
+        """
+        return self._chain_rule(*self._kernel_partials(self._abs_grid(time), nu=1))
 
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
-        """
-        Hessian of the memory kernel function for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
-        Shape: (4, 4, len(time))
+        """Return the Hessian of the memory kernel with respect to [r, α, g, y].
+
+        Args:
+            time (float or array-like): times
+
+        Returns:
+            ndarray: shape (4, 4, len(time))
+
+        Raises:
+            NotImplementedError: always, until EMB-16 is resolved
         """
         raise NotImplementedError
-    
+
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        freq = np.abs(np.atleast_1d(frequency))
-        r, alpha, lamda, Gamma = self.primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        w2 = freq**2
-        g2 = gamma**2
-        y = Gamma * abs(Gamma)
-        ans = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
-        ans /= g2**2 + 2*g2*(w2-y) + (w2+y)**2
-        ans *= r**2
-        return ans
+        """Return the spectrum Λ(ω) = r²[(γ+α)ω² + (γ-α)(γ²-g)] / [(γ²-g-ω²)² + 4γ²ω²].
+
+        Args:
+            frequency (float or array-like): frequencies
+
+        Returns:
+            ndarray: shape (len(frequency),)
+        """
+        r = self.primitive_params[0]
+        return r**2 * self._spectrum_partials(self._abs_grid(frequency), nu=0)
 
     def spectrum_grad(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
-        freq = np.abs(np.atleast_1d(frequency))
-        r, alpha, lamda, Gamma = self.primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        w2 = freq**2
-        g2 = gamma**2
-        y = Gamma * abs(Gamma)
-        numerator = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
-        denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
-        S_base = numerator / denominator
-        ans = np.empty((4, len(freq)))
-        ans[0] = 2 * r * S_base
-        d_num_gamma = w2 - y - 2*alpha*gamma + 3*g2
-        d_denom_gamma = 4 * gamma * (g2 + w2 - y)
-        dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma) 
-        d_gamma_Gamma, d_gamma_alpha = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        d_num_alpha = w2 + y - g2
-        ans[1] = r**2 * d_num_alpha / denominator + dS_dgamma * d_gamma_alpha
-        ans[2] = dS_dgamma
-        dy_dGamma = 2 * abs(Gamma)
-        d_num_y = alpha - gamma
-        d_denom_y = 2*(y + w2 - g2)
-        dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
-        ans[3] = dS_dy * dy_dGamma + dS_dgamma * d_gamma_Gamma
-        return ans
-    
+        """Return the gradient of the spectrum with respect to [r, α, g, y].
+
+        Args:
+            frequency (float or array-like): frequencies
+
+        Returns:
+            ndarray: shape (4, len(frequency))
+        """
+        return self._chain_rule(*self._spectrum_partials(self._abs_grid(frequency), nu=1), wrt_gap=True)
+
     def spectrum_hess(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
+        """Return the Hessian of the spectrum with respect to [r, α, g, y].
+
+        Args:
+            frequency (float or array-like): frequencies
+
+        Returns:
+            ndarray: shape (4, 4, len(frequency))
         """
-        Hessian of the spectrum for the two-variable embedding w.r.t. primitive parameters [r, α, λ, Γ].
-        
-        S(ω) = r² · [(α+γ)ω² - (α-γ)(γ²-y)] / [γ⁴ + 2γ²(ω²-y) + (ω²+y)²]
-        where y = Γ·|Γ| and γ = λ + Softmax(Γ, Softabs(α))
-        
-        Shape: (4, 4, len(freq))
-        """
-        freq = np.abs(np.atleast_1d(frequency))
-        r, alpha, lamda, Gamma = self.primitive_params
-        gamma = lamda + self._gamma_lower_bound(Gamma, alpha)
-        
-        w2 = freq**2
-        g2 = gamma**2
-        y = Gamma * abs(Gamma)
-        numerator = (alpha + gamma)*w2 - (alpha - gamma)*(g2 - y)
-        denominator = g2**2 + 2*g2*(w2 - y) + (w2 + y)**2
-        S_base = numerator / denominator
-        
-        # First derivatives of numerator and denominator
-        d_num_gamma = w2 - y - 2*alpha*gamma + 3*g2
-        d_denom_gamma = 4 * gamma * (g2 + w2 - y)
-        d_num_alpha = w2 - g2 + y
-        d_num_y = alpha - gamma
-        d_denom_y = 2*(w2 + y - g2)
-        
-        # dS/dγ, dS/dy
-        dS_dgamma = r**2 * (d_num_gamma / denominator - numerator / denominator**2 * d_denom_gamma)
-        dS_dy = r**2 * (d_num_y / denominator - numerator * d_denom_y / denominator**2)
-        
-        # Get first and second derivatives of γ
-        d_gamma_Gamma, d_gamma_alpha = self._gamma_lower_bound(Gamma, alpha, nu=1)
-        
-        d2_gamma_mat = self._gamma_lower_bound(Gamma, alpha, nu=2)
-        d2_gamma_Gamma2 = d2_gamma_mat[0, 0]
-        d2_gamma_GammaAlpha = d2_gamma_mat[0, 1]
-        d2_gamma_alpha2 = d2_gamma_mat[1, 1]
-        
-        # dy/dΓ and d²y/dΓ²
-        dy_dGamma = 2 * abs(Gamma)
-        d2y_dGamma2 = 2 * np.sign(Gamma) if Gamma != 0 else 0
-        
-        # Second derivatives of numerator and denominator w.r.t. γ
-        d2_num_gamma2 = -2*alpha + 6*gamma
-        d2_denom_gamma2 = 12*g2 + 4*(w2 - y)
-        
-        # Second derivatives w.r.t. y
-        d2_num_y2 = 0
-        d2_denom_y2 = 2
-        
-        # Cross derivatives
-        d2_num_gamma_alpha = -2*gamma
-        d2_num_gamma_y = -1
-        d2_denom_gamma_y = -4*gamma
-        d2_num_alpha_y = 1
-        
-        # Second derivative d²S/dγ²
-        d2S_dgamma2 = r**2 * (
-            d2_num_gamma2 / denominator 
-            - 2 * d_num_gamma * d_denom_gamma / denominator**2
-            - numerator * d2_denom_gamma2 / denominator**2
-            + 2 * numerator * d_denom_gamma**2 / denominator**3
-        )
-        
-        # d²S/dγdα_direct
-        d2S_dgamma_dalpha = r**2 * (
-            d2_num_gamma_alpha / denominator
-            - d_num_alpha * d_denom_gamma / denominator**2
-        )
-        
-        # d²S/dγdy
-        d2S_dgamma_dy = r**2 * (
-            d2_num_gamma_y / denominator
-            - d_num_y * d_denom_gamma / denominator**2
-            - d_num_gamma * d_denom_y / denominator**2
-            - numerator * d2_denom_gamma_y / denominator**2
-            + 2 * numerator * d_denom_gamma * d_denom_y / denominator**3
-        )
-        
-        # d²S/dα²_direct
-        d2S_dalpha2_direct = 0
-        
-        # d²S/dαdy_direct
-        d2S_dalpha_dy = r**2 * (
-            d2_num_alpha_y / denominator
-            - d_num_alpha * d_denom_y / denominator**2
-        )
-        
-        # d²S/dy²
-        d2S_dy2 = r**2 * (
-            d2_num_y2 / denominator
-            - 2 * d_num_y * d_denom_y / denominator**2
-            - numerator * d2_denom_y2 / denominator**2
-            + 2 * numerator * d_denom_y**2 / denominator**3
-        )
-        
-        # Build the Hessian matrix
-        hess = np.zeros((4, 4, len(freq)))
-        
-        # H[0,0] = d²S/dr²
-        hess[0, 0] = 2 * S_base
-        
-        # H[0,1] = H[1,0] = d²S/drda
-        hess[0, 1] = hess[1, 0] = 2 * r * (d_num_alpha / denominator + dS_dgamma * d_gamma_alpha / r**2)
-        
-        # H[0,2] = H[2,0] = d²S/drdλ
-        hess[0, 2] = hess[2, 0] = 2 * r * dS_dgamma / r**2
-        
-        # H[0,3] = H[3,0] = d²S/drdΓ
-        hess[0, 3] = hess[3, 0] = 2 * r * (dS_dy * dy_dGamma / r**2 + dS_dgamma * d_gamma_Gamma / r**2)
-        
-        # H[1,1] = d²S/dα²
-        hess[1, 1] = (
-            d2S_dalpha2_direct
-            + 2 * d2S_dgamma_dalpha * d_gamma_alpha
-            + d2S_dgamma2 * d_gamma_alpha**2
-            + dS_dgamma * d2_gamma_alpha2
-        )
-        
-        # H[1,2] = H[2,1] = d²S/dαdλ
-        hess[1, 2] = hess[2, 1] = d2S_dgamma_dalpha + d2S_dgamma2 * d_gamma_alpha
-        
-        # H[1,3] = H[3,1] = d²S/dαdΓ
-        hess[1, 3] = hess[3, 1] = (
-            d2S_dalpha_dy * dy_dGamma
-            + d2S_dgamma_dalpha * d_gamma_Gamma
-            + d2S_dgamma_dy * d_gamma_alpha * dy_dGamma
-            + d2S_dgamma2 * d_gamma_alpha * d_gamma_Gamma
-            + dS_dgamma * d2_gamma_GammaAlpha
-        )
-        
-        # H[2,2] = d²S/dλ²
-        hess[2, 2] = d2S_dgamma2
-        
-        # H[2,3] = H[3,2] = d²S/dλdΓ
-        hess[2, 3] = hess[3, 2] = (
-            d2S_dgamma_dy * dy_dGamma
-            + d2S_dgamma2 * d_gamma_Gamma
-        )
-        
-        # H[3,3] = d²S/dΓ²
-        hess[3, 3] = (
-            dS_dy * d2y_dGamma2
-            + 2 * d2S_dgamma_dy * dy_dGamma * d_gamma_Gamma
-            + d2S_dy2 * dy_dGamma**2
-            + d2S_dgamma2 * d_gamma_Gamma**2
-            + dS_dgamma * d2_gamma_Gamma2
-        )
-        
-        return hess
+        return self._chain_rule(*self._spectrum_partials(self._abs_grid(frequency), nu=2), wrt_gap=True)

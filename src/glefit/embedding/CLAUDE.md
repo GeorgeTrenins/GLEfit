@@ -13,15 +13,15 @@ An embedding with n auxiliary variables is defined by `Ap = [[0, θᵀ], [-θ, A
 | `gen2x2` | `TwoAuxEmbedder` | 2 | [θ₁, θ₂] | [[γ+δ, Ω], [-Ω, γ-δ]] |
 | `multi` | `MultiEmbedder` | sum | concatenated | component blocks on the diagonal |
 
-Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delta`, `Omega` and optionally `sigma` for `gen2x2`, where `theta` is [θ₁, θ₂]. `multi` takes `embedders`, a list of `{type, parameters}` entries.
+Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delta` and `Omega` for `gen2x2`, where `theta` is [θ₁, θ₂]. `gen2x2` raises `TypeError` for the removed `sigma` and `threshold`. `multi` takes `embedders`, a list of `{type, parameters}` entries.
 
 ## Parameters
 
-- Three sets: conventional (length `nparam`; configs and trajectory files), primitive `p` (length `ndof`; input to `compute_drift_matrix` and `drift_matrix_param_grad`) and mapped `x` (length `ndof`; what the optimizer moves). One `glefit.mappers` mapper per entry converts between p and x. By default p = exp(x), except for α and Γ in gen2x2. Custom mappers are for debugging only: configs cannot set them, so production runs always use the defaults.
+- Three sets: conventional (length `nparam`; configs and trajectory files), primitive `p` (length `ndof`; input to `compute_drift_matrix` and `drift_matrix_param_grad`) and mapped `x` (length `ndof`; what the optimizer moves). One `glefit.mappers` mapper per entry converts between p and x. By default p = exp(x), except for α, g and y in gen2x2. Custom mappers are for debugging only: configs cannot set them, so production runs always use the defaults.
 - Set values only through the `conventional_params`, `primitive_params` and `x` properties, which keep all three in step. Their getters return copies.
-- Conventional and primitive parameters differ only for gen2x2, which fits [r, α, λ, Γ] because different (θ₁, θ₂, γ, δ, Ω) can give the same kernel. With g = δ² − Ω²: r² = θ₁² + θ₂², α = δ(θ₁² − θ₂²)/r², Γ = sign(g)·√|g| and γ = λ + Softmax(Γ, Softabs(α)). See `docs/Generalised Brownian oscillator auxiliary variables.md`.
-- gen2x2 values do not round-trip: `conventional_params` returns a standard form with the same kernel, so [1, 2, 1.5, 0.25, 3] reads back as [0, 2.236, 1.5, 0.15, 2.993].
-- `sigma` (default 5) sets the sharpness of Softmax and Softabs and has units of 1/rate. It raises the smallest allowed γ by up to ln(3)/σ, so a small σ prevents narrow peaks. The tutorial uses 50 for energies in eV.
+- Conventional and primitive parameters differ only for gen2x2, which fits [r, α, g, y] because different (θ₁, θ₂, γ, δ, Ω) can give the same kernel. Here r² = θ₁² + θ₂², α = δ(θ₁² − θ₂²)/r², g = δ² − Ω² and γ² = (g + α²)/2 + √(((g − α²)/2)² + e²ʸ), which covers exactly the admissible kernels γ > |α|, γ² > g. Inputs outside that region, or on its boundary, raise `ValueError`. See `docs/Generalised Brownian oscillator auxiliary variables.md`.
+- gen2x2 values do not round-trip: `conventional_params` returns the maximal gauge δ = γ, which has the same kernel and leaves s₂ undamped. [1, 2, 1.5, 0.25, 3] reads back as [1.5, 1.658, 1.5, 1.5, 3.345].
+- Near the boundary of the admissible region, γ² − α², γ² − g and γ ± α are small. Take them from `_gaps` and `_gamma_pm`, never by subtraction. For the same reason, the spectrum is differentiated with respect to (α, γ² − g, γ) rather than (α, g, γ). The kernel keeps (α, g, γ), so near γ = √g its ∂K/∂g loses about three digits at √g·t ≈ 600.
 
 ## Two independent derivative routes
 
@@ -49,5 +49,6 @@ Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `co
 Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding` from the repository root.
 
 - The references are `SympyReference` (closed forms in SymPy) in `tests/test_embedding/conftest.py` and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath) in `tests/conftest.py`. Do not use `glefit.utils.numderiv`, which is unreviewed.
-- Include branch points and special values (α = 0, |α| = Γ, Γ = 0, zeros), which random values miss.
+- Include branch points and special values (α = 0, g = 0, g = α², γ just above |α| or √g, √g·t on both sides of 1, zeros), which random values miss.
+- The gen2x2 reference writes cosh(t√g) and sinhc(t√g) as ₀F₁ series in g, so SymPy can differentiate them and mpmath can evaluate them at g = 0.
 - `DriftMatrixReference` rejects non-finite input, because `mpmath.expm` never returns for NaN.
