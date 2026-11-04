@@ -52,6 +52,7 @@ J(\omega) = r^2\omega\,\frac{(\gamma+\alpha)\,\omega^2 + (\gamma-\alpha)(\gamma^
 $$
 where
 - $\mathop{\mathrm{sinhc}}(z) = \sinh(z)/z \text{ if } z \neq 0 \text{ else } 1$
+- $\mathop{\mathrm{sinc}}(z) = \sin(z)/z \text{ if } z \neq 0 \text{ else } 1$ (unnormalised, unlike `np.sinc`)
 - $\gamma$ is the mean decay rate of the kernel
 - $g > 0$ describes the overdamped regime
 - $g<0$ describes the underdamped regime where $\cosh(t \sqrt{g}) = \cos(\bar{\omega} t)$ and $\mathop{\mathrm{sinhc}}(t \sqrt{g}) = \mathop{\mathrm{sinc}}(\bar{\omega} t)$ where $\bar{\omega} = \sqrt{-g}$.
@@ -81,7 +82,7 @@ $$
 \delta^2-\Omega^2 = g, \qquad
 \lvert\delta\rvert \leq \gamma .
 $$
-All solutions with positive "conventional" embedding parameters form a one-parameter family in $\delta$, with
+All solutions with non-negative "conventional" embedding parameters form a one-parameter family in $\delta$, with
 $$
 \max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right) \leq \delta \leq \gamma,
 $$
@@ -90,7 +91,7 @@ $$
 \theta_1 =  r\sqrt{\tfrac{1}{2}\left(1+\alpha/\delta\right)}, \qquad
 \theta_2 =  r\sqrt{\tfrac{1}{2}\left(1-\alpha/\delta\right)},
 $$
-If $\alpha = 0$ and $g \leq 0$,  $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi$.
+If $\delta = 0$, which requires $\alpha = 0$ and $g \leq 0$, then $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi \in [0, \pi/2]$.
 
 Common gauge choices:
 - minimal $\delta$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates and the smallest possible $\Omega$. In this case,	$$
@@ -120,12 +121,12 @@ The minimal gauge is preferred for constructing drift matrices used for the nume
 
 # Special cases
 
-| Case                                               | Parameters                                                   |
-| -------------------------------------------------- | ------------------------------------------------------------ |
-| [[Debye auxiliary variable\|Debye]]                | $g = \alpha^2$                                               |
-| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\alpha = 0$, $g = -\Omega^2 < 0$                            |
-| [[Brownian oscillator auxiliary variables\|BO]]    | $\gamma = -\alpha$ (boundary $\gamma = \lvert\alpha\rvert$)  |
-| Zero static friction                               | $\gamma = + \alpha$ (boundary $\gamma = \lvert\alpha\rvert$) |
+| Case                                               | Parameters                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [[Debye auxiliary variable\|Debye]]                | $g = \alpha^2$                                                               |
+| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\alpha = 0$, $g = -\Omega^2 < 0$                                            |
+| [[Brownian oscillator auxiliary variables\|BO]]    | $\gamma = -\alpha$ (boundary $\gamma = \lvert\alpha\rvert$)                  |
+| Zero static friction                               | $\gamma = + \alpha$, $g < \gamma^2$ (boundary $\gamma = \lvert\alpha\rvert$) |
 
 # Sources
 
