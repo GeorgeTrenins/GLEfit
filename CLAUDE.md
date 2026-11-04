@@ -26,9 +26,9 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers only `glefit.embedding`: at `a7550da`, `tests/test_embedding` has 240 passing tests and 1 strict xfail (EMB-16). Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding` and the `grad_wrt_A` methods of `glefit.merit`: at `c1c86e3`, `tests/test_embedding` has 240 passing tests and 1 strict xfail (EMB-16), and `tests/test_merit` has 8 passing tests. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
-`legacy_tests/` is the original suite and must not be edited. At `a7550da`, 133 tests pass and 31 fail. These are known failures, caused by tests lagging the code:
+`legacy_tests/` is the original suite and must not be edited. At `c1c86e3`, 133 tests pass and 31 fail. These are known failures, caused by tests lagging the code:
 
 - `test_config/test_config_handler.py` (27): written for the config schema in `e1dc6d0` (`merit_function.property`, `data_ref`, `optimization.optimizer`, `max_steps`, `project.*`) and for the checkpoint methods that `7da42a9` commented out. For the current schema, read `legacy_tests/test_optimize/fixtures/` and `tutorials/fixtures/`.
 - `test_embedding/test_multi.py` (3): expects the drift-matrix signs from before the fix in `e2299f6`. `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs.
