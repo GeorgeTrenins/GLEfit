@@ -8,127 +8,122 @@ date: 2026-10-06
 # Definition
 
 The most general [[Auxiliary variables (SDE) - Kantorovich prescription|Kantorovich mapping]] onto two [[Auxiliary variables (SDE)|auxiliary variables]] for numerical propagation of the [[Generalised Langevin equation|GLE]]. It approximates the non-Markovian dynamics with
-$$
+
+$$\tag{1}
 \begin{pmatrix}
-\dot{p}               \\
-\dot{s}_1             \\
-\dot{s}_2           
-\end{pmatrix} = 
+\dot{p} \\
+\dot{s}_1 \\
+\dot{s}_2
+\end{pmatrix} =
 -\begin{pmatrix}
-0    &  \theta_1  & \theta_2 \\
--\theta_1 &  \gamma+\delta & \Omega \\
--\theta_2    & -\Omega & \gamma-\delta
+0 & \theta_1 & \theta_2 \\
+-\theta_1 & \gamma+\delta & \epsilon \\
+-\theta_2 & -\epsilon & \gamma-\delta
 \end{pmatrix}
 \begin{pmatrix}
-    p               \\
-    s_1             \\
-    s_2 
-\end{pmatrix} 
+p \\
+s_1 \\
+s_2
+\end{pmatrix}
 +
 \begin{pmatrix}
-0    & 0 \\
-0 &    \boldsymbol{B}
+0 & 0 \\
+0 & \boldsymbol{B}
 \end{pmatrix}
 \begin{pmatrix}
-0               \\
+0 \\
 \boldsymbol{\xi}
 \end{pmatrix},
 \qquad \gamma \geq \lvert\delta\rvert .
 $$
-Defining
+
+The [[Memory kernel|memory kernel]] reads
 $$
-r^2 = \theta_{1}^{2} + \theta_{2}^{2}, \quad 
-\alpha = \delta(\theta_1^2-\theta_2^2)/r^2, \quad 
-g \equiv \delta^2-\Omega^2,
+K(t) = 
+    e^{-\gamma \lvert t \rvert} \left[ 
+    (\theta_1^2 + \theta_2^2)
+         \cosh\left(t \sqrt{\delta^2 - \epsilon^2} \right) 
+         - (\theta_1^2 - \theta_2^2)\, \delta \, \lvert t \rvert \, \mathrm{sinhc}
+            \left(t \sqrt{\delta^2 - \epsilon^2} \right)
+        \right]
 $$
-the corresponding [[Memory kernel|memory kernel]] is
-$$
+which we can re-write as
+$$\tag{2}
 K(t) = r^2 e^{-\gamma\lvert t\rvert}\left[
-\cosh(t \sqrt{g}) - \alpha\, \lvert t \rvert \mathop{\mathrm{sinhc}}(t \sqrt{g})\right],
+\cosh\!\left(t \sqrt{\gamma^2 - \Omega^2}\right) - \gamma  \lvert t \rvert  \cos(2\phi)\,\, \mathrm{sinhc}\left(t \sqrt{\gamma^2 - \Omega^2}\right)\right],
 $$
-and the [[Spectral density|spectral density]] is
+expressed in terms of $\gamma$ and the irreducible parameters
+$$\tag{3}
+r^2 = \theta_1^2 + \theta_2^2, \qquad
+\Omega^2 = \gamma^2 - \delta^2 + \epsilon^2, \qquad
+\cos 2\phi = \frac{\delta\,(\theta_1^2 - \theta_2^2)}{\gamma\, r^2}.
 $$
-J(\omega) = r^2\omega\,\frac{(\gamma+\alpha)\,\omega^2 + (\gamma-\alpha)(\gamma^2-g)}{\gamma^4 + 2\gamma^2(\omega^2-g) + (\omega^2+g)^2}
+The [[Spectral density|spectral density]] is
 $$
+J(\omega) = 2 \gamma r^2 \omega\, \frac{\omega^2 \cos^2\phi + \Omega^2 \sin^2\phi}{(\omega^2 - \Omega^2)^2 + 4\gamma^2\omega^2},
+$$
+
 where
-- $\mathop{\mathrm{sinhc}}(z) = \sinh(z)/z \text{ if } z \neq 0 \text{ else } 1$
-- $\mathop{\mathrm{sinc}}(z) = \sin(z)/z \text{ if } z \neq 0 \text{ else } 1$ (unnormalised, unlike `np.sinc`)
+- $\mathrm{sinhc}(z) = \sinh(z)/z \text{ if } z \neq 0 \text{ else } 1$
 - $\gamma$ is the mean decay rate of the kernel
-- $g > 0$ describes the overdamped regime
-- $g<0$ describes the underdamped regime where $\cosh(t \sqrt{g}) = \cos(\bar{\omega} t)$ and $\mathop{\mathrm{sinhc}}(t \sqrt{g}) = \mathop{\mathrm{sinc}}(\bar{\omega} t)$ where $\bar{\omega} = \sqrt{-g}$.
-- $g=0$ (critical): the square bracket becomes $1-\alpha\,\lvert t\rvert$
+- $\Omega < \gamma$ describes the overdamped regime
+- $\Omega > \gamma$ describes the underdamped regime, where $\cosh(t \sqrt{\gamma^2 - \Omega^2}) = \cos(\bar{\omega} t)$ and $\mathrm{sinhc}(t \sqrt{\gamma^2 - \Omega^2}) = \mathrm{sinc}(\bar{\omega} t)$ with $\bar{\omega} = \sqrt{\Omega^2 - \gamma^2}$
+- $\Omega = \gamma$ (critical): the square bracket becomes $1 - \gamma \lvert t\rvert \cos(2\phi)\,$
+# Maximal gauge
 
-# Admissibility and generality
+Setting $\delta = \gamma$ in (3) gives $\epsilon = \Omega$ and $\boldsymbol{\theta} = r(\cos\phi,\ \sin\phi)$, i.e. the drift block
+$$
+\boldsymbol{A} = \begin{pmatrix} 2\gamma & \Omega \\ -\Omega & 0 \end{pmatrix},
+$$
+in which $s_2$ is undamped. This is the 2×2 block form of Li et al.
 
-The embedding is realisable if and only if
-$$
-\gamma^2 \geq \max(g, \alpha^2) \ \land \ \gamma \geq 0
-$$
-which is also the condition for $K(t)$ to be stable and $J(\omega)\geq 0$. The embedding covers **all** two-mode kernels with a non-negative spectral density. We can convert this to an unconstrained optimization problem by introducing a variable $y \in \mathbb{R}$ such that 
-$$
-\gamma = \sqrt{ \frac{g+\alpha^2}{2} + \sqrt{
-	{\left(
-		\frac{g-\alpha^2}{2}
-	\right)}^2 + \mathrm{e}^{2 y} 
-}}
-$$
+**Claim.** Every kernel realisable by (1) is realised in the maximal gauge, and the realisable kernels are exactly those with $r, \gamma, \Omega \geq 0$ and $0 \leq \phi \leq \pi/2$.
 
-# Inverse map
+*Proof.* By (2), $K$ is fixed by $(r, \gamma, \Omega, \phi)$. For any embedding, $\gamma \geq \lvert\delta\rvert$ implies $\Omega^2 \geq \epsilon^2 \geq 0$ and, since $\lvert\theta_1^2 - \theta_2^2\rvert \leq r^2$, also $\lvert\cos 2\phi\rvert \leq \lvert\delta\rvert/\gamma \leq 1$. Hence $(r, \gamma, \Omega, \phi)$ lies in the stated set ($\phi$ is arbitrary if $\gamma = 0$). Conversely, for any point of this set the maximal gauge satisfies $\gamma \geq \lvert\delta\rvert$ and is therefore a valid embedding with that kernel. $\blacksquare$
 
-The kernel parameters $(r, g, \alpha, \gamma)$ fix the embedding only up to a gauge. The embedding parameters must satisfy
-$$
-\theta_1^2+\theta_2^2 = r^2, \qquad
-\delta\,(\theta_1^2-\theta_2^2) = r^2\alpha, \qquad
-\delta^2-\Omega^2 = g, \qquad
-\lvert\delta\rvert \leq \gamma .
-$$
-All solutions with non-negative "conventional" embedding parameters form a one-parameter family in $\delta$, with
-$$
-\max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right) \leq \delta \leq \gamma,
-$$
-$$
-\Omega = \sqrt{\delta^2-g}, \qquad
-\theta_1 =  r\sqrt{\tfrac{1}{2}\left(1+\alpha/\delta\right)}, \qquad
-\theta_2 =  r\sqrt{\tfrac{1}{2}\left(1-\alpha/\delta\right)},
-$$
-If $\delta = 0$, which requires $\alpha = 0$ and $g \leq 0$, then $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi \in [0, \pi/2]$.
+# Minimal gauge
 
-Common gauge choices:
-- minimal $\delta$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates and the smallest possible $\Omega$. In this case,	$$
-	\begin{cases}
-	\delta = \sqrt{g}, \quad
+This gauge is preferred for constructing drift matrices used for numerical propagation: the two auxiliary variables have the most similar damping rates and the smallest possible $\epsilon$.
 
-\Omega = 0, \quad
+Given $(r, \gamma, \Omega, \phi)$, by (3) a drift matrix of the form (1) reproduces $K$ if and only if
+$$
+\delta^2 - \epsilon^2 = \gamma^2 - \Omega^2, \qquad
+\delta\,(\theta_1^2 - \theta_2^2) = \gamma r^2 \cos 2\phi, \qquad
+\theta_1^2 + \theta_2^2 = r^2, \qquad
+\lvert\delta\rvert \leq \gamma.
+$$
+These conditions are invariant under $\epsilon \to -\epsilon$, $\theta_i \to -\theta_i$ and $(\delta, \theta_1, \theta_2) \to (-\delta, \theta_2, \theta_1)$, so we take $\delta, \epsilon, \theta_i \geq 0$ without loss of generality. Real $\epsilon$ and $\theta_i$ then exist if and only if
+$$
+\max\!\left(\sqrt{\max(\gamma^2 - \Omega^2, 0)},\ \gamma\lvert\cos 2\phi\rvert\right) \leq \delta \leq \gamma,
+$$
+with
+$$
+\epsilon = \sqrt{\delta^2 - \gamma^2 + \Omega^2}, \qquad
+\theta_{1,2} = r\sqrt{\tfrac{1}{2}\left(1 \pm \gamma\cos(2\phi)/\delta\right)}.
+$$
+The minimal gauge takes the lower bound. The first argument of the maximum dominates if and only if $\gamma^2 - \Omega^2 > \gamma^2\cos^2 2\phi$, i.e. $\Omega < \gamma \, \lvert \sin(2\phi) \rvert$:
 
-\theta_{1,2} = r \sqrt{\frac{1}{2} \left( 1 \pm \!\frac{\alpha}{\sqrt{g}}\right)} & \text{if} \quad g > \alpha^2 \\
-\delta = \lvert \alpha \rvert, \quad \Omega = \sqrt{\alpha^2 - g}, \quad ( \theta_1, \, \theta_2 ) = \begin{cases}
+| Condition                                         | $\delta$                             | $\epsilon$                               | $(\theta_1,\ \theta_2)$                                                                                                    |
+| ------------------------------------------------- | ------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| $\Omega < \gamma \, \lvert \sin(2\phi) \rvert$    | $\sqrt{\gamma^2 - \Omega^2}$         | $0$                                      | $r\sqrt{\tfrac12\left(1 \pm \gamma\cos(2\phi)/\delta\right)}$                                                              |
+| $\Omega \geq \gamma \, \lvert \sin(2\phi) \rvert$ | $\gamma \, \lvert \cos 2\phi \rvert$ | $\sqrt{\Omega^2 - \gamma^2\sin^2 2\phi}$ | $\left\{ \!\! \begin{array}{ll} (r, 0) & \text{if} \ \cos(2 \phi) \geq 0 \\ (0, r) & \text{otherwise} \end{array} \right.$ |
+In the last row, $\theta_1^2 - \theta_2^2 = r^2 \mathrm{sgn}(\cos 2\phi)$. At $\phi = \pi/4$ ($\delta = 0$), $\boldsymbol{\theta}$ can be any vector of length $r$, and $(r, 0)$ is chosen.
 
-(r, \, 0) & \text{if} \ \alpha \geq 0 \\
-
-(0, \, r) & \text{if} \ \alpha < 0
-\end{cases} & \text{otherwise}
-	\end{cases}
-	$$
-- maximal $\delta = \gamma$: $s_2$ is undamped, which gives the 2×2 block form of Li et al. In this case,	$$
-	\Omega = \sqrt{\gamma^2 - g}, \qquad
-\theta_{1,2} = r \sqrt{\frac{1}{2} \left( 1 \pm \frac{\alpha}{\gamma} \right)}.
-	$$
-The minimal gauge is preferred for constructing drift matrices used for the numerical propagation of GLEs, while the maximal gauge prescription is simplest for numerical optimization of the irreducible parameters that rely on chain rule calculations starting from the "conventional" variables.
 # Properties
 
-- Static friction $\eta_\mathrm{s} = r^2(\gamma-\alpha)/(\gamma^2-g)$
-- High-frequency tail $J(\omega) \sim r^2(\gamma+\alpha)/\omega$, or $J \sim \mathcal{O}(\omega^{-3})$ if $\alpha = -\gamma$
+- Static friction $\eta_\mathrm{s} = 2\gamma r^2 \sin^2\phi / \Omega^2$
+- High-frequency tail $J(\omega) \sim 2\gamma r^2\cos^2\phi/\omega$, or $J(\omega) \sim 2\gamma r^2 \Omega^2/\omega^3$ if $\phi = \pi/2$
 
 # Special cases
 
-| Case                                               | Parameters                                                                   |
-| -------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [[Debye auxiliary variable\|Debye]]                | $g = \alpha^2$                                                               |
-| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\alpha = 0$, $g = -\Omega^2 < 0$                                            |
-| [[Brownian oscillator auxiliary variables\|BO]]    | $\gamma = -\alpha$ (boundary $\gamma = \lvert\alpha\rvert$)                  |
-| Zero static friction                               | $\gamma = + \alpha$, $g < \gamma^2$ (boundary $\gamma = \lvert\alpha\rvert$) |
+| Case                                               | Parameters                                                                                                 |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [[Debye auxiliary variable\|Debye]]                | $\Omega = \gamma\, \lvert \sin 2\phi \rvert$, giving $K(t) = r^2 e^{-2\gamma\cos^2\!\phi\,\lvert t\rvert}$ |
+| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\phi = \pi/4$, $\Omega > \gamma$ (oscillation frequency $\sqrt{\Omega^2 - \gamma^2}$)                     |
+| [[Brownian oscillator auxiliary variables\|BO]]    | $\phi = \pi/2$                                                                                             |
+| Zero static friction                               | $\phi = 0$                                                                                                 |
 
-# Sources
+# Sources  
 
 - [[klippensteinGaussNewton2024|Klippenstein et al. (2024) A Gauss–Newton method for iterative optimization of memory kernels for generalized Langevin thermostats in coarse-grained molecular dynamics simulations]]
 - [[liComputingNonMarkovian2017|Li et al. (2017) Computing the non-Markovian coarse-grained interactions derived from the Mori–Zwanzig formalism in molecular systems]]
