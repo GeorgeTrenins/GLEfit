@@ -54,7 +54,7 @@ where
 - $\mathop{\mathrm{sinhc}}(z) = \sinh(z)/z \text{ if } z \neq 0 \text{ else } 1$
 - $\gamma$ is the mean decay rate of the kernel
 - $g > 0$ describes the overdamped regime
-- $g<0$ described the underdamped regime where $\cosh(t \sqrt{g}) = \cos(\bar{\omega} t)$ and $\mathop{\mathrm{sinhc}}(t \sqrt{g}) = \mathop{\mathrm{sin}}(\bar{\omega} t)$ where $\bar{\omega} = \sqrt{-g}$.
+- $g<0$ describes the underdamped regime where $\cosh(t \sqrt{g}) = \cos(\bar{\omega} t)$ and $\mathop{\mathrm{sinhc}}(t \sqrt{g}) = \mathop{\mathrm{sinc}}(\bar{\omega} t)$ where $\bar{\omega} = \sqrt{-g}$.
 - $g=0$ (critical): the square bracket becomes $1-\alpha\,\lvert t\rvert$
 
 # Admissibility and generality
@@ -81,7 +81,7 @@ $$
 \delta^2-\Omega^2 = g, \qquad
 \lvert\delta\rvert \leq \gamma .
 $$
-All solutions form a one-parameter family in $\delta$, with
+All solutions with positive "conventional" embedding parameters form a one-parameter family in $\delta$, with
 $$
 \max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right) \leq \delta \leq \gamma,
 $$
@@ -90,10 +90,10 @@ $$
 \theta_1 =  r\sqrt{\tfrac{1}{2}\left(1+\alpha/\delta\right)}, \qquad
 \theta_2 =  r\sqrt{\tfrac{1}{2}\left(1-\alpha/\delta\right)},
 $$
-If $\alpha = 0$ and $g \leq 0$, $\delta = 0$ is also allowed. Then $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi$.
+If $\alpha = 0$ and $g \leq 0$,  $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi$.
 
 Common gauge choices:
-- minimal $\delta$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates and the smallest possible oscillation frequency. In this case,	$$
+- minimal $\delta$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates and the smallest possible $\Omega$. In this case,	$$
 	\begin{cases}
 	\delta = \sqrt{g}, \quad
 
@@ -120,12 +120,12 @@ The minimal gauge is preferred for constructing drift matrices used for the nume
 
 # Special cases
 
-| Case                                               | Parameters                                  |
-| -------------------------------------------------- | ------------------------------------------- |
-| [[Debye auxiliary variable\|Debye]]                | $g = 0$, $\alpha = 0$ ($s_2$ decouples)     |
-| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\alpha = 0$, $g = -\Omega^2 < 0$           |
-| [[Brownian oscillator auxiliary variables\|BO]]    | $\alpha = -\gamma$ (boundary $\lambda = 0$) |
-| Zero static friction                               | $\alpha = +\gamma$ (boundary $\lambda = 0$) |
+| Case                                               | Parameters                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| [[Debye auxiliary variable\|Debye]]                | $g = \alpha^2$                                               |
+| [[Shifted Drude-Lorentz auxiliary variables\|SDL]] | $\alpha = 0$, $g = -\Omega^2 < 0$                            |
+| [[Brownian oscillator auxiliary variables\|BO]]    | $\gamma = -\alpha$ (boundary $\gamma = \lvert\alpha\rvert$)  |
+| Zero static friction                               | $\gamma = + \alpha$ (boundary $\gamma = \lvert\alpha\rvert$) |
 
 # Sources
 
