@@ -15,14 +15,15 @@ Agreed with the maintainer on 2026-11-04, following `docs/Generalised Brownian o
 
 - `grad_wrt_A` in `glefit.merit` must be fixed first (see "Tracked in other modules"). In the maximal gauge its α and γ gradients were wrong by up to 0.59 on values of size 0.2–2.7.
 - y is finite only strictly inside the admissible region. Inputs with γ² = max(g, α²), such as an exact Brownian-oscillator kernel, cannot be represented and should raise `ValueError`, as out-of-range inputs do today.
-- `sigma` and `threshold` lose their meaning. `tutorials/` and the `legacy_tests` fixtures pass `sigma`.
-- `optimize.py` writes `emb.A`, so it needs the minimal-gauge Ap from any embedder, block by block for `MultiEmbedder`.
+- The closed forms are rewritten in g as EMB-2 describes, which fixes EMB-2, and `kernel_hess` is added (EMB-16).
+- `sigma` and `threshold` are removed, and passing either raises an error (decided). `tutorials/` must be updated. The `legacy_tests` fixtures pass `sigma`, so their gen2x2 runs will fail.
+- A new embedder method returns the Ap used for propagation (decided). It returns `A` by default, gen2x2 overrides it with the minimal gauge, and `MultiEmbedder` assembles it block by block. `optimize.py` writes it to `optimized_Ap_matrix.json` in place of `emb.A`.
 - g has units of rate², and the fit Hessian takes absolute finite-difference steps in unmapped parameters (`glefit/merit/CLAUDE.md`). Expect less accurate Hessians than with Γ when rates are far from 1.
 - Fit paths, trajectory files and `test_gen2x2.py` in both test suites change.
 
 ### Resolved by EMB-20
 
-The maximal gauge has no branches, which removes EMB-1, EMB-5 and EMB-7. K and Λ are smooth in g, which removes EMB-8. γ(y) covers every strictly admissible γ, which removes EMB-9. Do not fix these separately. Mark them resolved in the EMB-20 commit.
+The maximal gauge has no branches, which removes EMB-1, EMB-5 and EMB-7. K and Λ are smooth in g, which removes EMB-8. γ(y) covers every strictly admissible γ, which removes EMB-9. The new closed forms fix EMB-2. Do not fix these separately. Mark them resolved in the EMB-20 commit, and EMB-16 in the commit that adds `kernel_hess`.
 
 **EMB-1 · open · The gen2x2 gradient for α is zero at α = 0 with Γ < 0.**
 `TwoAuxEmbedder.jac_conventional` sets `jac[3, 1] = np.sign(alpha)`, which is 0 at α = 0, so dAp/dα misses dδ/dα. The Hessian of K or Λ has its α off-diagonal entries at half their true value, and the Hessian of the distance loses the Gauss–Newton term in the whole α row and column. Every `from_harmonic` start lands here, as does any input with θ₁ = θ₂ and |δ| < |Ω|. An `EF` fit still reached its target in one trial, so this is easy to miss. Also listed in `glefit/merit/CLAUDE.md`.
@@ -39,8 +40,6 @@ The one-sided limits differ, and `spectrum_hess` returns their mean (`d2y_dGamma
 **EMB-9 · open · Stable gen2x2 inputs can be rejected.**
 The code requires γ > Softmax(Γ, Softabs(α)), which is stricter than the condition γ² ≥ max(g, α²), γ ≥ 0 in the docs. `TwoAuxEmbedder([1.0, 0.0], 0.1, 0.0, 2.0)` raises `ValueError` but succeeds with `sigma=50`. Input to `from_harmonic` and `from_matrix` is affected too. In `legacy_tests`, `test_param_conversion` catches this error, which hides it.
 
-### Wrong results
-
 **EMB-2 · open · gen2x2 kernels are wrong for integer times.**
 `kernel(t, nu=1)` silently truncates to integers and can return all zeros, and `nu=0` raises `UFuncTypeError`. The cause is `np.empty_like(t)` in `expcoscosh` and `expsincsinhc` (`glefit/utils/special.py`, also listed in `glefit/utils/CLAUDE.md`). Fix: evaluate `kernel_func` and `kernel_grad` as `Density.K` in `rpmdgle/sysbath/spectral/brownian.py` (rpgle-model-dynamics) does. Take |t|, branch once on the sign of the scalar g instead of masking each element, and build the result from whole-array NumPy expressions, which return floats for integer input. The hyperbolic branch becomes a sum of decaying exponentials, and `expm1` replaces the special case for small κt. With ω̄ = √−g and κ = √g:
 
@@ -51,6 +50,11 @@ g > 0:  K = r² e^{−(γ−κ)t} [(1 + e^{−2κt})/2 + (α/2κ) expm1(−2κt)
 ```
 
 These match the current `kernel_func` to 1e-16 for float times. `expcoscosh` and `expsincsinhc` are then unused in `src/`.
+
+**EMB-16 · open · `TwoAuxEmbedder.kernel_hess` is not implemented.**
+It raises `NotImplementedError`, which also affects `kernel(t, nu=2)` on any `MultiEmbedder` with a gen2x2 component. `test_gen2x2.py` marks it as a strict xfail. Fits do not use it. Agreed: add it right after EMB-20, in its own commit, by differentiating the closed forms of EMB-2 once more. K is then analytic in g, so there is no kink at g = 0.
+
+### Wrong results
 
 **EMB-3 · open · Integer arrays given to the parameter setters are truncated in the mapped space.**
 `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `_base.py` allocate their output with `np.zeros_like(input)`. After `primitive_params = [3, 1]` on a `prony` embedder, x is [1, 0] instead of [ln 3, 0], so x no longer matches p. Constructors convert to float, so configs are not affected.
@@ -67,7 +71,7 @@ After a component is edited directly, it returns old values until another getter
 `LowerBoundMapper` turns p = 0 into x = −inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. gen2x2 with θ = [0, 0] gives NaN parameters.
 
 **EMB-11 · open · `from_dict` ignores unknown keys.**
-A misspelled key, such as `sigmaa`, is accepted silently and the default applies. After EMB-20, configs that still pass `sigma` would also be accepted silently.
+A misspelled key, such as `sigmaa`, is accepted silently and the default applies.
 
 ### Limitations
 
@@ -84,9 +88,6 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 `np.float32` and `np.int64` parameters raise `TypeError`, for example `θ must be a float, got float32`.
 
 ### Missing features
-
-**EMB-16 · open · `TwoAuxEmbedder.kernel_hess` is not implemented.**
-It raises `NotImplementedError`, which also affects `kernel(t, nu=2)` on any `MultiEmbedder` with a gen2x2 component. `test_gen2x2.py` marks it as a strict xfail. Fits do not use it. After EMB-20 it follows from differentiating the closed forms of EMB-2 once more. K is then analytic in g, so there is no kink at g = 0.
 
 **EMB-17 · open · `MultiEmbedder` should reject a `mappers` argument.**
 Custom mappers are for debugging only, and the components do the mapping. `MultiEmbedder` currently stores a `mappers` argument but never uses it. It should raise an error instead.

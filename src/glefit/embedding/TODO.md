@@ -26,16 +26,13 @@ Plan agreed with the maintainer on 2026-11-03/04. `CODING_ASSIGNMENT.md` and `te
 ## Point 4: gen2x2 redesign (EMB-20)
 
 - The design is in `ISSUES.md` (EMB-20) and `docs/Generalised Brownian oscillator auxiliary variables.md`. Do not fix EMB-1, EMB-5, EMB-7, EMB-8 or EMB-9 separately.
-- Ask the maintainer before starting:
-  - whether EMB-2 is fixed inside EMB-20 or first, in the current code;
-  - whether `sigma` and `threshold` should raise an error or be ignored;
-  - whether `kernel_hess` (EMB-16) is part of EMB-20;
-  - how `optimize.py` gets the minimal-gauge Ap.
+- Decided on 2026-11-04: EMB-2 is fixed inside EMB-20; `sigma` and `threshold` raise an error; `kernel_hess` is added (EMB-16); a new embedder method returns the Ap for propagation.
 - Steps, one commit each:
-  1. `fix(merit)`: the θ column of `grad_wrt_A` (`glefit/merit/CLAUDE.md`). Failing test first, with a maximal-gauge Ap.
-  2. EMB-20 in `gen2x2.py`, with its tests: the `SympyReference` and `DriftMatrixReference` cases in `test_gen2x2.py` move to [r, α, g, y].
-  3. The minimal-gauge Ap in `optimized_Ap_matrix.json`.
-  4. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
+  1. `fix(merit)`: the θ column of `grad_wrt_A` (`glefit/merit/CLAUDE.md`). Failing test first, with a maximal-gauge Ap. Move `DriftMatrixReference` to `tests/conftest.py` first, so `tests/test_merit` can use it.
+  2. `feat(embedding)`: EMB-20 in `gen2x2.py`, including the closed forms of EMB-2 and the error for `sigma` and `threshold`. The `SympyReference` and `DriftMatrixReference` cases in `test_gen2x2.py` move to [r, α, g, y].
+  3. `feat(embedding)`: `kernel_hess` (EMB-16).
+  4. The method that returns the Ap for propagation, and `optimize.py` writing it to `optimized_Ap_matrix.json`.
+  5. Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
 - Pitfalls: d/dg of sinhc(t√g) is (cosh(t√g) − sinhc(t√g))/(2g), which cancels for small |g|t², so use a series there. y(γ) cancels near the boundary (absolute error 1.5e-11 at y = −5).
 
 ## Point 5: small bug fixes, one commit each, failing test first
