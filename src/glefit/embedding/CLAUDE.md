@@ -48,6 +48,6 @@ Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `co
 
 Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding` from the repository root.
 
-- The references are in `tests/test_embedding/conftest.py`: `SympyReference` (closed forms in SymPy) and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath). Do not use `glefit.utils.numderiv`, which is unreviewed.
+- The references are `SympyReference` (closed forms in SymPy) in `tests/test_embedding/conftest.py` and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath) in `tests/conftest.py`. Do not use `glefit.utils.numderiv`, which is unreviewed.
 - Include branch points and special values (α = 0, |α| = Γ, Γ = 0, zeros), which random values miss.
 - `DriftMatrixReference` rejects non-finite input, because `mpmath.expm` never returns for NaN.

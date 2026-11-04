@@ -123,8 +123,8 @@ class MemoryKernel(BaseArrayProperty):
         expA, grad_expA = self._grad_thetaT_expA_theta(A_aux, theta, time)
         
         # Fill in gradient components
-        ans[:,0,1:] = np.einsum('j,tjk->tk', theta, expA)
-        ans[:,1:,0] = -ans[:,0,1:]  # Skew-symmetric: gradient w.r.t. -θ is negative
+        ans[:,0,1:] = np.einsum('j,tjk->tk', theta, expA)    # exp(-tA)θ
+        ans[:,1:,0] = -np.einsum('tkj,j->tk', expA, theta)  # -exp(-tAᵀ)θ
         ans[:,1:,1:] = grad_expA
         
         return ans
@@ -186,6 +186,8 @@ class MemorySpectrum(BaseArrayProperty):
     def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of Λ(ω) w.r.t. full drift matrix: ∂Λ/∂A.
         
+        θᵀ in the top row and θ in the negated left column are differentiated
+        separately, as in MemoryKernel.grad_wrt_A.
         
         Args:
             A: Full drift matrix of shape (n+1, n+1). If None, uses current embedding.
@@ -216,7 +218,7 @@ class MemorySpectrum(BaseArrayProperty):
         M3 = lamda*M2                               # λᵢ²/(λᵢ² + ωⱼ²)
         w = np.einsum('...j,jk->...k', b*M3, Qinv)  # w = [θᵀA²(A² + ω²I)⁻¹]ᵀ
         ans[:,0,1:] = np.real(v)                    # ∂Λ/∂θ
-        ans[:,1:,0] = -ans[:,0,1:]                  # ∂Λ/∂(-θ) = -∂Λ/∂θ
+        ans[:,1:,0] = -np.real(u)                   # ∂Λ/∂(-θ) in the left column
         ans[:,1:,1:] = np.real(
             (theta - w)[:,:,None] * y[:,None,:] - u[:,:,None]*v[:,None,:]
         )                                           # ∂Λ/∂A_aux

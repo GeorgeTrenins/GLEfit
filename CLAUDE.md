@@ -8,7 +8,7 @@ GLEFit fits the parameters of an auxiliary-variable Markovian embedding so that 
 
 ## Commands
 
-There is no build step, linter, CI or pytest config. `glefit` is not installed: it is imported through `PYTHONPATH`. For interactive use, `source env.sh` sets that up and adds `bin/` (symlinks into `src/glefit/`) to `PATH`.
+There is no build step, linter or CI. The empty `pytest.ini` makes the repository root pytest's rootdir, so that `tests/conftest.py` is loaded however the tests are run. `glefit` is not installed: it is imported through `PYTHONPATH`. For interactive use, `source env.sh` sets that up and adds `bin/` (symlinks into `src/glefit/`) to `PATH`.
 
 Use the `tools` conda environment, not the `glefit` environment defined in `environment.yml`.
 

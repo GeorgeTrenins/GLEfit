@@ -13,7 +13,7 @@ Every defect was reproduced by running the code (`src/` is unchanged from `85e5b
 **EMB-20 · open · Reparametrise gen2x2 as described in the docs.**
 Agreed with the maintainer on 2026-11-04, following `docs/Generalised Brownian oscillator auxiliary variables.md`. The primitive parameters become [r, α, g, y]. g = δ² − Ω² replaces Γ, and γ(α, g, y) from the docs replaces λ + Softmax(Γ, Softabs(α)). Its inverse is y = ½ ln[(γ² − g)(γ² − α²)]. The drift matrix uses the maximal gauge δ = γ, where θ₁, θ₂ and Ω are positive and smooth in p, and `conventional_params` and the trajectory file report this gauge. Only `optimized_Ap_matrix.json` uses the minimal gauge, with θ = (r, 0) at α = 0 as in the docs. Consequences:
 
-- `grad_wrt_A` in `glefit.merit` must be fixed first (see "Tracked in other modules"). In the maximal gauge its α and γ gradients were wrong by up to 0.59 on values of size 0.2–2.7.
+- It relies on the θ-column fix of `grad_wrt_A` in `glefit.merit`. Before that fix, the α and γ gradients in the maximal gauge were wrong by up to 0.59 on values of size 0.2–2.7.
 - y is finite only strictly inside the admissible region. Inputs with γ² = max(g, α²), such as an exact Brownian-oscillator kernel, cannot be represented and should raise `ValueError`, as out-of-range inputs do today.
 - The closed forms are rewritten in g as EMB-2 describes, which fixes EMB-2, and `kernel_hess` is added (EMB-16).
 - `sigma` and `threshold` are removed, and passing either raises an error (decided). `tutorials/` must be updated. The `legacy_tests` fixtures pass `sigma`, so their gen2x2 runs will fail.
@@ -112,6 +112,5 @@ The gen2x2 items are rewritten with EMB-20.
 
 These affect embedders, but the fix belongs elsewhere:
 
-- `grad_wrt_A` gives wrong θ gradients for a non-symmetric A with more than one θ entry. gen2x2 avoids this today only because the minimal gauge has Ω = 0 or a zero θ entry. The maximal gauge of EMB-20 has neither, so fix this first. See `glefit/merit/CLAUDE.md`.
 - `MemorySpectrum` is wrong where A cannot be diagonalized. Today that is gen2x2 at Γ = 0 with α ≠ 0. After EMB-20 it is g = 0 for every α, where A = γ[[2, 1], [−1, 0]]: the value was off by 0.28 at g = 0, but only by 2e-11 at g = 1e-12. The closed form and `MemoryKernel` are correct. See `glefit/merit/CLAUDE.md`.
 - `glefit.utils.numderiv` builds the Hessian used in fits, crashes with `max_step` on NumPy 2, and has not been reviewed. See `glefit/utils/CLAUDE.md`.

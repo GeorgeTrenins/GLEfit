@@ -62,7 +62,6 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 ### Wrong results
 
-- **θ gradients are wrong for a general A.** Both `grad_wrt_A` methods set `ans[:,1:,0] = -ans[:,0,1:]`, which is only valid when A is symmetric or θ uses a single entry. With a general 3×3 A, errors reached 0.59 on gradients of size 2.9, while the entries for A itself were correct. Today's embedders hide this: `pronycos` uses one θ entry, and `gen2x2` always has either Ω = 0 or one θ entry equal to 0. **Any new embedder with a non-symmetric A and more than one θ entry gets wrong gradients with no error.** The agreed gen2x2 redesign (EMB-20 in `ISSUES.md`) is such a case. Fix: set `ans[:,1:,0]` to `-exp(-tAᵀ)θ` in `MemoryKernel` and to `-np.real(u)` in `MemorySpectrum`. Both matched numerical derivatives to about 1e-12.
 - **`gen2x2` at α = 0 with Γ < 0.** A bug in the embedder's `jac_conventional` makes the gradient for α equal to 0, and the Hessian entries linking α to the other parameters come out at half their true value. Every `from_harmonic` start is at this point. The fix belongs in `glefit/embedding/gen2x2.py`.
 - **`MemorySpectrum` at repeated eigenvalues that cannot be diagonalized.** This happens in `gen2x2` at Γ = 0 with α ≠ 0 (|δ| = |Ω|). The value was wrong by 0.5 and the gradient by 1.7 in one check, and the error is still about 2e-9 at Γ = 1e-8. Ordinary repeated eigenvalues, such as two identical components, are fine. `MemoryKernel` is not affected. Solving (A² + ω²)y = θ at each frequency instead gave the correct value.
 - **`BaseScalarProperty.gradient(x)` uses the wrong point.** It calls `self.value`, which ignores `x`, so it returned 3.54 where the true value was 11.46. Use `self.function(x=x)`. `both(x)` and `all(x)` are correct.
@@ -89,9 +88,9 @@ No scalar property exists yet, so the last two cannot be reached today.
 
 ### Test gaps
 
-- `tests/test_merit/test_properties.py` has no direct tests of `distance`, `both`, `all`, `hessian`, `weight`, `from_dict`, or anything scalar. `tests/test_optimize` reaches `all()`, but only checks that runs finish. A one-off check found the array versions correct and consistent, including with per-point weights.
-- Gradient tests use only embedders that hide the θ bug. `test_spectrum_generic_A` uses a general matrix, but checks only the value.
-- `gen2x2` appears only in spectrum tests, at one ordinary point.
+- `tests/test_merit/test_properties.py` tests only `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries.
+- `legacy_tests/test_merit/test_properties.py` has no direct tests of `distance`, `both`, `all`, `hessian`, `weight`, `from_dict`, or anything scalar. `legacy_tests/test_optimize` reaches `all()`, but only checks that runs finish. A one-off check found the array versions correct and consistent, including with per-point weights.
+- In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
 
 ### Outdated text in the code
 
@@ -108,7 +107,7 @@ No scalar property exists yet, so the last two cannot be reached today.
 
 1. Subclass `BaseArrayProperty` in `properties.py`.
 2. Implement `function(x=None)`. For a trial `x`, build the matrix with `emb.compute_drift_matrix(emb._inverse_map(x))`.
-3. Implement `grad_wrt_A(A=None)`. Row 0 and column 0 of `Ap` need separate derivatives, so do not copy the current θ code.
+3. Implement `grad_wrt_A(A=None)`. Differentiate θᵀ in row 0 and θ in the negated column 0 of `Ap` separately, as the existing properties do. The two differ unless A is symmetric.
 4. Import the class in `__init__.py` and add it to `PROPERTY_MAP`. No other registration is needed: the config validator checks only `type` and `parameters`.
 
 ### Other changes
@@ -129,7 +128,7 @@ PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 
 A new or changed property or metric should have tests that:
 
-- compare `grad_wrt_params` against `glefit.utils.numderiv.jacobian` applied to `function`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders
+- compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: it is unreviewed
 - compare `gradient` and `hessian` against numerical derivatives of the distance, with non-uniform weights
 - compare against closed forms where they exist, for example `emb.spectrum(grid, nu=1, mapped=True)`
 - include special values, such as repeated eigenvalues and points where the embedder switches branch
