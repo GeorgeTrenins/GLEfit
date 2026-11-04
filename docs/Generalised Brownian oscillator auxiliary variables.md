@@ -43,32 +43,34 @@ g \equiv \delta^2-\Omega^2,
 $$
 the corresponding [[Memory kernel|memory kernel]] is
 $$
-K(t) = r^2 e^{-\gamma\lvert t\rvert}\left[\cos(\bar\omega t) - \frac{\alpha}{\bar\omega}\sin(\bar\omega\lvert t\rvert)\right],
-\qquad
-\bar\omega = \sqrt{-g} = \sqrt{\Omega^2-\delta^2}
+K(t) = r^2 e^{-\gamma\lvert t\rvert}\left[
+\cosh(t \sqrt{g}) - \alpha\, \lvert t \rvert \mathop{\mathrm{sinhc}}(t \sqrt{g})\right],
 $$
 and the [[Spectral density|spectral density]] is
 $$
 J(\omega) = r^2\omega\,\frac{(\gamma+\alpha)\,\omega^2 + (\gamma-\alpha)(\gamma^2-g)}{\gamma^4 + 2\gamma^2(\omega^2-g) + (\omega^2+g)^2}
 $$
 where
+- $\mathop{\mathrm{sinhc}}(z) = \sinh(z)/z \text{ if } z \neq 0 \text{ else } 1$
 - $\gamma$ is the mean decay rate of the kernel
-- $g<0$ (underdamped): the kernel is a damped oscillation at frequency $\bar\omega$
-- $g>0$ (overdamped): $\bar\omega$ is imaginary and $\cos$, $\sin$ become $\cosh$, $\sinh$ of $\Gamma t$ with $\Gamma = \sqrt{g}$, so the kernel is a sum of two exponentials with decay rates $\gamma\pm\Gamma$
-- $g=0$ (critical): the bracket becomes $1-\alpha\lvert t\rvert$
-- $\alpha$ sets the asymmetry between modes: $K'(0) = -r^2(\gamma+\alpha)$
+- $g > 0$ describes the overdamped regime
+- $g<0$ described the underdamped regime where $\cosh(t \sqrt{g}) = \cos(\bar{\omega} t)$ and $\mathop{\mathrm{sinhc}}(t \sqrt{g}) = \mathop{\mathrm{sin}}(\bar{\omega} t)$ where $\bar{\omega} = \sqrt{-g}$.
+- $g=0$ (critical): the square bracket becomes $1-\alpha\,\lvert t\rvert$
 
 # Admissibility and generality
 
 The embedding is realisable if and only if
 $$
-\gamma \geq \max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right),
+\gamma^2 \geq \max(g, \alpha^2) \ \land \ \gamma \geq 0
 $$
-which is also the condition for $K(t)$ to be stable and $J(\omega)\geq 0$. The embedding covers **all** two-mode kernels with a non-negative spectral density.
-
-
-> [!HINT] Unconstrained fitting
-> Define $\gamma = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert) + \lambda$ and fit for $\lambda \geq 0$, $r>0$, $g\in\mathbb{R}$, $\alpha\in\mathbb{R}$.
+which is also the condition for $K(t)$ to be stable and $J(\omega)\geq 0$. The embedding covers **all** two-mode kernels with a non-negative spectral density. We can convert this to an unconstrained optimization problem by introducing a variable $y \in \mathbb{R}$ such that 
+$$
+\gamma = \sqrt{ \frac{g+\alpha^2}{2} + \sqrt{
+	{\left(
+		\frac{g-\alpha^2}{2}
+	\right)}^2 + \mathrm{e}^{2 y} 
+}}
+$$
 
 # Inverse map
 
@@ -81,26 +83,36 @@ $$
 $$
 All solutions form a one-parameter family in $\delta$, with
 $$
-\max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right) \leq \lvert\delta\rvert \leq \gamma,
+\max\!\left(\sqrt{\max(g,0)},\ \lvert\alpha\rvert\right) \leq \delta \leq \gamma,
 $$
 $$
-\Omega = \pm\sqrt{\delta^2-g}, \qquad
-\theta_1 = \pm\, r\sqrt{\tfrac{1}{2}\left(1+\alpha/\delta\right)}, \qquad
-\theta_2 = \pm\, r\sqrt{\tfrac{1}{2}\left(1-\alpha/\delta\right)},
+\Omega = \sqrt{\delta^2-g}, \qquad
+\theta_1 =  r\sqrt{\tfrac{1}{2}\left(1+\alpha/\delta\right)}, \qquad
+\theta_2 =  r\sqrt{\tfrac{1}{2}\left(1-\alpha/\delta\right)},
 $$
-with all signs independent. If $\alpha = 0$ and $g \leq 0$, $\delta = 0$ is also allowed. Then $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi$.
+If $\alpha = 0$ and $g \leq 0$, $\delta = 0$ is also allowed. Then $\theta_1 = r\cos\phi$, $\theta_2 = r\sin\phi$ for any $\phi$.
 
 Common gauge choices:
-- minimal $\lvert\delta\rvert$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates (table below)
-- maximal $\delta = \gamma$: $s_2$ is undamped, which gives the 2×2 block form of Li et al.
+- minimal $\delta$, i.e. $\delta = \max(\sqrt{\max(g,0)}, \lvert\alpha\rvert)$: the two auxiliary variables have the most similar damping rates and the smallest possible oscillation frequency. In this case,	$$
+	\begin{cases}
+	\delta = \sqrt{g}, \quad
 
-Choosing the solution that minimises $\lvert\delta\rvert$ and $\lvert\Omega\rvert$:
+\Omega = 0, \quad
 
-| Condition | $\delta$ | $\Omega$ | $(\theta_1,\ \theta_2)$ |
-|---|---|---|---|
-| $g>0$ and $\lvert\alpha\rvert < \Gamma$ | $\Gamma$ | $0$ | $r\left(\sqrt{\tfrac{1}{2}(1+\alpha/\Gamma)},\ \sqrt{\tfrac{1}{2}(1-\alpha/\Gamma)}\right)$ |
-| otherwise | $\lvert\alpha\rvert$ | $\sqrt{\alpha^2-g}$ | $(r,\,0)$ if $\alpha\geq 0$, else $(0,\,r)$ |
+\theta_{1,2} = r \sqrt{\frac{1}{2} \left( 1 \pm \!\frac{\alpha}{\sqrt{g}}\right)} & \text{if} \quad g > \alpha^2 \\
+\delta = \lvert \alpha \rvert, \quad \Omega = \sqrt{\alpha^2 - g}, \quad ( \theta_1, \, \theta_2 ) = \begin{cases}
 
+(r, \, 0) & \text{if} \ \alpha \geq 0 \\
+
+(0, \, r) & \text{if} \ \alpha < 0
+\end{cases} & \text{otherwise}
+	\end{cases}
+	$$
+- maximal $\delta = \gamma$: $s_2$ is undamped, which gives the 2×2 block form of Li et al. In this case,	$$
+	\Omega = \sqrt{\gamma^2 - g}, \qquad
+\theta_{1,2} = r \sqrt{\frac{1}{2} \left( 1 \pm \frac{\alpha}{\gamma} \right)}.
+	$$
+The minimal gauge is preferred for constructing drift matrices used for the numerical propagation of GLEs, while the maximal gauge prescription is simplest for numerical optimization of the irreducible parameters that rely on chain rule calculations starting from the "conventional" variables.
 # Properties
 
 - Static friction $\eta_\mathrm{s} = r^2(\gamma-\alpha)/(\gamma^2-g)$
