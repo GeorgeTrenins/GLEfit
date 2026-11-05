@@ -32,4 +32,4 @@ If sources conflict, or it is unclear whether behaviour is a bug or intended: st
 - New tests go in `tests/`, following `tests/CLAUDE.md`.
 - `legacy_tests/`: do not edit. Run before and after every refactor; report any change in pass/fail status. Port valuable cases into `tests/` in condensed form.
 - Keep the suite reviewable: every test must be able to fail for a plausible bug. No tautological tests (testing mocks, constants, the language/library, or re-implementing the code under test).
-- Commands: `pytest tests`, `pytest legacy_tests`
+- Commands: `pytest tests`, `pytest --continue-on-collection-errors legacy_tests`

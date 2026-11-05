@@ -9,7 +9,7 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 - Say "derivatives via chain rule w.r.t. drift matrix", never "fitting path".
 - The maintainer edits files between steps. Re-read a file before editing it.
 - Python runs in the `tools` conda env with `PYTHONPATH=src`. `conda run` does not forward stdin, so put scripts in the scratchpad instead of heredocs.
-- Run `legacy_tests` from the scratchpad directory: `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
+- Run `legacy_tests` from the scratchpad directory, with `--continue-on-collection-errors`, since `test_utils/test_special.py` cannot be imported and would otherwise stop the whole run. `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
 - Do not use `glefit.utils.numderiv` as a test reference (unreviewed, see Later). Use SymPy, or the mpmath references in `tests/conftest.py` and `tests/test_embedding/conftest.py`.
 - Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run each new test alone, and the suite in random order with a few seeds (`--randomly-seed=N`): `pytest-randomly` is in `tools` since 2026-11-05 and shuffles every run (`-p no:randomly` turns it off). Nothing else may be installed.
 
@@ -19,56 +19,22 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
-- `legacy_tests/`: 113 pass, 51 fail (known). `test_gen2x2.py::test_matrix_rotation` fails since `rotate_matrix` was removed (EMB-22), as the maintainer accepted. The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
+- `legacy_tests/`: 79 pass, 51 fail and 1 file fails to import (all known). `test_utils/test_special.py` cannot be imported since the unused special functions were removed, as the maintainer accepted. `test_gen2x2.py::test_matrix_rotation` fails since `rotate_matrix` was removed (EMB-22), as the maintainer accepted. The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
 - Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
 - The gen2x2 note in `docs/` was rewritten in `b05a032`, after the [r, α, g, y] code of `290c7d3`, and extended on 2026-11-05 (a generality proof and remarks). It uses (r, γ, Ω, φ), with α = γ cos 2φ and g = γ² − Ω², and has no y. Its Ω is the irreducible frequency. The drift-matrix entry that it called ε, and the code `Omega`, is ζ (`zeta`) since `3985b1b`.
 
-## Point 4: gen2x2 redesign (EMB-20)
+## Point 4: gen2x2 redesign (EMB-20): done
 
-Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) 4 (`4a5b5f3`, EMB-16), 5 (`4755501`) and 6 (the `optimize.py` commit, which completed EMB-20) are done. In the next commit, replace "the `optimize.py` commit" in `ISSUES.md` (EMB-20) by its hash.
+Done on 2026-11-05: `3985b1b` (the note's ε renamed ζ), `9d29a67` (fit (r, γ, Ω, φ)), `9291892` (`from_matrix` from rotation invariants, EMB-22), `4a5b5f3` (`kernel_hess`, EMB-16), `4755501` (`propagation_matrix`), `4f7c107` (`optimize.py` writes it), and the commit that removed the unused special functions from `utils/special.py`. The note was checked in `05_notebooks/gen2x2_note_verification/` (see its README).
 
-7. Remove what is unused in `utils/special.py` (all but `sinc`). Ask first: this breaks the import of `legacy_tests/test_utils/test_special.py` (34 passing tests).
-
-`from_harmonic` stays as it is, apart from the key `zeta`.
-
-Decisions (2026-11-04/05):
-- Fit the note's (r, γ, Ω, φ) as primitive parameters, with the drift matrix in the maximal gauge, Ap = [[0, r cos φ, r sin φ], [−r cos φ, 2γ, Ω], [−r sin φ, −Ω, 0]]. This replaces [r, α, g, y] from `290c7d3`, including its plan for `kernel_hess` in (α, g, y).
-- Constrain only γ (`LowerBoundMapper`). r, Ω and φ use `IdentityMapper`. K and Λ depend only on r², Ω² and cos 2φ, so every real (r, Ω, φ) with γ > 0 is a valid embedding.
-- Reject r = 0 as a starting value. Allow Ω = 0.
-- Spectrum fits that stall near Ω ≈ 0 are a `glefit.merit` problem (see Later), not a reason to constrain Ω.
-- Kept from 2026-11-04:
-  - `sigma` and `threshold` raise `TypeError`.
-  - EMB-2 stays fixed: integer times give float results.
-  - Add `kernel_hess` (EMB-16).
-  - Add a method that returns the minimal-gauge Ap (the note's table) for propagation. `MultiEmbedder` assembles it block by block, and `optimize.py` writes it to `optimized_Ap_matrix.json` instead of `emb.A`.
-  - Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
-  - Do not fix EMB-1, -5, -7, -8 or -9 separately; the redesign resolves them.
-- Settled on 2026-11-05 (the steps above): keep the conventional parameters and rename ε to ζ; keep `from_matrix(theta, A)` and keep rejecting an indefinite symmetric part (EMB-21, low priority); remove `rotate_matrix`; name the new method `propagation_matrix()`; leave Λ undefined at Ω = ω = 0.
-
-Verified on 2026-11-04/05, with no errors found in the note. The scripts and results are in `05_notebooks/gen2x2_note_verification/` (see its README).
-- **SymPy (46 checks):** K and J of eq. (1); eq. (2); the maximal gauge; the properties; the Debye, SDL and BO cases against their notes; the minimal-gauge table.
-- **mpmath at 50 digits (18 checks):**
-  - 315 embeddings (1) give the same K and Λ after (3) and the maximal gauge.
-  - The box r, γ, Ω ≥ 0, 0 ≤ φ ≤ π/2 is exactly the set of bounded two-mode kernels with J ≥ 0.
-  - The minimal gauge and the whole gauge family keep K and Λ.
-- **Planted errors:** all 20 were caught.
-- **Fit experiment:** see Later.
-
-Lessons for the new code:
-- For G = γ² − Ω², take the G-derivative of sinhc(t√G) from `sinc` for √G·t ≤ 1 and from decaying exponentials above, as `290c7d3` does. For imaginary z, s(z) + s″(z) cancels by a factor of about |z|/2, which cost 3e-11 at √|G|·t = 660.
-- Mutation testing of step 2: an unfactored Debye amplitude happens to be exactly 0 at φ = 0.4 but −1e-16 at φ = 0.3, so the Debye-limit tests use φ = 0.3 and compare element by element. The slow rate written as γ − √G is wrong by only 1e-12 at Ω/γ = 10⁻², so the long-time test uses 10⁻³. Two mutants survive and are harmless in double precision: the series/exponential switch at √G·t = 10 instead of 1, and G as γ² − Ω² instead of a product.
-- The minimal-gauge table assumes r, Ω ≥ 0. With unconstrained parameters, use |Ω| or Ω² in the row condition; a negative r only flips the sign of θ. Any real φ works.
-- Starting exactly at r = 0, Ω = 0 or φ = 0 stalls that parameter, because K is even in it there, so its derivative vanishes. In the experiment:
-  - Ω = 0 stopped at a false convergence (residual 0.37).
-  - φ = 0 escaped through roundoff after 50 steps.
-  - r = 0 stopped at step 0.
-- Near (not on) the Debye limit, the small amplitude a₋ or a₊ has a relative error of about ε/(distance to the limit), from the rounding of sin 2φ alone, whatever the formula (5.8e-11 at a distance of 1e-6). Factoring only makes it exactly zero on the limit. Tests of rounding there must be on the limit, with element-wise tolerances.
-- The minimal gauge jumps from θ = (r, 0) to (0, r) across φ = π/4 when Ω > γ. The kernel is the same on both sides, as the note now says.
-- Leave `tutorials/` alone for now.
+Lessons that still apply:
+- Near (not on) the Debye limit Ω = γ|sin 2φ|, the small amplitude a₋ or a₊ has a relative error of about ε/(distance to the limit), from the rounding of sin 2φ alone, whatever the formula (5.8e-11 at a distance of 1e-6). Test rounding on the limit itself, with element-wise tolerances.
+- Starting exactly at r = 0, Ω = 0 or φ = 0 stalls that parameter, because K is even in it there, so its derivative vanishes. In the fit experiment, Ω = 0 stopped at a false convergence (residual 0.37), φ = 0 escaped through roundoff after 50 steps, and r = 0 stopped at step 0.
+- `tutorials/` still pass `sigma` and `Omega` to gen2x2. Leave them alone for now.
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
-Deferred until point 4 is done (decided 2026-11-04).
+Next. Start here.
 
 - EMB-4: `MultiEmbedder.to_primitive` uses `emb.nparams` instead of `emb.nparam` (AttributeError).
 - EMB-3: integer input to the setters.
@@ -77,7 +43,7 @@ Deferred until point 4 is done (decided 2026-11-04).
 
 ## Later
 
-- EMB-19, docstring corrections (pure refactor). The gen2x2 items go with EMB-20.
+- EMB-19, docstring corrections (pure refactor).
 - Structural simplification of `_base.py` and `multi.py` (not planned yet).
 - Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
 - Undecided behaviour; ask before changing: EMB-10 and EMB-11.

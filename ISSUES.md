@@ -10,10 +10,10 @@ Every defect was reproduced by running the code (`src/` is unchanged from `85e5b
 
 ### Agreed redesign
 
-**EMB-20 · resolved in the `optimize.py` commit · Reparametrise gen2x2 as described in the docs.**
+**EMB-20 · resolved in `4f7c107` · Reparametrise gen2x2 as described in the docs.**
 Agreed with the maintainer on 2026-11-04/05, following `docs/Generalised Brownian oscillator auxiliary variables.md`. `290c7d3` replaced λ + Softmax(Γ, Softabs(α)) with the primitive parameters [r, α, g, y], where g = δ² − ζ² and γ(α, g, y) covers every strictly admissible γ. `9d29a67` replaced these with the note's (r, γ, Ω, φ). `to_primitive` is eq. (3) of the note, only γ is constrained, and the drift matrix uses the maximal gauge δ = γ, where θ = r(cos φ, sin φ) and ζ = Ω. `conventional_params` and the trajectory file report this gauge. Only `optimized_Ap_matrix.json` should use the minimal gauge, with θ = (r, 0) at cos 2φ = 0 as in the docs.
 
-`from_matrix` computes (r, γ, Ω, φ) from rotation invariants of θ and A since `9291892` (EMB-22), `kernel_hess` exists since `4a5b5f3` (EMB-16), and `propagation_matrix()` returns the drift matrix for propagation since `4755501`: the drift matrix by default, the minimal gauge for gen2x2, and the components' matrices assembled block by block for `MultiEmbedder`. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json` since the `optimize.py` commit, which completed EMB-20.
+`from_matrix` computes (r, γ, Ω, φ) from rotation invariants of θ and A since `9291892` (EMB-22), `kernel_hess` exists since `4a5b5f3` (EMB-16), and `propagation_matrix()` returns the drift matrix for propagation since `4755501`: the drift matrix by default, the minimal gauge for gen2x2, and the components' matrices assembled block by block for `MultiEmbedder`. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json` since `4f7c107`, which completed EMB-20.
 
 Consequences:
 
@@ -51,7 +51,7 @@ g = 0:  K = r² e^{−γt} (1 − αt)
 g > 0:  K = r² e^{−(γ−κ)t} [(1 + e^{−2κt})/2 + (α/2κ) expm1(−2κt)]
 ```
 
-These matched the old `kernel_func` to 1e-16 for float times. The g-derivative uses `sinc` from `glefit.utils.special` for √g·t ≤ 1 and decaying exponentials above. `expcoscosh` and `expsincsinhc` are now unused in `src/`.
+These matched the old `kernel_func` to 1e-16 for float times. The g-derivative uses `sinc` from `glefit.utils.special` for √g·t ≤ 1 and decaying exponentials above. `expcoscosh` and `expsincsinhc` were then unused in `src/`, and were removed later with the other unused special functions.
 
 **EMB-16 · resolved in `4a5b5f3` · `TwoAuxEmbedder.kernel_hess` is not implemented.**
 It raised `NotImplementedError`, which also affected `kernel(t, nu=2)` on any `MultiEmbedder` with a gen2x2 component. `test_gen2x2.py` marked it as a strict xfail. Fits do not use it. It was added by differentiating both forms of the kernel once more: the trigonometric form in G = γ² − Ω² and the two decaying exponentials. K is analytic in G, so there is no kink at G = 0. With z = t√(−G) and s = sinc, ∂²sinhc(t√G)/∂G² = (t⁴/32)[s + 2s″ + s⁗](z).

@@ -28,7 +28,7 @@ Open issues are listed in `ISSUES.md`.
 
 `tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 318 passing tests, `tests/test_merit` has 8 `tests/test_utils` has 17, and `tests/test_optimize.py` checks the file that `optimize.py` writes. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
-`legacy_tests/` is the original suite and must not be edited. Since the gen2x2 reparametrisation (EMB-20), 113 tests pass and 51 fail. These are known failures, caused by tests lagging the code:
+`legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py` cannot be imported, because the special functions it tests were removed once nothing used them, and without the flag pytest stops at collection and runs nothing. Since the gen2x2 reparametrisation (EMB-20), 79 tests pass, 51 fail and that one file fails to import. The failures are known, caused by tests lagging the code:
 
 - `test_config/test_config_handler.py` (27): written for the config schema in `e1dc6d0` (`merit_function.property`, `data_ref`, `optimization.optimizer`, `max_steps`, `project.*`) and for the checkpoint methods that `7da42a9` commented out. For the current schema, read `legacy_tests/test_optimize/fixtures/` and `tutorials/fixtures/`.
 - `test_embedding/test_multi.py` (3): expects the drift-matrix signs from before the fix in `e2299f6`. `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs.
@@ -36,7 +36,7 @@ Open issues are listed in `ISSUES.md`.
 - `test_embedding/test_gen2x2.py` (13), `test_merit/test_properties.py::TestSpectrum` (4) and `test_optimize/test_optimize.py` (2, the `gen2x2` and `multi` fixtures): they pass `sigma` to `gen2x2`, which raises `TypeError` since EMB-20.
 - `test_embedding/test_gen2x2.py::test_matrix_rotation` (1): calls `TwoAuxEmbedder.rotate_matrix`, which was removed when `from_matrix` switched to rotation invariants (EMB-22).
 
-`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory, so run `legacy_tests` from a scratch directory.
+`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory, so run `legacy_tests` from a scratch directory: `PYTHONPATH=<repo>/src python -m pytest --continue-on-collection-errors <repo>/legacy_tests`.
 
 ## Architecture
 
