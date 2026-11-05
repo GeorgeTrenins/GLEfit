@@ -69,8 +69,8 @@ It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 
 ### Needs a decision
 
-**EMB-6 · open · `MultiEmbedder.grad_A` can be out of date.**
-After a component is edited directly, it returns old values until another getter runs. Either fix it, or document direct edits of components as unsupported (the conventions already say to set values on the `MultiEmbedder`).
+**EMB-6 · resolved in the EMB-6 commit · `MultiEmbedder.grad_A` can be out of date.**
+After a component is edited directly, it returns old values until another getter runs. Either fix it, or document direct edits of components as unsupported (the conventions already say to set values on the `MultiEmbedder`). Decided on 2026-11-05: fix it. `drift_matrix_gradient` now reads `self.x`, which `MultiEmbedder` gathers from its components, instead of the cached `_x`.
 
 **EMB-10 · open · Zero starting values crash fits.**
 `LowerBoundMapper` turns p = 0 into x = −inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. gen2x2 with θ = [0, 0] gives NaN parameters.
@@ -94,7 +94,7 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 
 ### Missing features
 
-**EMB-17 · resolved in the EMB-17 commit · `MultiEmbedder` should reject a `mappers` argument.**
+**EMB-17 · resolved in `baba304` · `MultiEmbedder` should reject a `mappers` argument.**
 Custom mappers are for debugging only, and the components do the mapping. `MultiEmbedder` currently stores a `mappers` argument but never uses it. It should raise an error instead.
 
 **EMB-18 · open · `from_matrix` exists only for gen2x2.**

@@ -338,7 +338,7 @@ class BaseEmbedder(ABC):
         -----
         This is also accessible through the alias 'grad_A'.
         """
-        return self.drift_matrix_x_grad(self._x)
+        return self.drift_matrix_x_grad(self.x)
 
     # Alias
     grad_A = drift_matrix_gradient

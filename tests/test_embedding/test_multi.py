@@ -173,6 +173,15 @@ def test_kernel_hessian_is_block_diagonal_in_the_components(emb, components):
     assert_array_equal(actual, expected)
 
 
+def test_grad_A_follows_a_component_edited_directly(emb, components):
+    components[0].primitive_params = [2.0, 1.5]
+    expected = MultiEmbedder(components).grad_A
+
+    actual = emb.grad_A
+
+    assert_allclose(actual, expected, rtol=RTOL)
+
+
 def test_conventional_params_concatenate_the_components(emb):
     expected = [1.3, 0.7, 1.2, 0.5, 2.0, 2.0, 1.5, 0.9, 0.4, 2.0]
 
