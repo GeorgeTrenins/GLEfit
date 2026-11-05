@@ -80,7 +80,7 @@ def assert_close(actual, expected, rtol=RTOL):
                     rtol=rtol, atol=rtol)
 
 
-@pytest.mark.parametrize("nu", [0, 1], ids=["value", "gradient"])
+@pytest.mark.parametrize("nu", [0, 1, 2], ids=["value", "gradient", "hessian"])
 @pytest.mark.parametrize("params", list(KERNEL_CASES.values()),
                          ids=list(KERNEL_CASES))
 def test_kernel_matches_closed_form(reference, params, nu):
@@ -111,17 +111,7 @@ def test_spectrum_at_omega_zero_matches_closed_form_away_from_zero_frequency(
     assert_close(actual, reference.spectrum(OMEGA_ZERO, FREQ[1:], nu=nu))
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=True,
-                   reason="TwoAuxEmbedder.kernel_hess is not implemented")
-def test_kernel_hessian_matches_closed_form(reference):
-    params = CASES["underdamped"]
-
-    actual = embedder_at(params).kernel(TIME, nu=2)
-
-    assert_close(actual, reference.kernel(params, TIME, nu=2))
-
-
-@pytest.mark.parametrize("nu", [0, 1], ids=["value", "gradient"])
+@pytest.mark.parametrize("nu", [0, 1, 2], ids=["value", "gradient", "hessian"])
 def test_kernel_at_long_times_with_omega_much_below_gamma_matches_closed_form(
         reference, nu):
     # The slow rate Ω²/(γ + √G) ≈ 7.5e-7 keeps K alive while √G·t reaches
@@ -176,7 +166,7 @@ def test_kernel_at_omega_zero_tends_to_a_constant():
     assert_allclose(actual, [r**2 * np.sin(phi)**2], rtol=RTOL)
 
 
-@pytest.mark.parametrize("nu", [0, 1], ids=["value", "gradient"])
+@pytest.mark.parametrize("nu", [0, 1, 2], ids=["value", "gradient", "hessian"])
 def test_kernel_of_integer_times_equals_kernel_of_float_times(nu):
     # √G = 0.6, so the kernel changes form between t = 1 and t = 2
     emb = embedder_at(CASES["overdamped"])
@@ -188,9 +178,9 @@ def test_kernel_of_integer_times_equals_kernel_of_float_times(nu):
 
 
 @pytest.mark.parametrize("method, nu", [
-    ("kernel", 0), ("kernel", 1),
+    ("kernel", 0), ("kernel", 1), ("kernel", 2),
     ("spectrum", 0), ("spectrum", 1), ("spectrum", 2),
-], ids=["kernel-value", "kernel-gradient",
+], ids=["kernel-value", "kernel-gradient", "kernel-hessian",
         "spectrum-value", "spectrum-gradient", "spectrum-hessian"])
 def test_closed_forms_are_even_in_their_argument(method, nu):
     f = getattr(embedder_at(CASES["overdamped"]), method)

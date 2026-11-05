@@ -11,11 +11,11 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 - Python runs in the `tools` conda env with `PYTHONPATH=src`. `conda run` does not forward stdin, so put scripts in the scratchpad instead of heredocs.
 - Run `legacy_tests` from the scratchpad directory: `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
 - Do not use `glefit.utils.numderiv` as a test reference (unreviewed, see Later). Use SymPy, or the mpmath references in `tests/conftest.py` and `tests/test_embedding/conftest.py`.
-- Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run the suite in reverse order and each test alone; `pytest-randomly` is not installed and nothing may be installed.
+- Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run each new test alone, and the suite in random order with a few seeds (`--randomly-seed=N`): `pytest-randomly` is in `tools` since 2026-11-05 and shuffles every run (`-p no:randomly` turns it off). Nothing else may be installed.
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 267 tests and 1 strict xfail and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 283 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
@@ -25,9 +25,8 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Point 4: gen2x2 redesign (EMB-20)
 
-Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`) and 3 (the `from_matrix` commit, a fix for EMB-22 that also removed `rotate_matrix`) are done. Steps 4 and 5 change `gen2x2.py`, so stop after each one until the maintainer has committed it. In step 4, replace "the `from_matrix` commit" in `ISSUES.md` (EMB-20, EMB-22) by its hash.
+Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) and 4 (the `kernel_hess` commit, EMB-16) are done. Step 5 changes `gen2x2.py`, so stop after it until the maintainer has committed it. In step 5, replace "the `kernel_hess` commit" in `ISSUES.md` (EMB-16, EMB-20) by its hash.
 
-4. `kernel_hess` (EMB-16), in the same two forms. The strict xfail becomes a test over all cases.
 5. `BaseEmbedder.propagation_matrix()` returns the drift matrix. gen2x2 overrides it with the minimal gauge of the note's table, and `MultiEmbedder` assembles it block by block.
 6. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json`, tested by running `main` in `tmp_path`. This closes EMB-20.
 7. Remove what is unused in `utils/special.py` (all but `sinc`). Ask first: this breaks the import of `legacy_tests/test_utils/test_special.py` (34 passing tests).

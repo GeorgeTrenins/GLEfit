@@ -135,14 +135,14 @@ def test_spectrum_hessian_is_block_diagonal_in_the_components(emb, components):
     assert_array_equal(actual, expected)
 
 
-def test_kernel_hessian_is_block_diagonal_in_the_components():
-    # gen2x2 has no kernel Hessian
-    prony, pronycos = PronyEmbedder(1.3, 0.7), PronyCosineEmbedder(0.9, 0.4, 2.0)
-    expected = np.zeros((5, 5, len(TIME)))
+def test_kernel_hessian_is_block_diagonal_in_the_components(emb, components):
+    prony, gen2x2, pronycos = components
+    expected = np.zeros((9, 9, len(TIME)))
     expected[0:2, 0:2] = prony.kernel(TIME, nu=2)
-    expected[2:5, 2:5] = pronycos.kernel(TIME, nu=2)
+    expected[2:6, 2:6] = gen2x2.kernel(TIME, nu=2)
+    expected[6:9, 6:9] = pronycos.kernel(TIME, nu=2)
 
-    actual = MultiEmbedder([prony, pronycos]).kernel(TIME, nu=2)
+    actual = emb.kernel(TIME, nu=2)
 
     assert_array_equal(actual, expected)
 

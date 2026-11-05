@@ -380,14 +380,14 @@ class TwoAuxEmbedder(BaseEmbedder):
         return np.abs(np.atleast_1d(np.asarray(grid, dtype=float)))
 
     def _kernel_partials(self, t):
-        """Return f = K/r² and its derivatives with respect to (γ, Ω, φ).
+        """Return f = K/r² and its first two derivatives w.r.t. (γ, Ω, φ).
 
         Args:
             t (ndarray): non-negative times, as floats
 
         Returns:
-            tuple of ndarray: f, shape (len(t),), and its gradient,
-                shape (3, len(t))
+            tuple of ndarray: f, shape (len(t),), its gradient,
+                shape (3, len(t)), and its Hessian, shape (3, 3, len(t))
 
         Notes:
             f = exp(-γt)[cosh(t√G) - γt cos(2φ) sinhc(t√G)] with G = γ² - Ω².
@@ -399,19 +399,22 @@ class TwoAuxEmbedder(BaseEmbedder):
         G = (gamma - abs(Omega))*(gamma + abs(Omega))
         trig = (t*np.sqrt(G) <= _SINHC_SWITCH if G > 0
                 else np.full(t.shape, True))
-        f, df = np.empty_like(t), np.empty((3, len(t)))
+        f = np.empty_like(t)
+        df = np.empty((3, len(t)))
+        d2f = np.empty((3, 3, len(t)))
         for mask, form in (
             (trig, self._kernel_trig),
             (~trig, self._kernel_exponentials)
         ):
             if np.any(mask):
-                f[mask], df[:, mask] = form(t[mask], gamma, Omega, phi, G)
-        return f, df
+                f[mask], df[:, mask], d2f[:, :, mask] = form(
+                    t[mask], gamma, Omega, phi, G)
+        return f, df, d2f
 
     @staticmethod
     def _kernel_trig(t, gamma, Omega, phi, G):
         """Return f = exp(-γt)[cosh(t√G) - γt cos(2φ) sinhc(t√G)]
-        and its derivatives with respect to (γ, Ω, φ), through G.
+        and its first two derivatives w.r.t. (γ, Ω, φ), through G.
 
         Args:
             t (ndarray): non-negative times
@@ -419,14 +422,15 @@ class TwoAuxEmbedder(BaseEmbedder):
             G (float): γ² - Ω²
 
         Returns:
-            tuple of ndarray: f, shape (len(t),), and its gradient,
-                shape (3, len(t))
+            tuple of ndarray: f, shape (len(t),), its gradient,
+                shape (3, len(t)), and its Hessian, shape (3, 3, len(t))
 
         Notes:
             With s = sinc and z = t√(-G), which is real for G ≤ 0,
-            cosh(t√G) = cos z, sinhc(t√G) = s(z) and
-            ∂sinhc(t√G)/∂G = (t²/4)[s(z) + s''(z)].
-            For imaginary z, s + s'' loses precision through cancellation,
+            cosh(t√G) = cos z, sinhc(t√G) = s(z),
+            ∂sinhc(t√G)/∂G = (t²/4)[s(z) + s''(z)] and
+            ∂²sinhc(t√G)/∂G² = (t⁴/32)[s(z) + 2s''(z) + s''''(z)].
+            For imaginary z, these sums lose precision through cancellation,
             hence _SINHC_SWITCH to _kernel_exponentials.
         """
         z = t*np.emath.sqrt(-G)
@@ -437,21 +441,42 @@ class TwoAuxEmbedder(BaseEmbedder):
         tS = decay*t*np.real(sinc(z))
         # exp(-γt) t ∂sinhc(t√G)/∂G
         tdS = decay*t**3/4 * np.real(sinc(z) + sinc(z, nu=2))
+        # exp(-γt) t ∂²sinhc(t√G)/∂G²
+        td2S = decay*t**5/32 * np.real(
+            sinc(z) + 2*sinc(z, nu=2) + sinc(z, nu=4))
         c2 = np.cos(2*phi)
         f = C - gamma*c2*tS
-        # partial derivatives of f w.r.t. (gamma, G, cos 2φ)
-        df_gamma, df_G, df_c2 = -t*f - c2*tS, t*tS/2 - gamma*c2*tdS, -gamma*tS
-        # chain rule to get partial derivatives w.r.t. (γ, Ω, φ)
-        return f, np.array([
-            df_gamma + 2*gamma*df_G,
-            -2*Omega*df_G,
-            -2*np.sin(2*phi)*df_c2
-        ])
+        # Partial derivatives of f w.r.t. v = (γ, G, cos 2φ), from
+        # ∂cosh(t√G)/∂G = (t²/2) sinhc(t√G) and ∂exp(-γt)/∂γ = -t exp(-γt)
+        f_g = -t*f - c2*tS
+        f_G = t*tS/2 - gamma*c2*tdS
+        f_c = -gamma*tS
+        f_gg = -t*f_g + c2*t*tS
+        f_gG = -t*f_G - c2*tdS
+        f_gc = -t*f_c - tS
+        f_GG = t*tdS/2 - gamma*c2*td2S
+        f_Gc = -gamma*tdS
+        df_v = np.array([f_g, f_G, f_c])
+        d2f_v = np.array([[f_gg, f_gG, f_gc],
+                          [f_gG, f_GG, f_Gc],
+                          [f_gc, f_Gc, 0*t]])
+        # Chain rule to p = (γ, Ω, φ), with J[a, i] = ∂v_a/∂p_i and the
+        # second derivatives ∂²G/∂γ² = 2, ∂²G/∂Ω² = -2 and
+        # ∂²cos(2φ)/∂φ² = -4 cos 2φ
+        J = np.array([[1.0, 0.0, 0.0],
+                      [2*gamma, -2*Omega, 0.0],
+                      [0.0, 0.0, -2*np.sin(2*phi)]])
+        df = np.einsum('ai,an->in', J, df_v)
+        d2f = np.einsum('ai,abn,bj->ijn', J, d2f_v, J)
+        d2f[0, 0] += 2*f_G
+        d2f[1, 1] -= 2*f_G
+        d2f[2, 2] -= 4*c2*f_c
+        return f, df, d2f
 
     @staticmethod
     def _kernel_exponentials(t, gamma, Omega, phi, G):
         """Return f = exp(-γt)[cosh(t√G) - γt cos(2φ) sinhc(t√G)]
-        and its derivatives with respect to (γ, Ω, φ), for G > 0.
+        and its first two derivatives w.r.t. (γ, Ω, φ), for G > 0.
 
         Args:
             t (ndarray): non-negative times
@@ -459,8 +484,8 @@ class TwoAuxEmbedder(BaseEmbedder):
             G (float): γ² - Ω² > 0
 
         Returns:
-            tuple of ndarray: f, shape (len(t),), and its gradient,
-                shape (3, len(t))
+            tuple of ndarray: f, shape (len(t),), its gradient,
+                shape (3, len(t)), and its Hessian, shape (3, 3, len(t))
 
         Notes:
             With κ = √G, λ± = γ ± κ, and a± = (1 ± γ cos(2φ)/κ)/2,
@@ -495,11 +520,39 @@ class TwoAuxEmbedder(BaseEmbedder):
         d_minus = np.array(
             [c2*Omega**2, -c2*gamma*Omega, 2*gamma*G*s2]) / (2*kappa**3)
         d_amplitudes = np.array([d_minus, -d_minus])
-        # Product rule on f =  a₊ exp(-λ₊a₊t) + a₋ exp(-λ₋a₋t):
-        #   ∂f = [∂a₊ - a₊ t ∂λ₊] exp(-λ₊t) + [∂a₋ - a₋ t ∂λ₋] exp(-λ₋t)
+        # Second derivatives: one 3×3 block each for (λ₋, λ₊);
+        # Note that ∂²λ± = ±∂²κ
+        d2_minus_rate = np.array([[Omega**2, -gamma*Omega, 0.0],
+                                  [-gamma*Omega, gamma**2, 0.0],
+                                  [0.0, 0.0, 0.0]]) / kappa**3
+        d2_rates = np.array([d2_minus_rate, -d2_minus_rate])
+        # Second derivatives: one 3×3 block each for (a₋, a₊);
+        a_gg = -3*c2*gamma*Omega**2                 # (∂²a₋/∂γ² )×(2κ⁵)
+        a_OO = -c2*gamma*(gamma**2 + 2*Omega**2)    # (∂²a₋/∂Ω² )×(2κ⁵)
+        a_pp = 4*G**2*gamma*c2                      # (∂²a₋/∂φ² )×(2κ⁵)
+        a_gO = c2*Omega*(2*gamma**2 + Omega**2)     # (∂²a₋/∂γ∂Ω)×(2κ⁵)
+        a_gp = -2*G*Omega**2*s2                     # (∂²a₋/∂γ∂φ)×(2κ⁵)
+        a_Op = 2*G*gamma*Omega*s2                   # (∂²a₋/∂Ω∂φ)×(2κ⁵)
+        d2_minus = np.array([
+            [a_gg, a_gO, a_gp],
+            [a_gO, a_OO, a_Op],
+            [a_gp, a_Op, a_pp],
+        ]) / (2*kappa**5)
+        d2_amplitudes = np.array([d2_minus, -d2_minus])
+        # Product rule on f = a₋ exp(-λ₋t) + a₊ exp(-λ₊t):
+        #   ∂f = Σ± [∂a± - a± t ∂λ±] exp(-λ±t)
+        #   ∂²f = Σ± [∂²a± - t(∂a± ∂λ±ᵀ + ∂λ± ∂a±ᵀ) - t a± ∂²λ±
+        #              + t² a± ∂λ± ∂λ±ᵀ] exp(-λ±t)
+        tE, t2E = t*exponentials, t**2*exponentials
         df = (np.einsum('ik,in->kn', d_amplitudes, exponentials)
-              - t*np.einsum('i,ik,in->kn', amplitudes, d_rates, exponentials))
-        return f, df
+              - np.einsum('i,ik,in->kn', amplitudes, d_rates, tE))
+        cross = np.einsum('ik,il,in->kln', d_amplitudes, d_rates, tE)
+        d2f = (np.einsum('ikl,in->kln', d2_amplitudes, exponentials)
+               - cross - cross.transpose(1, 0, 2)
+               - np.einsum('i,ikl,in->kln', amplitudes, d2_rates, tE)
+               + np.einsum('i,ik,il,in->kln', amplitudes, d_rates, d_rates,
+                           t2E))
+        return f, df, d2f
 
     def _spectrum_partials(self, freq):
         """Return f = Λ/r² and its first two derivatives w.r.t. (γ, Ω, φ).
@@ -581,7 +634,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             with G = γ² - Ω².
         """
         r = self.primitive_params[0]
-        f, _ = self._kernel_partials(self._abs_grid(time))
+        f, _, _ = self._kernel_partials(self._abs_grid(time))
         return r**2 * f
 
     def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
@@ -593,7 +646,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         Returns:
             ndarray: shape (4, len(time))
         """
-        return self._with_r(*self._kernel_partials(self._abs_grid(time)))
+        f, df, _ = self._kernel_partials(self._abs_grid(time))
+        return self._with_r(f, df)
 
     def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
         """Return the Hessian of the memory kernel w.r.t. [r, γ, Ω, φ].
@@ -603,11 +657,8 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Returns:
             ndarray: shape (4, 4, len(time))
-
-        Raises:
-            NotImplementedError: always, until EMB-16 is resolved
         """
-        raise NotImplementedError
+        return self._with_r(*self._kernel_partials(self._abs_grid(time)))
 
     def spectrum_func(self, frequency: ScalarArr)-> npt.NDArray[np.floating]:
         """Return the spectrum Λ(ω).

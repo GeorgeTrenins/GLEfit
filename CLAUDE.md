@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 267 passing tests and 1 strict xfail (EMB-16), `tests/test_merit` has 8 and `tests/test_utils` has 17. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 283 passing tests, `tests/test_merit` has 8 and `tests/test_utils` has 17. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
 `legacy_tests/` is the original suite and must not be edited. Since the gen2x2 reparametrisation (EMB-20), 113 tests pass and 51 fail. These are known failures, caused by tests lagging the code:
 
