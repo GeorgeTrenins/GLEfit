@@ -42,7 +42,7 @@ class PronyCosineEmbedder(BaseEmbedder):
 
         **kwargs
         --------
-        mappers : Tuple[BaseMapper, BaseMapper]
+        mappers : Tuple[BaseMapper, BaseMapper, BaseMapper]
             constraint mappers, by default imposes θ,γ,ω > 0
 
         Raises

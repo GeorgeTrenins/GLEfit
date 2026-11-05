@@ -220,8 +220,8 @@ class MultiEmbedder(BaseEmbedder):
             Square matrix of shape (N+1, N+1) where N is the total number of
             auxiliary variables from all embedders. The matrix has a block structure:
             [  0    w₁ᵀ   w₂ᵀ   ...  ]
-            [ w₁    A₁     0    ...  ]
-            [ w₂     0     A₂   ...  ]
+            [-w₁    A₁     0    ...  ]
+            [-w₂     0     A₂   ...  ]
             [ ...   ...   ...   ...  ]
             where wᵢ are coupling vectors and Aᵢ are auxiliary-variable drift matrices of individual embedders.
     
@@ -282,8 +282,8 @@ class MultiEmbedder(BaseEmbedder):
             Each slice [i,:,:] contains the derivative with respect to the i-th
             parameter and has block structure:
             [  0    ∂w₁ᵀ  ∂w₂ᵀ  ...  ]
-            [∂w₁   ∂A₁    0     ...  ]
-            [∂w₂    0    ∂A₂    ...  ]
+            [-∂w₁  ∂A₁    0     ...  ]
+            [-∂w₂   0    ∂A₂    ...  ]
             [...   ...    ...   ...  ]
 
         Notes

@@ -142,7 +142,7 @@ class BaseEmbedder(ABC):
         
     @property
     def conventional_params(self) -> npt.NDArray[np.floating]:
-        """Conventional parameters [θ1, θ2, γ, δ, ζ]."""
+        """Conventional parameters, as in config files and trajectory output."""
         return self.to_conventional(self._primitive_params)
     
     @conventional_params.setter
@@ -327,7 +327,8 @@ class BaseEmbedder(ABC):
         
     @property
     def drift_matrix_gradient(self) -> npt.NDArray[np.floating]:
-        """The derivative of the drift matrix with respect to the primitive parameters for the current state of the embedder.
+        """The derivative of the drift matrix with respect to the mapped
+        parameters x, at the current state of the embedder.
         
         Returns
         -------
@@ -424,11 +425,30 @@ class BaseEmbedder(ABC):
         nu: Optional[int]=0, 
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
-        """
-        Computes the memory kernel or its param derivatives.
-        
-        nu: 0 → kernel values; 1 → gradient w.r.t. primitive params; 2 → Hessian w.r.t. primitive params.
-        mapped=True returns derivatives w.r.t. mapped params x.
+        """Return the memory kernel K(t), or its derivatives.
+
+        Parameters
+        ----------
+        time : float or array-like
+            Times, as a scalar or a 1D array
+        nu : int
+            0 for K, 1 for its gradient and 2 for its Hessian
+        mapped : bool
+            Differentiate with respect to the mapped parameters x if True,
+            and with respect to the primitive parameters otherwise
+
+        Returns
+        -------
+        numpy.ndarray
+            Shape (ngrid,) for nu = 0, (ndof, ngrid) for nu = 1 and
+            (ndof, ndof, ngrid) for nu = 2. A scalar time gives ngrid = 1.
+
+        Raises
+        ------
+        ValueError
+            If time has more than one dimension, or nu is not 0, 1 or 2
+        TypeError
+            If nu is not an integer
         """
         time = np.atleast_1d(time)
         if time.ndim != 1:
@@ -532,15 +552,38 @@ class BaseEmbedder(ABC):
         nu: Optional[int]=0,
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
-        """
-        Computes the spectrum (cosine transform of the kernel) or its derivatives.
-        
-        nu: 0 → spectrum values; 1 → gradient w.r.t. primitive params; 2 → Hessian w.r.t. primitive params.
-        mapped=True returns derivatives w.r.t. mapped params x.
+        """Return the spectrum Λ(ω), the cosine transform of K, or its
+        derivatives.
+
+        Parameters
+        ----------
+        frequency : float or array-like
+            Frequencies, as a scalar or a 1D array
+        nu : int
+            0 for Λ, 1 for its gradient and 2 for its Hessian
+        mapped : bool
+            Differentiate with respect to the mapped parameters x if True,
+            and with respect to the primitive parameters otherwise
+
+        Returns
+        -------
+        numpy.ndarray
+            Shape (ngrid,) for nu = 0, (ndof, ngrid) for nu = 1 and
+            (ndof, ndof, ngrid) for nu = 2. A scalar frequency gives
+            ngrid = 1.
+
+        Raises
+        ------
+        ValueError
+            If frequency has more than one dimension, or nu is not 0, 1 or 2
+        TypeError
+            If nu is not an integer
         """
         frequency = np.atleast_1d(frequency)
         if frequency.ndim != 1:
-            raise ValueError(f"Expecting `time` to be scalar or a 1D array, instead got {frequency.ndim = }.")
+            raise ValueError(
+                f"Expecting `frequency` to be scalar or a 1D array, "
+                f"instead got {frequency.ndim = }.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:

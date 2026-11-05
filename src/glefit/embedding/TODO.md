@@ -33,11 +33,11 @@ Lessons that still apply:
 
 ## Point 5: small bug fixes: done
 
-Done on 2026-11-05, one commit each: EMB-4 (`19d41c5`), EMB-3 (`66bd58d`), EMB-17 (`baba304`) and EMB-6 (the EMB-6 commit, fixed as the maintainer decided). In the next commit, replace "the EMB-6 commit" in `ISSUES.md` and here by its hash. Next: choose from Later with the maintainer.
+Done on 2026-11-05, one commit each: EMB-4 (`19d41c5`), EMB-3 (`66bd58d`), EMB-17 (`baba304`) and EMB-6 (`6932b74`, fixed as the maintainer decided).
 
 ## Later
 
-- EMB-19, docstring corrections (pure refactor).
+- EMB-19: the docstrings, the `kernel()` and `spectrum()` shapes and the `spectrum()` message are fixed in the docstring commit (replace that name in `ISSUES.md` by its hash in the next commit). Left: annotations say `NDArray` where lists are accepted, but the inputs themselves are inconsistent (see `ISSUES.md`); decide with the maintainer.
 - Structural simplification of `_base.py` and `multi.py` (not planned yet).
 - Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
 - Undecided behaviour; ask before changing: EMB-10 and EMB-11.
