@@ -28,7 +28,7 @@ class LowerBoundMapper(BaseMapper):
 
     def forward(self, p: float) -> float:
         diff = p - self.a
-        if diff < 0:
+        if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")
         x = np.log(diff)
         return x
@@ -57,7 +57,7 @@ class UpperBoundMapper(BaseMapper):
 
     def forward(self, p: float) -> float:
         diff = self.b - p
-        if diff < 0:
+        if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be smaller than  b = {self.b}")
         x = np.log(diff)
         return x
@@ -93,11 +93,11 @@ class IntervalMapper(BaseMapper):
         
     def forward(self, p: float) -> float:
         diff = p - self.a
-        if diff < 0:
+        if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")
         ans = np.log(diff)
         diff = self.b - p
-        if diff < 0:
+        if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be smaller than  b = {self.b}")
         ans -= np.log(diff)
         return ans

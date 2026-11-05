@@ -101,6 +101,14 @@ def test_param_getter_returns_a_copy(emb, name, expected):
     assert_allclose(getattr(emb, name), expected, rtol=RTOL)
 
 
+@pytest.mark.parametrize("theta, gamma", [(0.0, GAMMA), (THETA, 0.0)],
+                         ids=["theta-zero", "gamma-zero"])
+def test_parameter_on_its_bound_is_rejected(theta, gamma):
+    # the default mappers need θ, γ > 0: zero would give x = -inf
+    with pytest.raises(ValueError, match="greater than"):
+        PronyEmbedder(theta, gamma)
+
+
 def test_mapper_count_must_match_ndof():
     with pytest.raises(ValueError, match="number of constraint mappers"):
         PronyEmbedder(THETA, GAMMA, mappers=[IdentityMapper()])

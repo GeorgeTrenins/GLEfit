@@ -72,8 +72,8 @@ It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 **EMB-6 · resolved in `6932b74` · `MultiEmbedder.grad_A` can be out of date.**
 After a component is edited directly, it returns old values until another getter runs. Either fix it, or document direct edits of components as unsupported (the conventions already say to set values on the `MultiEmbedder`). Decided on 2026-11-05: fix it. `drift_matrix_gradient` now reads `self.x`, which `MultiEmbedder` gathers from its components, instead of the cached `_x`.
 
-**EMB-10 · open · Zero starting values crash fits.**
-`LowerBoundMapper` turns p = 0 into x = −inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. gen2x2 with θ = [0, 0] gives NaN parameters.
+**EMB-10 · resolved in the EMB-10 commit · Zero starting values crash fits.**
+`LowerBoundMapper` turns p = 0 into x = −inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. gen2x2 with θ = [0, 0] gives NaN parameters. Decided on 2026-11-05: the bounded mappers' `forward` rejects p on a bound, as their messages already said, so `PronyEmbedder(0.0, 0.5)` now raises `ValueError`. gen2x2 rejects θ = 0 and γ = 0 since `9d29a67`.
 
 **EMB-11 · open · `from_dict` ignores unknown keys.**
 A misspelled key, such as `sigmaa`, is accepted silently and the default applies.
@@ -106,11 +106,11 @@ It rejects any 2×2 block A whose symmetric part is indefinite, even when the ke
 ### Outdated text in the code
 
 **EMB-19 · open · Docstrings, annotations and messages disagree with the code.**
-`290c7d3` fixed the gen2x2 items: the `compute_drift_matrix` docstring and the `__init__` type-check message. The docstring commit fixed the rest, except the annotations:
+`290c7d3` fixed the gen2x2 items: the `compute_drift_matrix` docstring and the `__init__` type-check message. `557a9f3` fixed the rest, except the annotations:
 
 - Annotations say `NDArray` where lists are accepted. The inputs themselves are inconsistent: `_forward_map`, `grad_param_to_x`, `hess_param_to_x`, `drift_matrix_param_grad` and `drift_matrix_x_grad` accept lists for every embedder, and so does every method of gen2x2, but `to_primitive` and `to_conventional` of `prony`, `pronycos` and `multi`, and `prony.compute_drift_matrix`, raise `AttributeError`.
 
-Fixed in the docstring commit: `BaseEmbedder.conventional_params` listed the gen2x2 parameters for every embedder; `drift_matrix_gradient` said it differentiates with respect to p, but uses x; the matrix diagrams in `MultiEmbedder` omitted the minus sign on the first column; the `kernel()` and `spectrum()` docstrings did not give the output shapes; `PronyCosineEmbedder.__init__` listed two mappers instead of three; and the `spectrum()` error message said `time`.
+Fixed in `557a9f3`: `BaseEmbedder.conventional_params` listed the gen2x2 parameters for every embedder; `drift_matrix_gradient` said it differentiates with respect to p, but uses x; the matrix diagrams in `MultiEmbedder` omitted the minus sign on the first column; the `kernel()` and `spectrum()` docstrings did not give the output shapes; `PronyCosineEmbedder.__init__` listed two mappers instead of three; and the `spectrum()` error message said `time`.
 
 ### Tracked in other modules
 
