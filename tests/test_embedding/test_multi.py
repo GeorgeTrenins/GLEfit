@@ -172,6 +172,15 @@ def test_conventional_params_concatenate_the_components(emb):
     assert_allclose(emb.conventional_params, expected, rtol=RTOL)
 
 
+def test_mapper_jacobian_does_not_truncate_integer_input(emb):
+    # default mappers: p = exp(x), except r, Ω and φ of gen2x2 (indices 2, 4
+    # and 5), for which p = x
+    actual = emb.jac_px(np.array([1, 0, 0, 1, 0, 0, 1, 0, 0]))
+
+    assert_allclose(
+        actual, [np.e, 1.0, 1.0, np.e, 1.0, 1.0, np.e, 1.0, 1.0], rtol=RTOL)
+
+
 def test_to_primitive_converts_each_component_by_its_slice(emb):
     # gen2x2 has five conventional but four primitive parameters, so the
     # input and output slices differ

@@ -177,7 +177,7 @@ class MultiEmbedder(BaseEmbedder):
         numpy.ndarray
             Array of transformed parameters
         """
-        ans = np.zeros_like(arr)
+        ans = np.zeros_like(arr, dtype=float)
         param_offset = 0
         for emb in self._embs:
             ndof = emb.ndof

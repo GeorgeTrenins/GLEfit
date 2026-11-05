@@ -58,13 +58,13 @@ It raised `NotImplementedError`, which also affected `kernel(t, nu=2)` on any `M
 
 ### Wrong results
 
-**EMB-3 · open · Integer arrays given to the parameter setters are truncated in the mapped space.**
+**EMB-3 · resolved in the EMB-3 commit · Integer arrays given to the parameter setters are truncated in the mapped space.**
 `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `_base.py` allocate their output with `np.zeros_like(input)`. After `primitive_params = [3, 1]` on a `prony` embedder, x is [1, 0] instead of [ln 3, 0], so x no longer matches p. Constructors convert to float, so configs are not affected.
 
 **EMB-22 · resolved in `9291892` · gen2x2 `from_matrix` rejects some semi-definite A through rounding.**
 `rotate_matrix` rejected A when `eigh` returned a negative eigenvalue for its symmetric part S. For a zero eigenvalue, rounding gives about −1e-17, so a rotated Brownian oscillator (θ along the undamped variable) was rejected at 29 of 62 rotation angles. `from_matrix` now checks tr S ≥ 0 and det S ≥ −4ε(tr S)², and sets invariants that rounding makes negative to zero.
 
-**EMB-4 · resolved in the EMB-4 commit · `MultiEmbedder.to_primitive` raises `AttributeError`.**
+**EMB-4 · resolved in `19d41c5` · `MultiEmbedder.to_primitive` raises `AttributeError`.**
 It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 
 ### Needs a decision

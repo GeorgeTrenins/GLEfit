@@ -159,6 +159,7 @@ class BaseEmbedder(ABC):
         self, primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Transform optimizable params so that inequality constraints are automatically imposed"""
+        primitive_params = np.asarray(primitive_params, dtype=float)
         if self._mappers is None:
             return np.copy(primitive_params)
         else:
@@ -171,6 +172,7 @@ class BaseEmbedder(ABC):
     def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Undo the inequality constraint-imposing mapping.
         """
+        x = np.asarray(x, dtype=float)
         if self._mappers is None:
             return np.copy(x)
         else:
@@ -183,6 +185,7 @@ class BaseEmbedder(ABC):
     def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
+        x = np.asarray(x, dtype=float)
         if self._mappers is None:
             return np.ones_like(x)
         else:
@@ -195,6 +198,7 @@ class BaseEmbedder(ABC):
     def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is a primitive embedding parameter and x_n is its transform.
         """
+        x = np.asarray(x, dtype=float)
         if self._mappers is None:
             return np.zeros_like(x)
         else:

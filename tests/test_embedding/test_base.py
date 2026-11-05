@@ -62,6 +62,28 @@ def test_x_setter_updates_primitive_and_conventional_params(emb):
     assert_allclose(emb.conventional_params, [3.0, 0.25], rtol=RTOL)
 
 
+@pytest.mark.parametrize("name, value, primitive", [
+    ("conventional_params", [3, 1], [3.0, 1.0]),
+    ("primitive_params", [3, 1], [3.0, 1.0]),
+    ("x", [1, 0], [np.e, 1.0]),
+], ids=PARAM_NAMES)
+def test_param_setter_does_not_truncate_integer_input(
+        emb, name, value, primitive):
+    # default mappers: p = exp(x)
+    setattr(emb, name, value)
+
+    assert_allclose(emb.primitive_params, primitive, rtol=RTOL)
+    assert_allclose(emb.x, np.log(primitive), rtol=RTOL)
+
+
+@pytest.mark.parametrize("method", ["jac_px", "hess_px"])
+def test_mapper_derivatives_do_not_truncate_integer_input(emb, method):
+    # default mappers: p = exp(x), so that dp/dx = d²p/dx² = exp(x)
+    actual = getattr(emb, method)(np.array([1, 0]))
+
+    assert_allclose(actual, [np.e, 1.0], rtol=RTOL)
+
+
 @pytest.mark.parametrize("name", PARAM_NAMES)
 def test_param_setter_rejects_wrong_shape(emb, name):
     with pytest.raises(ValueError, match="must have shape"):
