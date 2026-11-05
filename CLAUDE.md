@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 257 passing tests and 1 strict xfail (EMB-16), `tests/test_merit` has 8 and `tests/test_utils` has 17. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 255 passing tests and 1 strict xfail (EMB-16), `tests/test_merit` has 8 and `tests/test_utils` has 17. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
 `legacy_tests/` is the original suite and must not be edited. Since the gen2x2 reparametrisation (EMB-20), 114 tests pass and 50 fail. These are known failures, caused by tests lagging the code:
 
@@ -62,7 +62,7 @@ Every fitted quantity derives from the (n+1)×(n+1) matrix `Ap = [[0, θᵀ], [-
 | primitive | `ndof` | Non-degenerate: input to `compute_drift_matrix` and `drift_matrix_param_grad` |
 | mapped `x` | `ndof` | Unconstrained: the optimizer steps here, with one `BaseMapper` per primitive parameter |
 
-Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which maps `[θ₁, θ₂, γ, δ, ζ]` to `[r, α, g, y]` to remove the embedding degeneracy, and parametrises γ by y so that every value is admissible. It builds the drift matrix in the maximal gauge δ = γ. The `conventional_params`, `primitive_params` and `x` setters keep the spaces in sync, so always go through them.
+Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which maps `[θ₁, θ₂, γ, δ, ζ]` to `[r, γ, Ω, φ]` to remove the embedding degeneracy. Every real r, Ω and φ with γ > 0 gives a valid embedding, so only γ is constrained. It builds the drift matrix in the maximal gauge δ = γ. The `conventional_params`, `primitive_params` and `x` setters keep the spaces in sync, so always go through them.
 
 ### Two independent derivative paths
 

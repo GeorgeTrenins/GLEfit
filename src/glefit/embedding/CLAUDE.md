@@ -17,11 +17,12 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 
 ## Parameters
 
-- Three sets: conventional (length `nparam`; configs and trajectory files), primitive `p` (length `ndof`; input to `compute_drift_matrix` and `drift_matrix_param_grad`) and mapped `x` (length `ndof`; what the optimizer moves). One `glefit.mappers` mapper per entry converts between p and x. By default p = exp(x), except for α, g and y in gen2x2. Custom mappers are for debugging only: configs cannot set them, so production runs always use the defaults.
+- Three sets: conventional (length `nparam`; configs and trajectory files), primitive `p` (length `ndof`; input to `compute_drift_matrix` and `drift_matrix_param_grad`) and mapped `x` (length `ndof`; what the optimizer moves). One `glefit.mappers` mapper per entry converts between p and x. By default p = exp(x), except for r, Ω and φ in gen2x2, which have no bounds. Custom mappers are for debugging only: configs cannot set them, so production runs always use the defaults.
 - Set values only through the `conventional_params`, `primitive_params` and `x` properties, which keep all three in step. Their getters return copies.
-- Conventional and primitive parameters differ only for gen2x2, which fits [r, α, g, y] because different (θ₁, θ₂, γ, δ, ζ) can give the same kernel. Here r² = θ₁² + θ₂², α = δ(θ₁² − θ₂²)/r², g = δ² − ζ² and γ² = (g + α²)/2 + √(((g − α²)/2)² + e²ʸ), which covers exactly the admissible kernels γ > |α|, γ² > g. Inputs outside that region, or on its boundary, raise `ValueError`. See `docs/Generalised Brownian oscillator auxiliary variables.md`.
-- gen2x2 values do not round-trip: `conventional_params` returns the maximal gauge δ = γ, which has the same kernel and leaves s₂ undamped. [1, 2, 1.5, 0.25, 3] reads back as [1.5, 1.658, 1.5, 1.5, 3.345].
-- Near the boundary of the admissible region, γ² − α², γ² − g and γ ± α are small. Take them from `_gaps` and `_gamma_pm`, never by subtraction. For the same reason, the spectrum is differentiated with respect to (α, γ² − g, γ) rather than (α, g, γ). The kernel keeps (α, g, γ), so near γ = √g its ∂K/∂g loses about three digits at √g·t ≈ 600.
+- Conventional and primitive parameters differ only for gen2x2, which fits [r, γ, Ω, φ] because different (θ₁, θ₂, γ, δ, ζ) can give the same kernel. `to_primitive` is eq. (3) of `docs/Generalised Brownian oscillator auxiliary variables.md`: r² = θ₁² + θ₂², Ω² = γ² − δ² + ζ² and cos 2φ = δ(θ₁² − θ₂²)/(γr²). It raises `ValueError` for θ = 0, γ = 0, γ < |δ| or non-finite input, and accepts γ = |δ|.
+- K and Λ depend only on r², Ω² and cos 2φ, so any real r, Ω and φ with γ > 0 are valid. `to_primitive` returns r, Ω ≥ 0 and 0 ≤ φ ≤ π/2.
+- gen2x2 values do not round-trip: `conventional_params` returns the maximal gauge δ = γ, θ = r(cos φ, sin φ), ζ = Ω, which has the same kernel and leaves s₂ undamped. [1, 2, 1.5, 0.25, 3] reads back as [1.5, 1.658, 1.5, 1.5, 3.345].
+- The gen2x2 kernel has two forms. For G = γ² − Ω² ≤ 0 or √G·t ≤ 1, it is written with trigonometric functions of z = t√(−G), which is imaginary for G > 0, and differentiated through G with `sinc`. Otherwise it is two decaying exponentials, differentiated directly in (γ, Ω, φ). For Ω ≪ γ, the slow rate written as γ − √G, and derivatives taken through G, would both cancel: the code uses Ω²/(γ + √G). In the Debye limit Ω = γ|sin 2φ|, one amplitude vanishes; it is computed in factored form. At Ω = ω = 0, Λ is 0/0.
 
 ## Two independent derivative routes
 
@@ -42,13 +43,14 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 
 ## New embedder
 
-Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`, and apply the chain rule in `drift_matrix_param_grad` as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
+Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`, as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
 
 ## Testing
 
 Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding` from the repository root.
 
 - The references are `SympyReference` (closed forms in SymPy) in `tests/test_embedding/conftest.py` and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath) in `tests/conftest.py`. Do not use `glefit.utils.numderiv`, which is unreviewed.
-- Include branch points and special values (α = 0, g = 0, g = α², γ just above |α| or √g, √g·t on both sides of 1, zeros), which random values miss.
-- The gen2x2 reference writes cosh(t√g) and sinhc(t√g) as ₀F₁ series in g, so SymPy can differentiate them and mpmath can evaluate them at g = 0.
+- Include branch points and special values, which random values miss: for gen2x2, Ω = γ and Ω ≈ γ, Ω = 0, φ = 0, π/4 and π/2, the Debye limit on both sides of φ = π/4, √G·t on both sides of 1, Ω ≪ γ at long times, and negative r and Ω.
+- Rounding in a vanishing term shows only in an element-wise relative comparison, not in `assert_close`, which scales by the largest value in each row.
+- The gen2x2 reference writes cosh(t√G) and sinhc(t√G) as ₀F₁ series in G, so SymPy can differentiate them and mpmath can evaluate them at G = 0.
 - `DriftMatrixReference` rejects non-finite input, because `mpmath.expm` never returns for NaN.
