@@ -21,11 +21,29 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 - Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
 - `legacy_tests/`: 114 pass, 50 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
 - Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
-- The gen2x2 note in `docs/` was rewritten in `b05a032`, after the [r, α, g, y] code of `290c7d3`, and extended on 2026-11-05 (a generality proof and remarks). It uses (r, γ, Ω, φ), with α = γ cos 2φ and g = γ² − Ω², and has no y. Its Ω is the irreducible frequency. The drift-matrix entry that the code and configs call `Omega` is ε in the note.
+- The gen2x2 note in `docs/` was rewritten in `b05a032`, after the [r, α, g, y] code of `290c7d3`, and extended on 2026-11-05 (a generality proof and remarks). It uses (r, γ, Ω, φ), with α = γ cos 2φ and g = γ² − Ω², and has no y. Its Ω is the irreducible frequency. The drift-matrix entry that the code and configs call `Omega` is ε in the note, and becomes ζ (`zeta`) in step 1 of point 4.
 
-## Point 4: gen2x2 redesign (EMB-20). Next step: send the plan
+## Point 4: gen2x2 redesign (EMB-20)
 
-Start the next session here. Read the note (`docs/Generalised Brownian oscillator auxiliary variables.md`), `src/glefit/embedding/gen2x2.py`, `tests/test_embedding/test_gen2x2.py` and EMB-20 in `ISSUES.md`. Then send a plan for revising `TwoAuxEmbedder`, aiming at readability, conciseness and robustness, and wait for approval.
+Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1–5 all change `gen2x2.py`, so stop after each one until the maintainer has committed it.
+
+1. Rename the note's ε to ζ, so that it does not read as a small parameter: in the note, `gen2x2.py` (`Omega` → `zeta`, also in `from_dict`, `from_harmonic` and the config key), the `CLAUDE.md` files and the tests. A config with `Omega` raises `TypeError` naming `zeta`, through the same check as `sigma` and `threshold`.
+2. Reparametrise as (r, γ, Ω, φ):
+   - Keep the conventional parameters [θ₁, θ₂, γ, δ, ζ]. `conventional_params` reports the maximal gauge [r cos φ, r sin φ, γ, γ, Ω].
+   - `to_primitive` is eq. (3), computed from the rotation invariants |θ|², tr A, det A and θᵀAθ by a helper that `from_matrix` reuses in step 3. In form (1), each of them is a sum of non-negative terms. It accepts γ = |δ| (exact Brownian oscillator) and rejects γ < |δ|, γ = 0, θ = 0 and non-finite input with `ValueError`.
+   - Spectrum: Λ = 2γr²(ω² cos²φ + Ω² sin²φ)/[(ω² − Ω²)² + 4γ²ω²], differentiated in (γ, Ω, φ) through f·M = N. At Ω = ω = 0 it is 0/0 and stays undefined (documented; K then has the constant tail r² sin²φ). Tests at Ω = 0 use ω > 0.
+   - Kernel, with G = (γ − |Ω|)(γ + |Ω|) and κ = √G. For G ≤ 0 or κt ≤ 1, use e^{−γt}[cosh − γt cos 2φ sinhc], with G-derivatives from `sinc`. For κt > 1, use two decaying exponentials with rates Ω²/(γ+κ) and γ+κ, differentiated directly in (γ, Ω). Through G, ∂K/∂γ lost 7e-12 at Ω/γ = 10⁻² and 3e-10 at 10⁻³ at long times; the direct form gave 2e-16. Compute the amplitude that vanishes on the Debye fold in factored form.
+   - Tests: cases as in the plan, including the Debye fold Ω = γ|sin 2φ| on both sides of φ = π/4, with the literal K = r²e^{−λ|t|} and Λ = r²λ/(λ² + ω²), λ = 2γ cos²φ.
+   - Docs: see the file list below. In `ISSUES.md`, also write ζ for the drift-matrix entry, and resolve EMB-13 (g no longer exists).
+3. `from_matrix(theta, A)` keeps its signature and uses the invariants helper. It still rejects an A with an indefinite symmetric part (EMB-21): check tr S ≥ 0 and det S ≥ 0. Remove `rotate_matrix`; legacy `test_matrix_rotation` then fails (114 → 113 pass), which the maintainer accepted.
+4. `kernel_hess` (EMB-16), in the same two forms. The strict xfail becomes a test over all cases.
+5. `BaseEmbedder.propagation_matrix()` returns the drift matrix. gen2x2 overrides it with the minimal gauge of the note's table, and `MultiEmbedder` assembles it block by block.
+6. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json`, tested by running `main` in `tmp_path`. This closes EMB-20.
+7. Remove what is unused in `utils/special.py` (all but `sinc`). Ask first: this breaks the import of `legacy_tests/test_utils/test_special.py` (34 passing tests).
+
+`from_harmonic` stays as it is, apart from the key `zeta`.
+
+Files that describe [r, α, g, y] and change in step 2: root `CLAUDE.md`, `ISSUES.md`, `src/glefit/embedding/CLAUDE.md`, `src/glefit/{mappers,merit,utils}/CLAUDE.md`, `gen2x2.py`, `tests/test_embedding/test_gen2x2.py` and `test_multi.py`. In `ISSUES.md`, that means EMB-20 itself and the "resolved in the EMB-20 commit" entries, which should name `290c7d3`.
 
 Decisions (2026-11-04/05):
 - Fit the note's (r, γ, Ω, φ) as primitive parameters, with the drift matrix in the maximal gauge, Ap = [[0, r cos φ, r sin φ], [−r cos φ, 2γ, Ω], [−r sin φ, −Ω, 0]]. This replaces [r, α, g, y] from `290c7d3`, including its plan for `kernel_hess` in (α, g, y).
@@ -39,12 +57,7 @@ Decisions (2026-11-04/05):
   - Add a method that returns the minimal-gauge Ap (the note's table) for propagation. `MultiEmbedder` assembles it block by block, and `optimize.py` writes it to `optimized_Ap_matrix.json` instead of `emb.A`.
   - Remove what becomes unused in `utils/special.py`. Ask first: `legacy_tests/test_utils/test_special.py` imports it.
   - Do not fix EMB-1, -5, -7, -8 or -9 separately; the redesign resolves them.
-
-To settle in the plan:
-- Conventional parameters and config keys. They are currently [θ₁, θ₂, γ, δ, Ω], with Ω the drift-matrix entry (ε in the note), and `conventional_params` reports the maximal gauge. Keep them, with (3) as `to_primitive`, or switch to (r, γ, Ω, φ)?
-- What happens to `from_harmonic` and `from_matrix`.
-- The order of the commits, and how `tests/test_embedding/test_gen2x2.py` changes. Its references, `SympyReference` and `DriftMatrixReference`, stay.
-- These files describe [r, α, g, y] and change with the code: root `CLAUDE.md`, `ISSUES.md`, `src/glefit/embedding/CLAUDE.md`, `src/glefit/{mappers,merit,utils}/CLAUDE.md`, `gen2x2.py`, `tests/test_embedding/test_gen2x2.py` and `test_multi.py`. In `ISSUES.md`, that means EMB-20 itself and the "resolved in the EMB-20 commit" entries, which should name `290c7d3`.
+- Settled on 2026-11-05 (the steps above): keep the conventional parameters and rename ε to ζ; keep `from_matrix(theta, A)` and keep rejecting an indefinite symmetric part (EMB-21, low priority); remove `rotate_matrix`; name the new method `propagation_matrix()`; leave Λ undefined at Ω = ω = 0.
 
 Verified on 2026-11-04/05, with no errors found in the note. The scripts and results are in `05_notebooks/gen2x2_note_verification/` (see its README).
 - **SymPy (46 checks):** K and J of eq. (1); eq. (2); the maximal gauge; the properties; the Debye, SDL and BO cases against their notes; the minimal-gauge table.
