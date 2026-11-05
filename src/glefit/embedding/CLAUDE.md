@@ -36,6 +36,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 - Shapes put the parameter axis first: `drift_matrix_param_grad` gives (ndof, n+1, n+1), `*_grad` (ndof, ngrid) and `*_hess` (ndof, ndof, ngrid). `kernel()` and `spectrum()` take `nu` = 0, 1 or 2, with respect to p, or x if `mapped=True`.
 - Misleading names: `emb.A` is the full Ap, but `from_matrix(theta, A)` takes the 2×2 block. `emb.grad_A` is with respect to x, `drift_matrix_param_grad` with respect to p.
 - Closed forms are even: they use |t| and |ω|.
+- `propagation_matrix()` returns the Ap for simulations: the drift matrix by default, the minimal gauge for gen2x2 (the most similar damping rates γ ± δ and the smallest coupling ζ), and the components' matrices for `MultiEmbedder`. Fits never use it. The gen2x2 θ jumps across cos 2φ = 0 when |Ω| > γ, with the same kernel on both sides.
 - Constructors: set what `__len__` and `ndof` need, check types, call `kwargs.setdefault("mappers", [...])`, call `super().__init__`, then set the parameters.
 - `from_dict` copies its input, pops the required keys and passes the rest to the constructor. `from_harmonic` (pronycos, gen2x2) returns a dict for `from_dict`, not an embedder.
 - `MultiEmbedder`: the components hold the parameters, but set values on the `MultiEmbedder`. Slice conventional arrays by `nparam` and primitive arrays by `ndof`.
@@ -44,7 +45,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 
 ## New embedder
 
-Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`, as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
+Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`, and `propagation_matrix` if the fitted form is not the one to simulate, as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
 
 ## Testing
 

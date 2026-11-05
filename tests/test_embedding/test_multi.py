@@ -74,6 +74,25 @@ def test_drift_matrix_places_component_blocks_on_the_diagonal():
     assert_array_equal(actual, expected)
 
 
+def test_propagation_matrix_replaces_only_the_gen2x2_block(emb, components):
+    # prony and pronycos propagate with their drift matrices; gen2x2 takes
+    # rows and columns 0, 2 and 3
+    gen2x2 = components[1].propagation_matrix()
+    expected = emb.drift_matrix
+    expected[0, 2:4], expected[2:4, 0] = gen2x2[0, 1:], gen2x2[1:, 0]
+    expected[2:4, 2:4] = gen2x2[1:, 1:]
+
+    actual = emb.propagation_matrix()
+
+    assert_array_equal(actual, expected)
+
+
+def test_propagation_matrix_keeps_the_kernel(emb, drift_matrix_reference):
+    actual, _ = drift_matrix_reference.kernel(emb.propagation_matrix(), TIME)
+
+    assert_close(actual, emb.kernel(TIME))
+
+
 @pytest.mark.parametrize("method, grid", GRIDS, ids=["kernel", "spectrum"])
 def test_closed_form_matches_the_drift_matrix(emb, drift_matrix_reference, method, grid):
     expected, _ = getattr(drift_matrix_reference, method)(emb.drift_matrix, grid)

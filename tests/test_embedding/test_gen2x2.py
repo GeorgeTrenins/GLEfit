@@ -279,6 +279,92 @@ def test_drift_matrix_x_grad_uses_its_argument_not_stored_params(
     assert_close(actual, expected)
 
 
+@pytest.mark.parametrize("params", list(KERNEL_CASES.values()),
+                         ids=list(KERNEL_CASES))
+def test_propagation_matrix_keeps_the_kernel(
+        reference, drift_matrix_reference, params):
+    Ap = embedder_at(params).propagation_matrix()
+
+    actual, _ = drift_matrix_reference.kernel(Ap, TIME)
+
+    assert_close(actual, reference.kernel(params, TIME))
+
+
+@pytest.mark.parametrize("params", list(KERNEL_CASES.values()),
+                         ids=list(KERNEL_CASES))
+def test_propagation_matrix_is_conventional_with_nonnegative_damping(
+        params):
+    # Ap = [[0, θᵀ], [-θ, A]] with A = [[γ+δ, ζ], [-ζ, γ-δ]] and |δ| ≤ γ,
+    # so that the symmetric part of A is positive semi-definite
+    Ap = embedder_at(params).propagation_matrix()
+
+    assert Ap[0, 0] == 0.0
+    assert_array_equal(Ap[1:, 0], -Ap[0, 1:])
+    assert Ap[1, 2] == -Ap[2, 1]
+    assert Ap[1, 1] >= 0.0 and Ap[2, 2] >= 0.0
+
+
+# φ with cos 2φ = 0.6 and sin 2φ = 0.8
+PHI_34 = np.arctan2(0.8, 0.6) / 2
+
+
+@pytest.mark.parametrize("params, expected", [
+    # |Ω| < γ|sin 2φ|: δ = √(γ² - Ω²) = 1, ζ = 0 and
+    # θ₁,₂² = r²(1 ± γ cos(2φ)/δ)/2 = (3.5, 0.5)
+    ([2.0, 1.25, 0.75, PHI_34],
+     [[0.0, np.sqrt(3.5), np.sqrt(0.5)],
+      [-np.sqrt(3.5), 2.25, 0.0],
+      [-np.sqrt(0.5), 0.0, 0.25]]),
+    # as above with sin 2φ < 0, which leaves the kernel unchanged
+    ([2.0, 1.25, 0.75, -PHI_34],
+     [[0.0, np.sqrt(3.5), np.sqrt(0.5)],
+      [-np.sqrt(3.5), 2.25, 0.0],
+      [-np.sqrt(0.5), 0.0, 0.25]]),
+    # |Ω| ≥ γ|sin 2φ|: δ = γ|cos 2φ| = 0.75, ζ = √(Ω² - γ² sin²2φ) = √1.25
+    # and θ = (r, 0) for cos 2φ ≥ 0
+    ([2.0, 1.25, 1.5, PHI_34],
+     [[0.0, 2.0, 0.0],
+      [-2.0, 2.0, np.sqrt(1.25)],
+      [0.0, -np.sqrt(1.25), 0.5]]),
+    # as above, but θ = (0, r) for cos 2φ < 0
+    ([2.0, 1.25, 1.5, np.pi/2 - PHI_34],
+     [[0.0, 0.0, 2.0],
+      [0.0, 2.0, np.sqrt(1.25)],
+      [-2.0, -np.sqrt(1.25), 0.5]]),
+    # cos 2φ = 0: δ = 0, and θ = (r, 0) by convention
+    ([2.0, 1.25, 1.5, np.pi/4],
+     [[0.0, 2.0, 0.0],
+      [-2.0, 1.25, np.sqrt(0.6875)],
+      [0.0, -np.sqrt(0.6875), 1.25]]),
+], ids=["independent-modes", "independent-modes-sin-negative",
+        "coupled-modes", "coupled-modes-cos-negative", "cos-zero"])
+def test_propagation_matrix_takes_the_minimal_gauge(params, expected):
+    actual = embedder_at(params).propagation_matrix()
+
+    assert_allclose(actual, expected, rtol=RTOL, atol=RTOL)
+
+
+@pytest.mark.parametrize("phi, expected", [
+    (0.4, [[0.0, 1.3, 0.0],
+           [-1.3, 1.3 * (1 + np.cos(0.8)), 0.0],
+           [0.0, 0.0, 1.3 * (1 - np.cos(0.8))]]),
+    (1.15, [[0.0, 0.0, 1.3],
+            [0.0, 1.3 * (1 - np.cos(2.3)), 0.0],
+            [-1.3, 0.0, 1.3 * (1 + np.cos(2.3))]]),
+], ids=["phi-below-quarter-pi", "phi-above-quarter-pi"])
+def test_propagation_matrix_in_the_debye_limit_has_a_single_mode(
+        phi, expected):
+    # Ω = γ|sin 2φ| gives ζ = 0, and θ couples p only to the variable that
+    # decays at the rate 2γ cos²φ. Here r = γ = 1.3. At these angles,
+    # Ω² - γ² sin²2φ rounds to -1e-16, whose square root is NaN, while
+    # (|Ω| - γ|sin 2φ|)(|Ω| + γ|sin 2φ|) is exactly zero.
+    params = [1.3, 1.3, 1.3 * abs(np.sin(2 * phi)), phi]
+
+    actual = embedder_at(params).propagation_matrix()
+
+    assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
+
+
 def test_default_mappers_take_log_of_gamma_only():
     emb = embedder_at([-1.3, 1.5, -0.8, 2.0])
 

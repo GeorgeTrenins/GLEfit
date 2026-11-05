@@ -272,6 +272,22 @@ class BaseEmbedder(ABC):
     # Alias
     A = drift_matrix
 
+    def propagation_matrix(self) -> npt.NDArray[np.floating]:
+        """The drift matrix to use for propagating the extended system.
+
+        Returns
+        -------
+        numpy.ndarray
+            A 2D array of shape (n+1, n+1), by default the drift matrix.
+
+        Notes
+        -----
+        Embedders whose parameters fix the kernel but not the drift matrix,
+        such as gen2x2, override this with the form best suited to
+        propagation.
+        """
+        return self.drift_matrix
+
     @abstractmethod
     def drift_matrix_param_grad(
         self, 

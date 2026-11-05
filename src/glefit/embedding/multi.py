@@ -243,6 +243,25 @@ class MultiEmbedder(BaseEmbedder):
             A[lb:ub,0] = emb_A[1:,0]
             A[lb:ub, lb:ub] = emb_A[1:,1:]
         return A
+
+    def propagation_matrix(self) -> npt.NDArray[np.floating]:
+        """The drift matrix for propagation, from those of the components.
+
+        Returns
+        -------
+        numpy.ndarray
+            Square matrix of shape (N+1, N+1), with the same block structure
+            as compute_drift_matrix
+        """
+        Ap = np.zeros_like(self._A)
+        ub = 1
+        for emb in self._embs:
+            lb, ub = ub, ub + len(emb)
+            emb_Ap = emb.propagation_matrix()
+            Ap[0, lb:ub] = emb_Ap[0, 1:]
+            Ap[lb:ub, 0] = emb_Ap[1:, 0]
+            Ap[lb:ub, lb:ub] = emb_Ap[1:, 1:]
+        return Ap
     
     def drift_matrix_param_grad(
         self, 

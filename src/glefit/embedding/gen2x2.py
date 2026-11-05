@@ -27,6 +27,44 @@ _REMOVED_KEYS = {
     "Omega": "the antisymmetric coupling between s₁ and s₂ is now 'zeta'",
 }
 
+
+def _drift_matrix_from_conventional(theta1, theta2, gamma, delta, zeta):
+    """Return the drift matrix of conventional parameters.
+
+    Returns:
+        ndarray: Ap = [[0, θ₁, θ₂], [-θ₁, γ+δ, ζ], [-θ₂, -ζ, γ-δ]]
+    """
+    return np.array([
+        [0.0,     theta1,        theta2       ],
+        [-theta1, gamma + delta, zeta         ],
+        [-theta2, -zeta,         gamma - delta]])
+
+
+def _amplitudes(gamma, Omega, c2, s2, kappa):
+    """Return the amplitudes (a₋, a₊) of exp(-λ₋t) and exp(-λ₊t) in K/r².
+
+    Args:
+        gamma, Omega (float): the primitive parameters γ and Ω
+        c2, s2 (float): cos 2φ and sin 2φ
+        kappa (float): κ = √(γ² - Ω²) > 0
+
+    Returns:
+        ndarray: [a₋, a₊], with a± = (1 ± γ cos(2φ)/κ)/2
+
+    Notes:
+        For Ω = γ|sin 2φ| (the Debye limit), κ = γ|cos 2φ|, and a₋ (if
+        cos 2φ > 0) or a₊ (if cos 2φ < 0) vanishes. That amplitude is
+        computed as (γ² sin²2φ - Ω²)/[2κ(κ + γ|cos 2φ|)], which is exactly
+        zero when Ω equals γ|sin 2φ| in floating point, and the other as one
+        minus it. Near this limit, the rounding of sin 2φ alone limits the
+        relative accuracy of the small amplitude, whatever the formula.
+    """
+    vanishing = ((gamma*abs(s2) - abs(Omega))*(gamma*abs(s2) + abs(Omega))
+                 / (2*kappa*(kappa + gamma*abs(c2))))
+    return np.array([vanishing, 1 - vanishing] if c2 >= 0 else
+                    [1 - vanishing, vanishing])
+
+
 class TwoAuxEmbedder(BaseEmbedder):
 
     def __len__(self) -> int:
@@ -333,12 +371,43 @@ class TwoAuxEmbedder(BaseEmbedder):
                 [-r cos φ,      2γ,       Ω],
                 [-r sin φ,      -Ω,       0]]
         """
-        theta1, theta2, gamma, delta, zeta = self.to_conventional(
-            primitive_params)
-        return np.array([
-            [0.0,     theta1,        theta2       ],
-            [-theta1, gamma + delta, zeta         ],
-            [-theta2, -zeta,         gamma - delta]])
+        return _drift_matrix_from_conventional(
+            *self.to_conventional(primitive_params))
+
+    def propagation_matrix(self) -> npt.NDArray[np.floating]:
+        """Return the drift matrix in the minimal gauge, for propagation.
+
+        Returns:
+            ndarray: Ap = [[0, θ₁, θ₂], [-θ₁, γ+δ, ζ], [-θ₂, -ζ, γ-δ]], with
+                the same kernel as drift_matrix
+
+        Notes:
+            Of all θ, δ and ζ with this kernel, the minimal gauge gives the
+            two auxiliary variables the most similar damping rates γ ± δ and
+            the smallest coupling ζ. With c = cos 2φ and s = sin 2φ:
+            - if |Ω| < γ|s|, then δ = κ = √(γ² - Ω²), ζ = 0 and
+              θ = r(√a₊, √a₋), with a± from _amplitudes: s₁ and s₂ are
+              independent modes that decay at the rates λ± = γ ± κ;
+            - otherwise, δ = γ|c|, ζ = √(Ω² - γ²s²), and θ = (r, 0) if
+              c ≥ 0 or (0, r) if c < 0.
+            For |Ω| > γ, θ jumps across c = 0, but the kernel does not.
+        """
+        r, gamma, Omega, phi = self.primitive_params
+        c2, s2 = np.cos(2*phi), np.sin(2*phi)
+        if abs(Omega) < gamma*abs(s2):
+            kappa = np.sqrt((gamma - abs(Omega))*(gamma + abs(Omega)))
+            a_minus, a_plus = _amplitudes(gamma, Omega, c2, s2, kappa)
+            theta1, theta2 = r*np.sqrt(a_plus), r*np.sqrt(a_minus)
+            delta, zeta = kappa, 0.0
+        else:
+            theta1, theta2 = (r, 0.0) if c2 >= 0 else (0.0, r)
+            delta = gamma*abs(c2)
+            # a product of non-negative factors, so that ζ is real, and zero
+            # at |Ω| = γ|s|
+            zeta = np.sqrt((abs(Omega) - gamma*abs(s2))
+                           * (abs(Omega) + gamma*abs(s2)))
+        return _drift_matrix_from_conventional(
+            theta1, theta2, gamma, delta, zeta)
 
     def drift_matrix_param_grad(
         self,
@@ -495,20 +564,13 @@ class TwoAuxEmbedder(BaseEmbedder):
             lose precision through cancellation, so λ₋ is computed as
             Ω²/(γ + κ), and the derivatives are taken through λ± and a±.
 
-            For Ω = γ|sin 2φ| (the Debye limit), κ = γ|cos 2φ|, and
-            a₋ (if cos 2φ > 0) or a₊ (if cos 2φ < 0) vanishes. That amplitude
-            is computed as (γ² sin²2φ - Ω²)/[2κ(κ + γ|cos 2φ|)], which stays
-            accurate near this limit, and the other as one minus it.
+            For Ω = γ|sin 2φ| (the Debye limit), one of a± vanishes;
+            _amplitudes makes it exactly zero there.
         """
         kappa = np.sqrt(G)
         c2, s2 = np.cos(2*phi), np.sin(2*phi)
         rates = np.array([Omega**2/(gamma + kappa), gamma + kappa])
-        vanishing = ( # (γ² sin²2φ - Ω²)/[2κ(κ + γ|cos 2φ|)]
-            (gamma*abs(s2) - abs(Omega))*(gamma*abs(s2) + abs(Omega)) /
-            (2*kappa*(kappa + gamma*abs(c2)))
-        )
-        amplitudes = np.array([vanishing, 1 - vanishing] if c2 >= 0 else
-                              [1 - vanishing, vanishing])
+        amplitudes = _amplitudes(gamma, Omega, c2, s2, kappa)
         exponentials = np.exp(-np.outer(rates, t))
         f = amplitudes @ exponentials
         # Derivatives of the decay rates: one row each for

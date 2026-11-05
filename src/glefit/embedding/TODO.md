@@ -15,7 +15,7 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 283 tests and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 318 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
@@ -25,9 +25,8 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Point 4: gen2x2 redesign (EMB-20)
 
-Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) and 4 (the `kernel_hess` commit, EMB-16) are done. Step 5 changes `gen2x2.py`, so stop after it until the maintainer has committed it. In step 5, replace "the `kernel_hess` commit" in `ISSUES.md` (EMB-16, EMB-20) by its hash.
+Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) 4 (`4a5b5f3`, EMB-16) and 5 (the `propagation_matrix` commit) are done. Stop after each remaining step until the maintainer has committed it. In step 6, replace "the `propagation_matrix` commit" in `ISSUES.md` (EMB-5, EMB-20) by its hash.
 
-5. `BaseEmbedder.propagation_matrix()` returns the drift matrix. gen2x2 overrides it with the minimal gauge of the note's table, and `MultiEmbedder` assembles it block by block.
 6. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json`, tested by running `main` in `tmp_path`. This closes EMB-20.
 7. Remove what is unused in `utils/special.py` (all but `sinc`). Ask first: this breaks the import of `legacy_tests/test_utils/test_special.py` (34 passing tests).
 
@@ -64,6 +63,7 @@ Lessons for the new code:
   - Ω = 0 stopped at a false convergence (residual 0.37).
   - φ = 0 escaped through roundoff after 50 steps.
   - r = 0 stopped at step 0.
+- Near (not on) the Debye limit, the small amplitude a₋ or a₊ has a relative error of about ε/(distance to the limit), from the rounding of sin 2φ alone, whatever the formula (5.8e-11 at a distance of 1e-6). Factoring only makes it exactly zero on the limit. Tests of rounding there must be on the limit, with element-wise tolerances.
 - The minimal gauge jumps from θ = (r, 0) to (0, r) across φ = π/4 when Ω > γ. The kernel is the same on both sides, as the note now says.
 - Leave `tutorials/` alone for now.
 
