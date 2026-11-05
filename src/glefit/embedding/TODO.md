@@ -15,10 +15,10 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 318 tests and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 319 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
-- Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
+- Not tested yet, because they are known defects or undecided: EMB-3 and EMB-6.
 - `legacy_tests/`: 79 pass, 51 fail and 1 file fails to import (all known). `test_utils/test_special.py` cannot be imported since the unused special functions were removed, as the maintainer accepted. `test_gen2x2.py::test_matrix_rotation` fails since `rotate_matrix` was removed (EMB-22), as the maintainer accepted. The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
 - Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
 - The gen2x2 note in `docs/` was rewritten in `b05a032`, after the [r, α, g, y] code of `290c7d3`, and extended on 2026-11-05 (a generality proof and remarks). It uses (r, γ, Ω, φ), with α = γ cos 2φ and g = γ² − Ω², and has no y. Its Ω is the irreducible frequency. The drift-matrix entry that it called ε, and the code `Omega`, is ζ (`zeta`) since `3985b1b`.
@@ -34,9 +34,8 @@ Lessons that still apply:
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
-Next. Start here.
+Next. Start here. EMB-4 is done (the EMB-4 commit); in the next commit, replace "the EMB-4 commit" in `ISSUES.md` and here by its hash.
 
-- EMB-4: `MultiEmbedder.to_primitive` uses `emb.nparams` instead of `emb.nparam` (AttributeError).
 - EMB-3: integer input to the setters.
 - EMB-6: `MultiEmbedder.grad_A` returns stale values after a component is edited directly. Ask the maintainer whether to fix it or to document it as unsupported (the conventions say to set values on the `MultiEmbedder`).
 - EMB-17 (agreed feature): `MultiEmbedder` raises on a `mappers` argument.

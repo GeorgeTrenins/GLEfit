@@ -64,7 +64,7 @@ It raised `NotImplementedError`, which also affected `kernel(t, nu=2)` on any `M
 **EMB-22 · resolved in `9291892` · gen2x2 `from_matrix` rejects some semi-definite A through rounding.**
 `rotate_matrix` rejected A when `eigh` returned a negative eigenvalue for its symmetric part S. For a zero eigenvalue, rounding gives about −1e-17, so a rotated Brownian oscillator (θ along the undamped variable) was rejected at 29 of 62 rotation angles. `from_matrix` now checks tr S ≥ 0 and det S ≥ −4ε(tr S)², and sets invariants that rounding makes negative to zero.
 
-**EMB-4 · open · `MultiEmbedder.to_primitive` raises `AttributeError`.**
+**EMB-4 · resolved in the EMB-4 commit · `MultiEmbedder.to_primitive` raises `AttributeError`.**
 It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 
 ### Needs a decision

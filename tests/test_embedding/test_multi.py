@@ -172,6 +172,14 @@ def test_conventional_params_concatenate_the_components(emb):
     assert_allclose(emb.conventional_params, expected, rtol=RTOL)
 
 
+def test_to_primitive_converts_each_component_by_its_slice(emb):
+    # gen2x2 has five conventional but four primitive parameters, so the
+    # input and output slices differ
+    actual = emb.to_primitive(emb.conventional_params)
+
+    assert_allclose(actual, emb.primitive_params, rtol=RTOL)
+
+
 @pytest.mark.parametrize("name, values", SETTER_CASES.items(), ids=list(SETTER_CASES))
 def test_param_setter_updates_each_component_by_its_slice(emb, components, name, values):
     setattr(emb, name, np.concatenate(values))

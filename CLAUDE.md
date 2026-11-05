@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 318 passing tests, `tests/test_merit` has 8 `tests/test_utils` has 17, and `tests/test_optimize.py` checks the file that `optimize.py` writes. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 319 passing tests, `tests/test_merit` has 8 `tests/test_utils` has 17, and `tests/test_optimize.py` checks the file that `optimize.py` writes. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
 `legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py` cannot be imported, because the special functions it tests were removed once nothing used them, and without the flag pytest stops at collection and runs nothing. Since the gen2x2 reparametrisation (EMB-20), 79 tests pass, 51 fail and that one file fails to import. The failures are known, caused by tests lagging the code:
 

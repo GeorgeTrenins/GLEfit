@@ -59,10 +59,10 @@ class MultiEmbedder(BaseEmbedder):
         primitive_params = []
         i = 0
         for emb in self._embs:
-            nparams = emb.nparams
-            c = conventional_params[i:i+nparams]
+            nparam = emb.nparam
+            c = conventional_params[i:i+nparam]
             primitive_params.append(emb.to_primitive(c))
-            i += nparams
+            i += nparam
         return np.concatenate(primitive_params)
     
     def to_conventional(
