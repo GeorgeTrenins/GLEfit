@@ -368,6 +368,12 @@ def test_weakly_damped_params_are_accepted_and_keep_the_kernel(
     assert_close(actual, expected)
 
 
+def rotation(angle):
+    """Rotation of s₁ and s₂, which leaves the kernel unchanged."""
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[c, -s], [s, c]])
+
+
 def test_from_matrix_keeps_the_kernel(drift_matrix_reference):
     theta, A = np.array([1.0, 0.5]), np.array([[1.5, 0.8], [0.2, 1.0]])
     expected, _ = drift_matrix_reference.kernel(
@@ -378,9 +384,54 @@ def test_from_matrix_keeps_the_kernel(drift_matrix_reference):
     assert_close(actual, expected)
 
 
-def test_from_matrix_rejects_indefinite_symmetric_part():
-    with pytest.raises(ValueError, match="positive-definite"):
-        TwoAuxEmbedder.from_matrix([1.0, 0.5], [[1.0, 0.0], [0.0, -0.5]])
+@pytest.mark.parametrize("Q", [np.eye(2), rotation(0.7) @ np.diag([1.0, -1.0])],
+                         ids=["as-given", "rotated-and-reflected"])
+def test_from_matrix_follows_the_rotation_invariants(Q):
+    # r² = |θ|² = 1.25, 2γ = tr A = 2.5, Ω² = det A = 1.34 and
+    # cos²φ = θᵀAθ/(|θ|² tr A) = 2.25/3.125 = 0.72, in any basis of s₁, s₂
+    theta = Q @ np.array([1.0, 0.5])
+    A = Q @ np.array([[1.5, 0.8], [0.2, 1.0]]) @ Q.T
+
+    actual = TwoAuxEmbedder.from_matrix(theta, A).primitive_params
+
+    assert_allclose(
+        actual,
+        [np.sqrt(1.25), 1.25, np.sqrt(1.34), np.arccos(np.sqrt(0.72))],
+        rtol=RTOL)
+
+
+@pytest.mark.parametrize("angle", [0.1, 0.7])
+@pytest.mark.parametrize("theta, A", [
+    ([0.0, 1.0], [[2.0, 1.5], [-1.5, 0.0]]),
+    ([1.0, 0.0], [[2.0, 1.5], [-1.5, 0.0]]),
+    ([0.6, 0.8], [[2.0, 0.0], [0.0, 0.0]]),
+], ids=["brownian-oscillator", "zero-static-friction", "Omega-zero"])
+def test_from_matrix_accepts_a_rotated_semidefinite_embedding(
+        drift_matrix_reference, theta, A, angle):
+    # The symmetric part of A has a zero eigenvalue, and θᵀAθ, θᵀ adj(A) θ or
+    # det A vanishes. At these angles, rounding makes them about -1e-17.
+    R = rotation(angle)
+    theta = R @ np.array(theta)
+    A = R @ np.array(A) @ R.T
+    expected, _ = drift_matrix_reference.kernel(
+        np.block([[0.0, theta], [-theta[:, None], A]]), TIME)
+
+    actual = TwoAuxEmbedder.from_matrix(theta, A).kernel(TIME)
+
+    assert_close(actual, expected)
+
+
+@pytest.mark.parametrize("theta, A, match", [
+    ([1.0, 0.5], [[1.0, 0.0], [0.0, -0.5]], "semi-definite"),
+    ([1.0, 0.5], [[1.0, 0.0], [0.0, -1.0e-6]], "semi-definite"),
+    ([1.0, 0.5], [[-1.0, 0.0], [0.0, -0.5]], "semi-definite"),
+    ([0.0, 0.0], [[1.5, 0.8], [0.2, 1.0]], "admissible"),
+    ([1.0, 0.5], [[0.0, 1.0], [-1.0, 0.0]], "admissible"),
+], ids=["indefinite", "slightly-indefinite", "negative-definite",
+        "theta-zero", "trace-zero"])
+def test_from_matrix_rejects_inadmissible_input(theta, A, match):
+    with pytest.raises(ValueError, match=match):
+        TwoAuxEmbedder.from_matrix(theta, A)
 
 
 def test_from_harmonic_puts_the_coupling_on_the_first_variable():

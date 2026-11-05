@@ -11,11 +11,10 @@ Every defect was reproduced by running the code (`src/` is unchanged from `85e5b
 ### Agreed redesign
 
 **EMB-20 · open · Reparametrise gen2x2 as described in the docs.**
-Agreed with the maintainer on 2026-11-04/05, following `docs/Generalised Brownian oscillator auxiliary variables.md`. `290c7d3` replaced λ + Softmax(Γ, Softabs(α)) with the primitive parameters [r, α, g, y], where g = δ² − ζ² and γ(α, g, y) covers every strictly admissible γ. The (r, γ, Ω, φ) commit replaced these with the note's (r, γ, Ω, φ). `to_primitive` is eq. (3) of the note, only γ is constrained, and the drift matrix uses the maximal gauge δ = γ, where θ = r(cos φ, sin φ) and ζ = Ω. `conventional_params` and the trajectory file report this gauge. Only `optimized_Ap_matrix.json` should use the minimal gauge, with θ = (r, 0) at cos 2φ = 0 as in the docs.
+Agreed with the maintainer on 2026-11-04/05, following `docs/Generalised Brownian oscillator auxiliary variables.md`. `290c7d3` replaced λ + Softmax(Γ, Softabs(α)) with the primitive parameters [r, α, g, y], where g = δ² − ζ² and γ(α, g, y) covers every strictly admissible γ. `9d29a67` replaced these with the note's (r, γ, Ω, φ). `to_primitive` is eq. (3) of the note, only γ is constrained, and the drift matrix uses the maximal gauge δ = γ, where θ = r(cos φ, sin φ) and ζ = Ω. `conventional_params` and the trajectory file report this gauge. Only `optimized_Ap_matrix.json` should use the minimal gauge, with θ = (r, 0) at cos 2φ = 0 as in the docs.
 
-Three parts remain:
+`from_matrix` computes (r, γ, Ω, φ) from rotation invariants of θ and A since the `from_matrix` commit (EMB-22). Two parts remain:
 
-- `from_matrix` from the rotation invariants of θ and A, without `rotate_matrix`.
 - `kernel_hess` (EMB-16).
 - A new embedder method that returns the Ap used for propagation (decided). It returns `A` by default, gen2x2 overrides it with the minimal gauge, and `MultiEmbedder` assembles it block by block. `optimize.py` writes it to `optimized_Ap_matrix.json` in place of `emb.A`. Until then, that file holds the maximal gauge, which is a valid embedding in which s₂ receives no noise.
 
@@ -29,7 +28,7 @@ Consequences:
 
 ### Resolved by EMB-20
 
-`290c7d3` resolved these. Its maximal gauge has no branches, which removed EMB-1, EMB-5 and EMB-7. K and Λ are smooth in g, which removed EMB-8. γ(y) covered every strictly admissible γ, which removed EMB-9. The new closed forms fixed EMB-2. The (r, γ, Ω, φ) commit kept these fixes and resolved EMB-13. EMB-16 follows in its own commit.
+`290c7d3` resolved these. Its maximal gauge has no branches, which removed EMB-1, EMB-5 and EMB-7. K and Λ are smooth in g, which removed EMB-8. γ(y) covered every strictly admissible γ, which removed EMB-9. The new closed forms fixed EMB-2. `9d29a67` kept these fixes and resolved EMB-13. EMB-16 follows in its own commit.
 
 **EMB-1 · resolved in `290c7d3` · The gen2x2 gradient for α is zero at α = 0 with Γ < 0.**
 `TwoAuxEmbedder.jac_conventional` sets `jac[3, 1] = np.sign(alpha)`, which is 0 at α = 0, so dAp/dα misses dδ/dα. The Hessian of K or Λ has its α off-diagonal entries at half their true value, and the Hessian of the distance loses the Gauss–Newton term in the whole α row and column. Every `from_harmonic` start lands here, as does any input with θ₁ = θ₂ and |δ| < |ζ|. An `EF` fit still reached its target in one trial, so this is easy to miss. Also listed in `glefit/merit/CLAUDE.md`.
@@ -65,6 +64,9 @@ It raises `NotImplementedError`, which also affects `kernel(t, nu=2)` on any `Mu
 **EMB-3 · open · Integer arrays given to the parameter setters are truncated in the mapped space.**
 `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `_base.py` allocate their output with `np.zeros_like(input)`. After `primitive_params = [3, 1]` on a `prony` embedder, x is [1, 0] instead of [ln 3, 0], so x no longer matches p. Constructors convert to float, so configs are not affected.
 
+**EMB-22 · resolved in the `from_matrix` commit · gen2x2 `from_matrix` rejects some semi-definite A through rounding.**
+`rotate_matrix` rejected A when `eigh` returned a negative eigenvalue for its symmetric part S. For a zero eigenvalue, rounding gives about −1e-17, so a rotated Brownian oscillator (θ along the undamped variable) was rejected at 29 of 62 rotation angles. `from_matrix` now checks tr S ≥ 0 and det S ≥ −4ε(tr S)², and sets invariants that rounding makes negative to zero.
+
 **EMB-4 · open · `MultiEmbedder.to_primitive` raises `AttributeError`.**
 It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 
@@ -84,7 +86,7 @@ A misspelled key, such as `sigmaa`, is accepted silently and the default applies
 **EMB-12 · open · Fits never read the left column of Ap.**
 `MemoryKernel` and `MemorySpectrum` take θ from the top row of Ap only. A wrong left column from `compute_drift_matrix` therefore leaves fits unchanged, but it is written to `optimized_Ap_matrix.json`, which simulations use. The left column of `drift_matrix_param_grad` does enter the fit gradient. `tests/test_embedding` checks the left column directly, and `DriftMatrixReference` reads θ from it.
 
-**EMB-13 · resolved in the (r, γ, Ω, φ) commit · `to_primitive` loses relative accuracy in g when |g| ≪ δ².**
+**EMB-13 · resolved in `9d29a67` · `to_primitive` loses relative accuracy in g when |g| ≪ δ².**
 g = δ² − ζ² cancels, so its relative error is of order ε·δ²/|g|. This is conditioning, not a bug. Before EMB-20 the same held for Γ = sign(g)·√|g| (1–4e-11 at Γ = ±1e-3). The primitive parameters no longer contain g, and Ω² = (γ − δ)(γ + δ) + ζ² is a sum of non-negative terms.
 
 **EMB-14 · open · `MultiEmbedder` needs a list or tuple of components.**

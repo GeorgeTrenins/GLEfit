@@ -15,19 +15,18 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 255 tests and 1 strict xfail and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 267 tests and 1 strict xfail and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because they are known defects or undecided: EMB-3, EMB-4 and EMB-6.
-- `legacy_tests/`: 114 pass, 50 fail (known). The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
+- `legacy_tests/`: 113 pass, 51 fail (known). `test_gen2x2.py::test_matrix_rotation` fails since `rotate_matrix` was removed (EMB-22), as the maintainer accepted. The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
 - Point 3 is done (`f117fc5`). `ISSUES.md` holds the embedding issues. A fix marks its issue resolved there in the same commit.
 - The gen2x2 note in `docs/` was rewritten in `b05a032`, after the [r, α, g, y] code of `290c7d3`, and extended on 2026-11-05 (a generality proof and remarks). It uses (r, γ, Ω, φ), with α = γ cos 2φ and g = γ² − Ω², and has no y. Its Ω is the irreducible frequency. The drift-matrix entry that it called ε, and the code `Omega`, is ζ (`zeta`) since `3985b1b`.
 
 ## Point 4: gen2x2 redesign (EMB-20)
 
-Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`) and 2 (the (r, γ, Ω, φ) commit) are done. Steps 3–5 change `gen2x2.py`, so stop after each one until the maintainer has committed it. In step 3, replace "the (r, γ, Ω, φ) commit" in `ISSUES.md` (EMB-13, EMB-20) by its hash.
+Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`) and 3 (the `from_matrix` commit, a fix for EMB-22 that also removed `rotate_matrix`) are done. Steps 4 and 5 change `gen2x2.py`, so stop after each one until the maintainer has committed it. In step 4, replace "the `from_matrix` commit" in `ISSUES.md` (EMB-20, EMB-22) by its hash.
 
-3. `from_matrix(theta, A)` keeps its signature and uses the invariants helper. It still rejects an A with an indefinite symmetric part (EMB-21): check tr S ≥ 0 and det S ≥ 0. Remove `rotate_matrix`; legacy `test_matrix_rotation` then fails (114 → 113 pass), which the maintainer accepted.
 4. `kernel_hess` (EMB-16), in the same two forms. The strict xfail becomes a test over all cases.
 5. `BaseEmbedder.propagation_matrix()` returns the drift matrix. gen2x2 overrides it with the minimal gauge of the note's table, and `MultiEmbedder` assembles it block by block.
 6. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json`, tested by running `main` in `tmp_path`. This closes EMB-20.

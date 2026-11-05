@@ -196,12 +196,16 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Raises:
             ValueError: if theta or A has the wrong shape, if the symmetric
-                part of A has a negative eigenvalue, or if the kernel is not
-                admissible
+                part of A has a negative eigenvalue, or if the embedding is
+                not admissible (see to_primitive)
 
         Notes:
-            θ and A are first rotated so that the symmetric part of A is
-            diagonal, which gives the form [[γ+δ, ζ], [-ζ, γ-δ]].
+            Let S be the symmetric part of A. Its eigenvalues are non-negative
+            if and only if tr S ≥ 0 and det S ≥ 0, where the second condition
+            is checked up to rounding, as det S ≥ -4ε(tr S)². Then |θ|²,
+            tr A, det A, θᵀAθ and θᵀ adj(A) θ are non-negative, and they fix
+            the kernel (see _primitive_from_invariants). Values below zero by
+            rounding are set to zero.
         """
         theta = np.asarray(theta, dtype=float)
         if theta.shape != (2,):
@@ -211,11 +215,23 @@ class TwoAuxEmbedder(BaseEmbedder):
         if A.shape != (2,2):
             raise ValueError(
                 f"A must be a 2-by-2 array, instead got {A.shape = }")
-        theta, A = cls.rotate_matrix(theta, A)
-        gamma = (A[0,0] + A[1,1]) / 2
-        delta = (A[0,0] - A[1,1]) / 2
-        zeta = A[0,1]
-        return cls(theta, gamma, delta, zeta, **kwargs)
+        S = (A + A.T)/2
+        trace = np.trace(S)
+        det_S = S[0, 0]*S[1, 1] - S[0, 1]**2
+        if not (trace >= 0 and det_S >= -4*np.finfo(float).eps*trace**2):
+            raise ValueError(
+                f"The symmetric part of A must be positive semi-definite, "
+                f"instead got {S = }")
+        adj = np.array([[A[1, 1], -A[0, 1]], [-A[1, 0], A[0, 0]]])
+        r, gamma, Omega, phi = cls._primitive_from_invariants(
+            r2=theta @ theta,
+            gamma=trace/2,
+            det=max(A[0, 0]*A[1, 1] - A[0, 1]*A[1, 0], 0.0),
+            quad=max(theta @ A @ theta, 0.0),
+            quad_adj=max(theta @ adj @ theta, 0.0))
+        # the maximal gauge of to_conventional
+        theta = r*np.array([np.cos(phi), np.sin(phi)])
+        return cls(theta, gamma, gamma, Omega, **kwargs)
 
     def to_primitive(
         self,
@@ -301,35 +317,6 @@ class TwoAuxEmbedder(BaseEmbedder):
                 f"vector, instead got {primitive_params.shape = }")
         r, gamma, Omega, phi = primitive_params
         return np.array([r*np.cos(phi), r*np.sin(phi), gamma, gamma, Omega])
-
-    @staticmethod
-    def rotate_matrix(
-        theta: npt.NDArray[np.floating],
-        A: npt.NDArray[np.floating]
-    ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Return θ and A rotated so that the symmetric part of A is diagonal.
-
-        Args:
-            theta (ndarray): the couplings, shape (2,)
-            A (ndarray): the auxiliary drift matrix, shape (2, 2)
-
-        Returns:
-            tuple of ndarray: the rotated θ and A
-
-        Raises:
-            ValueError: if the symmetric part of A has a negative eigenvalue
-        """
-        Asym = (A + A.T)/2
-        eigs = np.linalg.eigh(Asym)
-        if np.any(eigs.eigenvalues < 0):
-            raise ValueError(
-                f"The auxiliary variable drift matrix must be "
-                f"positive-definite. "
-                f"Instead, the symmetric component {Asym = } was found to have "
-                f"the eigenvalues {eigs.eigenvalues}.")
-        new_theta = np.dot(eigs.eigenvectors.T, theta)
-        new_A = np.linalg.multi_dot([eigs.eigenvectors.T, A, eigs.eigenvectors])
-        return new_theta, new_A
 
     def compute_drift_matrix(
         self,
