@@ -25,9 +25,8 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Point 4: gen2x2 redesign (EMB-20)
 
-Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) 4 (`4a5b5f3`, EMB-16) and 5 (the `propagation_matrix` commit) are done. Stop after each remaining step until the maintainer has committed it. In step 6, replace "the `propagation_matrix` commit" in `ISSUES.md` (EMB-5, EMB-20) by its hash.
+Plan approved on 2026-11-05. One commit per step, in this order; delete each step once it is committed. Steps 1 (`3985b1b`), 2 (`9d29a67`), 3 (`9291892`, a fix for EMB-22 that also removed `rotate_matrix`) 4 (`4a5b5f3`, EMB-16), 5 (`4755501`) and 6 (the `optimize.py` commit, which completed EMB-20) are done. In the next commit, replace "the `optimize.py` commit" in `ISSUES.md` (EMB-20) by its hash.
 
-6. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json`, tested by running `main` in `tmp_path`. This closes EMB-20.
 7. Remove what is unused in `utils/special.py` (all but `sinc`). Ask first: this breaks the import of `legacy_tests/test_utils/test_special.py` (34 passing tests).
 
 `from_harmonic` stays as it is, apart from the key `zeta`.

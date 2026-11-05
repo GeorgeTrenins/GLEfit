@@ -16,7 +16,7 @@ Use the `tools` conda environment, not the `glefit` environment defined in `envi
 
 - `trajfile` (default `traj.out`): conventional parameters at each step.
 - `logfile`: appended to. `-` means stdout, and leaving it unset discards the log.
-- `optimized_Ap_matrix.json`: the full drift matrix, written only on convergence.
+- `optimized_Ap_matrix.json`: the full drift matrix from `propagation_matrix()`, which is the minimal gauge for `gen2x2`, written only on convergence.
 
 A run that does not converge prints nothing and exits 0, so check for the JSON file.
 
@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 318 passing tests, `tests/test_merit` has 8 and `tests/test_utils` has 17. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the `grad_wrt_A` methods of `glefit.merit` and `sinc` in `glefit.utils.special`: `tests/test_embedding` has 318 passing tests, `tests/test_merit` has 8 `tests/test_utils` has 17, and `tests/test_optimize.py` checks the file that `optimize.py` writes. Its references are SymPy and mpmath, not `glefit.utils.numderiv`, which is unreviewed.
 
 `legacy_tests/` is the original suite and must not be edited. Since the gen2x2 reparametrisation (EMB-20), 113 tests pass and 51 fail. These are known failures, caused by tests lagging the code:
 

@@ -80,14 +80,16 @@ def main(args: argparse.Namespace):
     success = optimization.run(steps=max_iter, options=optimization_options)
     if success:
         print("YAY!")
+        # the form best suited to simulations, with the fitted kernel
+        Ap = optimization.emb.propagation_matrix()
         output_path: Path = Path("optimized_Ap_matrix.json")
         with open(output_path, 'w') as f:
             f.write('{\n')
             f.write('"Ap": [\n')
-            for i, row in enumerate(optimization.emb.A.tolist()):
-                formatted_row = [f"{x:14.7e}" for x in row] 
+            for i, row in enumerate(Ap.tolist()):
+                formatted_row = [f"{x:14.7e}" for x in row]
                 f.write('          [' + ','.join(formatted_row)+']')
-                if i < len(optimization.emb.A) - 1:
+                if i < len(Ap) - 1:
                     f.write(',')
                 f.write('\n')
             f.write('      ]\n')

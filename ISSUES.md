@@ -10,12 +10,10 @@ Every defect was reproduced by running the code (`src/` is unchanged from `85e5b
 
 ### Agreed redesign
 
-**EMB-20 · open · Reparametrise gen2x2 as described in the docs.**
+**EMB-20 · resolved in the `optimize.py` commit · Reparametrise gen2x2 as described in the docs.**
 Agreed with the maintainer on 2026-11-04/05, following `docs/Generalised Brownian oscillator auxiliary variables.md`. `290c7d3` replaced λ + Softmax(Γ, Softabs(α)) with the primitive parameters [r, α, g, y], where g = δ² − ζ² and γ(α, g, y) covers every strictly admissible γ. `9d29a67` replaced these with the note's (r, γ, Ω, φ). `to_primitive` is eq. (3) of the note, only γ is constrained, and the drift matrix uses the maximal gauge δ = γ, where θ = r(cos φ, sin φ) and ζ = Ω. `conventional_params` and the trajectory file report this gauge. Only `optimized_Ap_matrix.json` should use the minimal gauge, with θ = (r, 0) at cos 2φ = 0 as in the docs.
 
-`from_matrix` computes (r, γ, Ω, φ) from rotation invariants of θ and A since `9291892` (EMB-22), `kernel_hess` exists since `4a5b5f3` (EMB-16), and `propagation_matrix()` returns the drift matrix for propagation since the `propagation_matrix` commit: the drift matrix by default, the minimal gauge for gen2x2, and the components' matrices assembled block by block for `MultiEmbedder`. One part remains:
-
-- `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json` in place of `emb.A`. Until then, that file holds the maximal gauge, which is a valid embedding in which s₂ receives no noise.
+`from_matrix` computes (r, γ, Ω, φ) from rotation invariants of θ and A since `9291892` (EMB-22), `kernel_hess` exists since `4a5b5f3` (EMB-16), and `propagation_matrix()` returns the drift matrix for propagation since `4755501`: the drift matrix by default, the minimal gauge for gen2x2, and the components' matrices assembled block by block for `MultiEmbedder`. `optimize.py` writes `propagation_matrix()` to `optimized_Ap_matrix.json` since the `optimize.py` commit, which completed EMB-20.
 
 Consequences:
 
@@ -33,7 +31,7 @@ Consequences:
 `TwoAuxEmbedder.jac_conventional` sets `jac[3, 1] = np.sign(alpha)`, which is 0 at α = 0, so dAp/dα misses dδ/dα. The Hessian of K or Λ has its α off-diagonal entries at half their true value, and the Hessian of the distance loses the Gauss–Newton term in the whole α row and column. Every `from_harmonic` start lands here, as does any input with θ₁ = θ₂ and |δ| < |ζ|. An `EF` fit still reached its target in one trial, so this is easy to miss. Also listed in `glefit/merit/CLAUDE.md`.
 
 **EMB-5 · resolved in `290c7d3` · The gen2x2 standard form at α = 0 disagrees with the docs.**
-On the branch |α| ≥ Γ, the docs set θ = (r, 0) for α ≥ 0, but `to_conventional` and `jac_conventional` test `alpha > 0` and give θ = (0, r) at α = 0. Both give the same kernel. Decided: follow the docs. Since EMB-20, `to_conventional` returns the maximal gauge, so the decision applies only to the minimal gauge of the propagation Ap, which must give θ = (r, 0) at α = 0, that is, at cos 2φ = 0. `propagation_matrix()` does so since the `propagation_matrix` commit.
+On the branch |α| ≥ Γ, the docs set θ = (r, 0) for α ≥ 0, but `to_conventional` and `jac_conventional` test `alpha > 0` and give θ = (0, r) at α = 0. Both give the same kernel. Decided: follow the docs. Since EMB-20, `to_conventional` returns the maximal gauge, so the decision applies only to the minimal gauge of the propagation Ap, which must give θ = (r, 0) at α = 0, that is, at cos 2φ = 0. `propagation_matrix()` does so since `4755501`.
 
 **EMB-7 · resolved in `290c7d3` · gen2x2 gradients are infinite or NaN at |α| = Γ exactly.**
 `drift_matrix_param_grad` divides by zero on this line, which includes δ = ζ = 0, and ζ = 0 with θ₁ = 0 or θ₂ = 0. `EF` then raises `LinAlgError`. Gradients are accurate just off the line, so avoid these exact values in starting guesses.
