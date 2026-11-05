@@ -12,8 +12,9 @@ from __future__ import print_function, division, absolute_import
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
-from glefit.embedding import (MultiEmbedder, PronyEmbedder, 
+from glefit.embedding import (MultiEmbedder, PronyEmbedder,
                               PronyCosineEmbedder, TwoAuxEmbedder)
+from glefit.mappers import IdentityMapper
 
 
 RTOL = 1.0e-12
@@ -54,6 +55,12 @@ def assert_close(actual, expected):
     scale = np.max(np.abs(expected), axis=-1, keepdims=True)
     scale = np.where(scale > 0.0, scale, 1.0)
     assert_allclose(np.asarray(actual) / scale, expected / scale, rtol=RTOL, atol=RTOL)
+
+
+def test_mappers_argument_is_rejected(components):
+    # each component maps its own parameters
+    with pytest.raises(TypeError, match="mappers"):
+        MultiEmbedder(components, mappers=[IdentityMapper()] * 9)
 
 
 def test_sizes_add_up_over_components(emb):

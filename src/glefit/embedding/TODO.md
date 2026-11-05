@@ -15,7 +15,7 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 325 tests and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 326 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - Not tested yet, because it is undecided: EMB-6.
@@ -34,10 +34,9 @@ Lessons that still apply:
 
 ## Point 5: small bug fixes, one commit each, failing test first
 
-Next. Start here. EMB-4 (`19d41c5`) and EMB-3 (the EMB-3 commit) are done; in the next commit, replace "the EMB-3 commit" in `ISSUES.md` and here by its hash.
+Next. Start here. EMB-4 (`19d41c5`), EMB-3 (`66bd58d`) and EMB-17 (the EMB-17 commit) are done; in the next commit, replace "the EMB-17 commit" in `ISSUES.md` and here by its hash.
 
 - EMB-6: `MultiEmbedder.grad_A` returns stale values after a component is edited directly. Ask the maintainer whether to fix it or to document it as unsupported (the conventions say to set values on the `MultiEmbedder`).
-- EMB-17 (agreed feature): `MultiEmbedder` raises on a `mappers` argument.
 
 ## Later
 

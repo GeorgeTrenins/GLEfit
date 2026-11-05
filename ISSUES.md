@@ -58,7 +58,7 @@ It raised `NotImplementedError`, which also affected `kernel(t, nu=2)` on any `M
 
 ### Wrong results
 
-**EMB-3 · resolved in the EMB-3 commit · Integer arrays given to the parameter setters are truncated in the mapped space.**
+**EMB-3 · resolved in `66bd58d` · Integer arrays given to the parameter setters are truncated in the mapped space.**
 `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `_base.py` allocate their output with `np.zeros_like(input)`. After `primitive_params = [3, 1]` on a `prony` embedder, x is [1, 0] instead of [ln 3, 0], so x no longer matches p. Constructors convert to float, so configs are not affected.
 
 **EMB-22 · resolved in `9291892` · gen2x2 `from_matrix` rejects some semi-definite A through rounding.**
@@ -94,7 +94,7 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 
 ### Missing features
 
-**EMB-17 · open · `MultiEmbedder` should reject a `mappers` argument.**
+**EMB-17 · resolved in the EMB-17 commit · `MultiEmbedder` should reject a `mappers` argument.**
 Custom mappers are for debugging only, and the components do the mapping. `MultiEmbedder` currently stores a `mappers` argument but never uses it. It should raise an error instead.
 
 **EMB-18 · open · `from_matrix` exists only for gen2x2.**

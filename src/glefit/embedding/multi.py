@@ -16,6 +16,10 @@ import numpy.typing as npt
 class MultiEmbedder(BaseEmbedder):
 
     def __init__(self, embedders: Iterable[BaseEmbedder], *args, **kwargs):
+        if "mappers" in kwargs:
+            raise TypeError(
+                "MultiEmbedder takes no mappers: each component maps its own "
+                "parameters")
         self._embs = embedders
         self._naux = sum([len(emb) for emb in self._embs])
         self._nparam = sum([emb.nparam for emb in embedders])
