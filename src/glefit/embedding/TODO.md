@@ -25,14 +25,15 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 
 ## Next
 
-- Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations.
-- Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
-- `glefit.merit`, to fix when that module is revised (maintainer, 2026-11-05). Setup: a prototype maximal-gauge gen2x2 embedder fitted with EF, 10 starts per target, only γ constrained.
-  - All 50 kernel fits succeeded, but 3 of 30 spectrum fits stalled near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular.
-  - Without ω = 0 in the grid, 3 of 10 fixture-data fits stopped exactly at Ω = 0 with a gradient of about 1e-14.
-  - Constraining Ω as well avoided both (80/80).
-  - Reproduce with `05_notebooks/gen2x2_note_verification/fit_constraints_diag.py`.
-- Outside this module: see "Tracked in other modules" in `ISSUES.md`.
+Agenda set by the maintainer on 2026-11-05: first `numderiv` (1), then the flagged issues in `glefit.merit` (2). The structural simplification (3) comes after.
+
+1. Review and fix `glefit.utils.numderiv`. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`. See "Known gaps" in `glefit/utils/CLAUDE.md`.
+2. Fix the flagged issues in `glefit.merit` (see "Tracked in other modules" in `ISSUES.md` and "Known gaps" in `glefit/merit/CLAUDE.md`), including gen2x2 spectrum fits that stall near Ω ≈ 0. Setup of that experiment: a prototype maximal-gauge gen2x2 embedder fitted with EF, 10 starts per target, only γ constrained.
+   - All 50 kernel fits succeeded, but 3 of 30 spectrum fits stalled near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular.
+   - Without ω = 0 in the grid, 3 of 10 fixture-data fits stopped exactly at Ω = 0 with a gradient of about 1e-14.
+   - Constraining Ω as well avoided both (80/80).
+   - Reproduce with `05_notebooks/gen2x2_note_verification/fit_constraints_diag.py`.
+3. Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations.
 
 ## Lessons
 
