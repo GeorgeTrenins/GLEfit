@@ -72,11 +72,11 @@ It uses `emb.nparams` instead of `emb.nparam`. Fits never call it.
 **EMB-6 · resolved in `6932b74` · `MultiEmbedder.grad_A` can be out of date.**
 After a component is edited directly, it returns old values until another getter runs. Either fix it, or document direct edits of components as unsupported (the conventions already say to set values on the `MultiEmbedder`). Decided on 2026-11-05: fix it. `drift_matrix_gradient` now reads `self.x`, which `MultiEmbedder` gathers from its components, instead of the cached `_x`.
 
-**EMB-10 · resolved in the EMB-10 commit · Zero starting values crash fits.**
+**EMB-10 · resolved in `7d4463c` · Zero starting values crash fits.**
 `LowerBoundMapper` turns p = 0 into x = −inf, with only a NumPy warning. The finite-difference Hessian is then not finite, and `EF` raises `LinAlgError`. gen2x2 with θ = [0, 0] gives NaN parameters. Decided on 2026-11-05: the bounded mappers' `forward` rejects p on a bound, as their messages already said, so `PronyEmbedder(0.0, 0.5)` now raises `ValueError`. gen2x2 rejects θ = 0 and γ = 0 since `9d29a67`.
 
-**EMB-11 · open · `from_dict` ignores unknown keys.**
-A misspelled key, such as `sigmaa`, is accepted silently and the default applies.
+**EMB-11 · resolved in the EMB-11 commit · `from_dict` ignores unknown keys.**
+A misspelled key, such as `sigmaa`, is accepted silently and the default applies. Decided on 2026-11-05: reject unknown keys. Every `from_dict` now raises `TypeError` for a key that is neither required nor `mappers`, which Python code may still pass; `MultiEmbedder.from_dict` takes only `embedders`.
 
 ### Limitations
 

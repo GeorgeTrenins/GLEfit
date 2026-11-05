@@ -64,6 +64,7 @@ class PronyEmbedder(BaseEmbedder):
         cls, 
         parameters: dict
     ) -> "PronyEmbedder":
+        cls._check_config_keys(parameters, ("theta", "gamma"))
         param_copy = copy.deepcopy(parameters)
         theta = param_copy.pop("theta")
         gamma = param_copy.pop("gamma")

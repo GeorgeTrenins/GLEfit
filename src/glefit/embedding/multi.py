@@ -35,6 +35,8 @@ class MultiEmbedder(BaseEmbedder):
         parameters: dict
     ) -> "MultiEmbedder":
         from glefit.embedding import EMBEDDER_MAP
+        # no mappers: each component maps its own parameters
+        cls._check_config_keys(parameters, ("embedders",), optional=())
         embedder_dict: list[dict] = parameters["embedders"]
         embedders: list[BaseEmbedder] = []
         for d in embedder_dict:

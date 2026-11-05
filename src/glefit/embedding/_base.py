@@ -53,6 +53,36 @@ class BaseEmbedder(ABC):
     ) -> "BaseEmbedder":
         pass
 
+    @classmethod
+    def _check_config_keys(
+        cls,
+        parameters: dict,
+        required: tuple,
+        optional: tuple = ("mappers",)
+    ) -> None:
+        """Reject keys of from_dict parameters that the embedder does not take.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters given to from_dict
+        required : tuple of str
+            The keys that from_dict needs
+        optional : tuple of str
+            Other keys it accepts. By default `mappers`, which only Python
+            code can set, since configs cannot hold mapper objects.
+
+        Raises
+        ------
+        TypeError
+            If parameters has a key that is neither required nor optional
+        """
+        unexpected = sorted(set(parameters) - set(required) - set(optional))
+        if unexpected:
+            raise TypeError(
+                f"{cls.__name__}.from_dict got unexpected keys {unexpected}; "
+                f"it takes {list(required + optional)}")
+
 
     @abstractmethod
     def __len__(self) -> int:

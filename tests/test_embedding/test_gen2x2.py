@@ -566,6 +566,14 @@ def test_old_key_omega_is_rejected_with_a_pointer_to_zeta():
         TwoAuxEmbedder.from_dict(params)
 
 
+def test_from_dict_rejects_an_unknown_key():
+    params = {"theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "zeta": 2.0,
+              "zetta": 1.0}
+
+    with pytest.raises(TypeError, match=r"unexpected keys \['zetta'\]"):
+        TwoAuxEmbedder.from_dict(params)
+
+
 def test_from_dict_leaves_its_input_unchanged():
     params = {
         "theta": [1.0, 0.0],

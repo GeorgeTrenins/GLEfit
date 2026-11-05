@@ -112,13 +112,20 @@ def test_non_numeric_param_is_rejected():
         PronyCosineEmbedder(THETA, GAMMA, "2.0")
 
 
-def test_from_dict_forwards_extra_keys_to_constructor():
+def test_from_dict_forwards_mappers_to_constructor():
     mappers = 3 * [IdentityMapper()]
 
     emb = PronyCosineEmbedder.from_dict(
         {"theta": THETA, "gamma": GAMMA, "omega": -OMEGA, "mappers": mappers})
 
     assert_array_equal(emb.x, [THETA, GAMMA, -OMEGA])
+
+
+def test_from_dict_rejects_an_unknown_key():
+    params = {"theta": THETA, "gamma": GAMMA, "omega": OMEGA, "omgea": 3.0}
+
+    with pytest.raises(TypeError, match=r"unexpected keys \['omgea'\]"):
+        PronyCosineEmbedder.from_dict(params)
 
 
 def test_from_dict_leaves_its_input_unchanged():

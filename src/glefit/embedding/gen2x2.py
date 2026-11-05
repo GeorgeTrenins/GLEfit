@@ -166,6 +166,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         # before the pops, so that `Omega` in place of `zeta` is not a bare
         # KeyError
         cls._reject_removed_keys(param_copy)
+        cls._check_config_keys(param_copy, ("theta", "gamma", "delta", "zeta"))
         theta = param_copy.pop("theta")
         gamma = param_copy.pop("gamma")
         delta = param_copy.pop("delta")

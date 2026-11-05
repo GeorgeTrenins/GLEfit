@@ -68,6 +68,7 @@ class PronyCosineEmbedder(BaseEmbedder):
         cls, 
         parameters: dict
     ) -> "PronyCosineEmbedder":
+        cls._check_config_keys(parameters, ("theta", "gamma", "omega"))
         param_copy = copy.deepcopy(parameters)
         theta = param_copy.pop("theta")
         gamma = param_copy.pop("gamma")

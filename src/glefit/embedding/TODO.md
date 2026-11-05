@@ -15,7 +15,7 @@ Plan agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `te
 
 ## Status
 
-- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 329 tests and runs in about 3 s:
+- Points 1 and 2 are done (commits `18ded66`..`fc607ac`). `tests/test_embedding/` has 334 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]). The former also filters SymPy 1.14's harmless `bitcount` DeprecationWarning.
 - `legacy_tests/`: 79 pass, 51 fail and 1 file fails to import (all known). `test_utils/test_special.py` cannot be imported since the unused special functions were removed, as the maintainer accepted. `test_gen2x2.py::test_matrix_rotation` fails since `rotate_matrix` was removed (EMB-22), as the maintainer accepted. The 3 failures in `test_multi.py` expect the drift-matrix signs from before `e2299f6`; `docs/Auxiliary variables (SDE) - Kantorovich prescription.md` confirms the current signs (ā_p = −a_p). 19 fail since EMB-20 because they pass `sigma` to gen2x2.
@@ -40,7 +40,7 @@ Done on 2026-11-05, one commit each: EMB-4 (`19d41c5`), EMB-3 (`66bd58d`), EMB-1
 - EMB-19: fixed in `557a9f3`, except the annotations: they say `NDArray` where lists are accepted, but the inputs themselves are inconsistent (see `ISSUES.md`). Left for the structural simplification below (maintainer, 2026-11-05).
 - Structural simplification of `_base.py` and `multi.py` (not planned yet).
 - Review and debug `glefit.utils.numderiv` as a separate `utils` item. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`.
-- Undecided behaviour; ask before changing: EMB-11. EMB-10 is fixed in the EMB-10 commit (option 1, the mappers reject p on a bound); replace that name in `ISSUES.md` and here by its hash in the next commit.
+- EMB-10 (`7d4463c`, the mappers reject p on a bound) and EMB-11 (the EMB-11 commit, `from_dict` rejects unknown keys but allows `mappers`) are fixed as the maintainer decided; replace "the EMB-11 commit" in `ISSUES.md` and here by its hash in the next commit.
 - `glefit.merit`, to fix when that module is revised (maintainer, 2026-11-05). Setup: a prototype maximal-gauge embedder fitted with EF, 10 starts per target, only γ constrained.
   - All 50 kernel fits succeeded, but 3 of 30 spectrum fits stalled near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular.
   - Without ω = 0 in the grid, 3 of 10 fixture-data fits stopped exactly at Ω = 0 with a gradient of about 1e-14.

@@ -230,6 +230,17 @@ def test_from_dict_builds_the_components_in_order():
         rtol=RTOL)
 
 
+@pytest.mark.parametrize("key", ["embedder", "mappers"])
+def test_from_dict_rejects_an_unknown_key(key):
+    # MultiEmbedder takes no mappers: its components map their parameters
+    params = {"embedders": [
+        {"type": "prony", "parameters": {"theta": 1.0, "gamma": 0.5}}],
+        key: []}
+
+    with pytest.raises(TypeError, match=f"unexpected keys \\['{key}'\\]"):
+        MultiEmbedder.from_dict(params)
+
+
 def test_from_dict_passes_keyword_arguments_to_the_components():
     # gen2x2 rejects the keyword, which shows that it arrived
     params = {"embedders": [

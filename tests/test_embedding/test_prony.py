@@ -88,12 +88,17 @@ def test_non_numeric_param_is_rejected():
         PronyEmbedder("1.3", GAMMA)
 
 
-def test_from_dict_forwards_extra_keys_to_constructor():
+def test_from_dict_forwards_mappers_to_constructor():
     mappers = [IdentityMapper(), IdentityMapper()]
 
     emb = PronyEmbedder.from_dict({"theta": -THETA, "gamma": GAMMA, "mappers": mappers})
 
     assert_array_equal(emb.x, [-THETA, GAMMA])
+
+
+def test_from_dict_rejects_an_unknown_key():
+    with pytest.raises(TypeError, match=r"unexpected keys \['gama'\]"):
+        PronyEmbedder.from_dict({"theta": THETA, "gamma": GAMMA, "gama": 2.0})
 
 
 def test_from_dict_leaves_its_input_unchanged():
