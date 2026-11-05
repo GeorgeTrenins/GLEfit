@@ -19,7 +19,7 @@ from glefit.embedding import TwoAuxEmbedder
 RTOL = 1.0e-12
 TIME = np.array([0.0, 0.3, 1.1, 4.0])
 FREQ = np.array([0.0, 0.9, 2.0, 10.0])
-# Primitive parameters [r, α, g, y], where g = δ² - Ω² is overdamped for g > 0 and underdamped
+# Primitive parameters [r, α, g, y], where g = δ² - ζ² is overdamped for g > 0 and underdamped
 # for g < 0, and y sets how far γ lies above its lower bound max(√g, |α|)
 CASES = {                              # [  r,     α,       g,    y]
     "overdamped":                        [1.3,   0.4,    1.21, -0.5],
@@ -226,14 +226,14 @@ def test_to_primitive_inverts_to_conventional(params):
 
     actual = emb.to_primitive(emb.to_conventional(np.array(params)))
 
-    # g = δ² - Ω² cancels for |g| ≪ δ², so g comes back to ~ε·δ²/|g| only;
+    # g = δ² - ζ² cancels for |g| ≪ δ², so g comes back to ~ε·δ²/|g| only;
     # compare relative to the largest parameter
     assert_allclose(actual, params, rtol=RTOL, atol=RTOL * np.max(np.abs(params)))
 
 
 def test_conventional_params_read_back_in_maximal_gauge():
-    # θ = [1, 2], γ = 1.5, δ = 0.25, Ω = 3 gives r² = 5, α = -0.15 and g = -8.9375.
-    # The maximal gauge has δ = γ, Ω = sqrt(γ² - g) and θ₁,₂ = r·sqrt((1 ± α/γ)/2)
+    # θ = [1, 2], γ = 1.5, δ = 0.25, ζ = 3 gives r² = 5, α = -0.15 and g = -8.9375.
+    # The maximal gauge has δ = γ, ζ = sqrt(γ² - g) and θ₁,₂ = r·sqrt((1 ± α/γ)/2)
     emb = TwoAuxEmbedder([1.0, 2.0], 1.5, 0.25, 3.0)
 
     assert_allclose(
@@ -284,7 +284,7 @@ def test_from_harmonic_puts_the_coupling_on_the_first_variable():
         "theta": [2.0, 0.0],
         "gamma": 0.5,
         "delta": 0.0,
-        "Omega": 2.0
+        "zeta": 2.0
     }
 
 
@@ -312,9 +312,21 @@ def test_params_on_the_admissible_boundary_are_rejected():
 
 @pytest.mark.parametrize("key", ["sigma", "threshold"])
 def test_softmax_settings_are_rejected(key):
-    params = {"theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "Omega": 2.0, key: 50.0}
+    params = {"theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "zeta": 2.0, key: 50.0}
 
     with pytest.raises(TypeError, match=f"no longer takes '{key}'"):
+        TwoAuxEmbedder.from_dict(params)
+
+
+def test_softmax_settings_are_rejected_by_the_constructor():
+    with pytest.raises(TypeError, match="no longer takes 'sigma'"):
+        TwoAuxEmbedder([1.0, 0.0], 3.0, 0.5, 2.0, sigma=50.0)
+
+
+def test_old_key_omega_is_rejected_with_a_pointer_to_zeta():
+    params = {"theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "Omega": 2.0}
+
+    with pytest.raises(TypeError, match="no longer takes 'Omega'.*'zeta'"):
         TwoAuxEmbedder.from_dict(params)
 
 
@@ -323,7 +335,7 @@ def test_from_dict_leaves_its_input_unchanged():
         "theta": [1.0, 0.0],
         "gamma": 3.0,
         "delta": 0.5,
-        "Omega": 2.0
+        "zeta": 2.0
     }
 
     TwoAuxEmbedder.from_dict(params)
@@ -331,5 +343,5 @@ def test_from_dict_leaves_its_input_unchanged():
         "theta": [1.0, 0.0],
         "gamma": 3.0,
         "delta": 0.5,
-        "Omega": 2.0
+        "zeta": 2.0
     }

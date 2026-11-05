@@ -10,16 +10,16 @@ An embedding with n auxiliary variables is defined by `Ap = [[0, θᵀ], [-θ, A
 | --- | --- | --- | --- | --- |
 | `prony` | `PronyEmbedder` | 1 | [θ] | [γ] |
 | `pronycos` | `PronyCosineEmbedder` | 2 | [θ, 0] | [[γ, ω], [-ω, γ]] |
-| `gen2x2` | `TwoAuxEmbedder` | 2 | [θ₁, θ₂] | [[γ+δ, Ω], [-Ω, γ-δ]] |
+| `gen2x2` | `TwoAuxEmbedder` | 2 | [θ₁, θ₂] | [[γ+δ, ζ], [-ζ, γ-δ]] |
 | `multi` | `MultiEmbedder` | sum | concatenated | component blocks on the diagonal |
 
-Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delta` and `Omega` for `gen2x2`, where `theta` is [θ₁, θ₂]. `gen2x2` raises `TypeError` for the removed `sigma` and `threshold`. `multi` takes `embedders`, a list of `{type, parameters}` entries.
+Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delta` and `zeta` for `gen2x2`, where `theta` is [θ₁, θ₂]. `gen2x2` raises `TypeError` for the removed `sigma` and `threshold`, and for `Omega`, the old name of `zeta`. `multi` takes `embedders`, a list of `{type, parameters}` entries.
 
 ## Parameters
 
 - Three sets: conventional (length `nparam`; configs and trajectory files), primitive `p` (length `ndof`; input to `compute_drift_matrix` and `drift_matrix_param_grad`) and mapped `x` (length `ndof`; what the optimizer moves). One `glefit.mappers` mapper per entry converts between p and x. By default p = exp(x), except for α, g and y in gen2x2. Custom mappers are for debugging only: configs cannot set them, so production runs always use the defaults.
 - Set values only through the `conventional_params`, `primitive_params` and `x` properties, which keep all three in step. Their getters return copies.
-- Conventional and primitive parameters differ only for gen2x2, which fits [r, α, g, y] because different (θ₁, θ₂, γ, δ, Ω) can give the same kernel. Here r² = θ₁² + θ₂², α = δ(θ₁² − θ₂²)/r², g = δ² − Ω² and γ² = (g + α²)/2 + √(((g − α²)/2)² + e²ʸ), which covers exactly the admissible kernels γ > |α|, γ² > g. Inputs outside that region, or on its boundary, raise `ValueError`. See `docs/Generalised Brownian oscillator auxiliary variables.md`.
+- Conventional and primitive parameters differ only for gen2x2, which fits [r, α, g, y] because different (θ₁, θ₂, γ, δ, ζ) can give the same kernel. Here r² = θ₁² + θ₂², α = δ(θ₁² − θ₂²)/r², g = δ² − ζ² and γ² = (g + α²)/2 + √(((g − α²)/2)² + e²ʸ), which covers exactly the admissible kernels γ > |α|, γ² > g. Inputs outside that region, or on its boundary, raise `ValueError`. See `docs/Generalised Brownian oscillator auxiliary variables.md`.
 - gen2x2 values do not round-trip: `conventional_params` returns the maximal gauge δ = γ, which has the same kernel and leaves s₂ undamped. [1, 2, 1.5, 0.25, 3] reads back as [1.5, 1.658, 1.5, 1.5, 3.345].
 - Near the boundary of the admissible region, γ² − α², γ² − g and γ ± α are small. Take them from `_gaps` and `_gamma_pm`, never by subtraction. For the same reason, the spectrum is differentiated with respect to (α, γ² − g, γ) rather than (α, g, γ). The kernel keeps (α, g, γ), so near γ = √g its ∂K/∂g loses about three digits at √g·t ≈ 600.
 

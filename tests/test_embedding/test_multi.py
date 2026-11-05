@@ -166,7 +166,7 @@ def test_from_dict_builds_the_components_in_order():
     params = {"embedders": [
         {"type": "prony", "parameters": {"theta": 1.0, "gamma": 0.5}},
         {"type": "gen2x2", "parameters": {
-            "theta": [1.0, 2.0], "gamma": 1.5, "delta": 0.25, "Omega": 3.0}},
+            "theta": [1.0, 2.0], "gamma": 1.5, "delta": 0.25, "zeta": 3.0}},
     ]}
 
     emb = MultiEmbedder.from_dict(params)
@@ -181,7 +181,7 @@ def test_from_dict_passes_keyword_arguments_to_the_components():
     # gen2x2 rejects the keyword, which shows that it arrived
     params = {"embedders": [
         {"type": "gen2x2", "parameters": {
-            "theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "Omega": 2.0, "sigma": 50.0}},
+            "theta": [1.0, 0.0], "gamma": 3.0, "delta": 0.5, "zeta": 2.0, "sigma": 50.0}},
     ]}
 
     with pytest.raises(TypeError, match="no longer takes 'sigma'"):

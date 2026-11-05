@@ -71,7 +71,7 @@ Fits use only `forward`, `inverse` and `grad`. The fitting Hessian is a finite d
 
 - **Direction:** `forward` goes from p to x and removes the limit. `inverse` goes from x to p. Docstrings define each map by its inverse, for example "p = exp(x) + a".
 - **Arguments:** `grad` and `hess` take x, not p, and return derivatives of `inverse`.
-- **p is primitive:** for `gen2x2`, mappers limit r, α, λ and Γ, not θ, γ, δ or Ω. Limits that couple parameters, such as the stability condition γ > |δ|, must be built into the primitive parameters instead.
+- **p is primitive:** for `gen2x2`, mappers limit r, α, λ and Γ, not θ, γ, δ or ζ. Limits that couple parameters, such as the stability condition γ > |δ|, must be built into the primitive parameters instead.
 - **Errors:** `forward` raises `ValueError` when p is outside its range. It is the only place where limits are checked.
 - **Scalars only:** each method takes and returns one number. `forward` raises on arrays. `IdentityMapper.grad` returns `1.0` whatever the input, and `IdentityMapper.forward` and `inverse` return 0-dimensional arrays.
 - **No state:** a mapper stores only its bounds, so one instance can serve several parameters. `pronycos` uses `3*[LowerBoundMapper(),]`.

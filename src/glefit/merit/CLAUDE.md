@@ -62,7 +62,7 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 ### Wrong results
 
-- **`MemorySpectrum` at repeated eigenvalues that cannot be diagonalized.** This happens in `gen2x2` at g = δ² − Ω² = 0 for every α, because its maximal gauge then has A = γ[[2, 1], [−1, 0]]. The value was wrong by 0.28 at g = 0, and by 2e-11 at g = 1e-12. Ordinary repeated eigenvalues, such as two identical components, are fine. `MemoryKernel` is not affected. Solving (A² + ω²)y = θ at each frequency instead gave the correct value.
+- **`MemorySpectrum` at repeated eigenvalues that cannot be diagonalized.** This happens in `gen2x2` at g = δ² − ζ² = 0 for every α, because its maximal gauge then has A = γ[[2, 1], [−1, 0]]. The value was wrong by 0.28 at g = 0, and by 2e-11 at g = 1e-12. Ordinary repeated eigenvalues, such as two identical components, are fine. `MemoryKernel` is not affected. Solving (A² + ω²)y = θ at each frequency instead gave the correct value.
 - **`BaseScalarProperty.gradient(x)` uses the wrong point.** It calls `self.value`, which ignores `x`, so it returned 3.54 where the true value was 11.46. Use `self.function(x=x)`. `both(x)` and `all(x)` are correct.
 - **`BaseScalarProperty.from_dict` always raises `TypeError`.** It calls `parameters.get("weight", default=1.0)`, and `dict.get` takes no keyword arguments.
 

@@ -17,8 +17,8 @@ $$\tag{1}
 \end{pmatrix} =
 -\begin{pmatrix}
 0 & \theta_1 & \theta_2 \\
--\theta_1 & \gamma+\delta & \epsilon \\
--\theta_2 & -\epsilon & \gamma-\delta
+-\theta_1 & \gamma+\delta & \zeta \\
+-\theta_2 & -\zeta & \gamma-\delta
 \end{pmatrix}
 \begin{pmatrix}
 p \\
@@ -42,9 +42,9 @@ $$
 K(t) = 
     e^{-\gamma \lvert t \rvert} \left[ 
     (\theta_1^2 + \theta_2^2)
-         \cosh\left(t \sqrt{\delta^2 - \epsilon^2} \right) 
+         \cosh\left(t \sqrt{\delta^2 - \zeta^2} \right) 
          - (\theta_1^2 - \theta_2^2)\, \delta \, \lvert t \rvert \, \mathrm{sinhc}
-            \left(t \sqrt{\delta^2 - \epsilon^2} \right)
+            \left(t \sqrt{\delta^2 - \zeta^2} \right)
         \right]
 $$
 which we can re-write as
@@ -55,10 +55,10 @@ $$
 expressed in terms of $\gamma$ and the irreducible parameters
 $$\tag{3}
 r^2 = \theta_1^2 + \theta_2^2, \qquad
-\Omega^2 = \gamma^2 - \delta^2 + \epsilon^2, \qquad
+\Omega^2 = \gamma^2 - \delta^2 + \zeta^2, \qquad
 \cos 2\phi = \frac{\delta\,(\theta_1^2 - \theta_2^2)}{\gamma\, r^2}.
 $$
-Note that $\Omega$ is not the off-diagonal entry $\epsilon$ of the drift matrix: the two coincide only in the maximal gauge (below). The `gen2x2` embedder of GLEFit currently calls $\epsilon$ `Omega`.
+Note that $\Omega$ is not the off-diagonal entry $\zeta$ of the drift matrix: the two coincide only in the maximal gauge (below). The `gen2x2` embedder of GLEFit calls $\zeta$ `zeta`.
 
 The [[Spectral density|spectral density]] is
 $$
@@ -73,7 +73,7 @@ where
 - $\Omega = \gamma$ (critical): the square bracket becomes $1 - \gamma \lvert t\rvert \cos(2\phi)\,$
 # Maximal gauge
 
-Setting $\delta = \gamma$ in (3) gives $\epsilon = \Omega$ and $\boldsymbol{\theta} = r(\cos\phi,\ \sin\phi)$, i.e. the drift block
+Setting $\delta = \gamma$ in (3) gives $\zeta = \Omega$ and $\boldsymbol{\theta} = r(\cos\phi,\ \sin\phi)$, i.e. the drift block
 $$
 \boldsymbol{A} = \begin{pmatrix} 2\gamma & \Omega \\ -\Omega & 0 \end{pmatrix},
 $$
@@ -81,7 +81,7 @@ in which $s_2$ is undamped. This is the 2×2 block form of Li et al.
 
 **Claim.** Every kernel realisable by (1) is realised in the maximal gauge, and the realisable kernels are exactly those with $r, \gamma, \Omega \geq 0$ and $0 \leq \phi \leq \pi/2$.
 
-*Proof.* By (2), $K$ is fixed by $(r, \gamma, \Omega, \phi)$. For any embedding, $\gamma \geq \lvert\delta\rvert$ implies $\Omega^2 \geq \epsilon^2 \geq 0$ and, since $\lvert\theta_1^2 - \theta_2^2\rvert \leq r^2$, also $\lvert\cos 2\phi\rvert \leq \lvert\delta\rvert/\gamma \leq 1$. Hence $(r, \gamma, \Omega, \phi)$ lies in the stated set ($\phi$ is arbitrary if $\gamma = 0$ or $r = 0$). Conversely, for any point of this set the maximal gauge satisfies $\gamma \geq \lvert\delta\rvert$ and is therefore a valid embedding with that kernel. $\blacksquare$
+*Proof.* By (2), $K$ is fixed by $(r, \gamma, \Omega, \phi)$. For any embedding, $\gamma \geq \lvert\delta\rvert$ implies $\Omega^2 \geq \zeta^2 \geq 0$ and, since $\lvert\theta_1^2 - \theta_2^2\rvert \leq r^2$, also $\lvert\cos 2\phi\rvert \leq \lvert\delta\rvert/\gamma \leq 1$. Hence $(r, \gamma, \Omega, \phi)$ lies in the stated set ($\phi$ is arbitrary if $\gamma = 0$ or $r = 0$). Conversely, for any point of this set the maximal gauge satisfies $\gamma \geq \lvert\delta\rvert$ and is therefore a valid embedding with that kernel. $\blacksquare$
 
 **Generality.** The realisable kernels are also exactly the bounded kernels $K(t) = \boldsymbol{\theta}^\top e^{-\boldsymbol{A}\lvert t\rvert}\boldsymbol{\theta}$ with a non-negative spectral density, for any real $\boldsymbol{\theta}$ and any real 2×2 matrix $\boldsymbol{A}$. This includes matrices whose symmetric part is indefinite, which admit no noise term $\boldsymbol{B}$.
 
@@ -98,27 +98,27 @@ and $J(\omega) = \omega \operatorname{Re}\hat{K}(i\omega) = \omega\,[a_0 b_0 + (
 
 # Minimal gauge
 
-This gauge is preferred for constructing drift matrices used for numerical propagation: the two auxiliary variables have the most similar damping rates and the smallest possible $\epsilon$.
+This gauge is preferred for constructing drift matrices used for numerical propagation: the two auxiliary variables have the most similar damping rates and the smallest possible $\zeta$.
 
 Given $(r, \gamma, \Omega, \phi)$, by (3) a drift matrix of the form (1) reproduces $K$ if and only if
 $$
-\delta^2 - \epsilon^2 = \gamma^2 - \Omega^2, \qquad
+\delta^2 - \zeta^2 = \gamma^2 - \Omega^2, \qquad
 \delta\,(\theta_1^2 - \theta_2^2) = \gamma r^2 \cos 2\phi, \qquad
 \theta_1^2 + \theta_2^2 = r^2, \qquad
 \lvert\delta\rvert \leq \gamma.
 $$
-These conditions are invariant under $\epsilon \to -\epsilon$, $\theta_i \to -\theta_i$ and $(\delta, \theta_1, \theta_2) \to (-\delta, \theta_2, \theta_1)$, so we take $\delta, \epsilon, \theta_i \geq 0$ without loss of generality. Real $\epsilon$ and $\theta_i$ then exist if and only if
+These conditions are invariant under $\zeta \to -\zeta$, $\theta_i \to -\theta_i$ and $(\delta, \theta_1, \theta_2) \to (-\delta, \theta_2, \theta_1)$, so we take $\delta, \zeta, \theta_i \geq 0$ without loss of generality. Real $\zeta$ and $\theta_i$ then exist if and only if
 $$
 \max\!\left(\sqrt{\max(\gamma^2 - \Omega^2, 0)},\ \gamma\lvert\cos 2\phi\rvert\right) \leq \delta \leq \gamma,
 $$
 with
 $$
-\epsilon = \sqrt{\delta^2 - \gamma^2 + \Omega^2}, \qquad
+\zeta = \sqrt{\delta^2 - \gamma^2 + \Omega^2}, \qquad
 \theta_{1,2} = r\sqrt{\tfrac{1}{2}\left(1 \pm \gamma\cos(2\phi)/\delta\right)}.
 $$
 The minimal gauge takes the lower bound. The first argument of the maximum dominates if and only if $\gamma^2 - \Omega^2 > \gamma^2\cos^2 2\phi$, i.e. $\Omega < \gamma \, \lvert \sin(2\phi) \rvert$:
 
-| Condition                                         | $\delta$                             | $\epsilon$                               | $(\theta_1,\ \theta_2)$                                                                                                    |
+| Condition                                         | $\delta$                             | $\zeta$                                  | $(\theta_1,\ \theta_2)$                                                                                                    |
 | ------------------------------------------------- | ------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | $\Omega < \gamma \, \lvert \sin(2\phi) \rvert$    | $\sqrt{\gamma^2 - \Omega^2}$         | $0$                                      | $r\sqrt{\tfrac12\left(1 \pm \gamma\cos(2\phi)/\delta\right)}$                                                              |
 | $\Omega \geq \gamma \, \lvert \sin(2\phi) \rvert$ | $\gamma \, \lvert \cos 2\phi \rvert$ | $\sqrt{\Omega^2 - \gamma^2\sin^2 2\phi}$ | $\left\{ \!\! \begin{array}{ll} (r, 0) & \text{if} \ \cos(2 \phi) \geq 0 \\ (0, r) & \text{otherwise} \end{array} \right.$ |

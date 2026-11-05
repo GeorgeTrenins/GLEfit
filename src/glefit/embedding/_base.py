@@ -142,7 +142,7 @@ class BaseEmbedder(ABC):
         
     @property
     def conventional_params(self) -> npt.NDArray[np.floating]:
-        """Conventional parameters [θ1, θ2, γ, δ, Ω]."""
+        """Conventional parameters [θ1, θ2, γ, δ, ζ]."""
         return self.to_conventional(self._primitive_params)
     
     @conventional_params.setter

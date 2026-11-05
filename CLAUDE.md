@@ -62,7 +62,7 @@ Every fitted quantity derives from the (n+1)×(n+1) matrix `Ap = [[0, θᵀ], [-
 | primitive | `ndof` | Non-degenerate: input to `compute_drift_matrix` and `drift_matrix_param_grad` |
 | mapped `x` | `ndof` | Unconstrained: the optimizer steps here, with one `BaseMapper` per primitive parameter |
 
-Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which maps `[θ₁, θ₂, γ, δ, Ω]` to `[r, α, g, y]` to remove the embedding degeneracy, and parametrises γ by y so that every value is admissible. It builds the drift matrix in the maximal gauge δ = γ. The `conventional_params`, `primitive_params` and `x` setters keep the spaces in sync, so always go through them.
+Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which maps `[θ₁, θ₂, γ, δ, ζ]` to `[r, α, g, y]` to remove the embedding degeneracy, and parametrises γ by y so that every value is admissible. It builds the drift matrix in the maximal gauge δ = γ. The `conventional_params`, `primitive_params` and `x` setters keep the spaces in sync, so always go through them.
 
 ### Two independent derivative paths
 

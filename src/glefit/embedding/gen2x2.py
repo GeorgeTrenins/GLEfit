@@ -21,6 +21,13 @@ import copy
 # is in terms of decaying exponentials.
 _SINHC_SWITCH = 1.0
 
+# Keys of earlier versions, and what replaced them
+_REMOVED_KEYS = {
+    "sigma": "γ now follows from y, without Softmax or Softabs",
+    "threshold": "γ now follows from y, without Softmax or Softabs",
+    "Omega": "the antisymmetric coupling between s₁ and s₂ is now 'zeta'",
+}
+
 class TwoAuxEmbedder(BaseEmbedder):
 
     def __len__(self) -> int:
@@ -42,19 +49,19 @@ class TwoAuxEmbedder(BaseEmbedder):
         """
         return self._get_ndof()
     
-    def __init__(self, theta: npt.NDArray[np.floating], gamma: float, delta: float, Omega: float, *args, **kwargs) -> None:
+    def __init__(self, theta: npt.NDArray[np.floating], gamma: float, delta: float, zeta: float, *args, **kwargs) -> None:
         """Initialise the embedder from conventional parameters.
 
         Args:
             theta (array-like): the couplings [θ₁, θ₂]
             gamma (float): the mean decay rate γ
             delta (float): half the difference δ between the decay rates of s₁ and s₂
-            Omega (float): the antisymmetric coupling Ω between s₁ and s₂
+            zeta (float): the antisymmetric coupling ζ between s₁ and s₂
             *args, **kwargs: passed to BaseEmbedder; `mappers` replaces the default mappers
 
         Raises:
-            TypeError: if gamma, delta or Omega is not a float or int, or if `sigma` or
-                `threshold` is passed, which belonged to the previous parametrisation
+            TypeError: if gamma, delta or zeta is not a float or int, or if `sigma`,
+                `threshold` or `Omega` is passed, which belonged to earlier versions
             ValueError: if theta does not have two entries, or if the kernel lies outside
                 the admissible region γ > |α|, γ² > g
 
@@ -62,22 +69,20 @@ class TwoAuxEmbedder(BaseEmbedder):
             The drift matrix is
 
                     (  0    θ₁    θ₂ )
-                A = ( -θ₁  γ+δ    Ω  )
-                    ( -θ₂  -Ω    γ-δ )
+                A = ( -θ₁  γ+δ    ζ  )
+                    ( -θ₂  -ζ    γ-δ )
 
             and the kernel is 
                      K(t) = r² exp(-γ|t|)[cosh(t√g) - α|t| sinhc(t√g)], 
             with
-                  r² = θ₁² + θ₂²,     α = δ(θ₁² - θ₂²)/r²,         g = δ² - Ω² 
+                  r² = θ₁² + θ₂²,     α = δ(θ₁² - θ₂²)/r²,         g = δ² - ζ² 
             The embedder fits the primitive parameters [r, α, g, y], where
                   γ² = (g + α²)/2 + sqrt(((g - α²)/2)² + exp(2y)), 
             and builds the drift matrix in the maximal gauge δ = γ.
         """
 
-        for key in ("sigma", "threshold"):
-            if key in kwargs:
-                raise TypeError(f"TwoAuxEmbedder no longer takes '{key}': γ now follows from y, without Softmax or Softabs")
-        for variable, symbol in zip([gamma, delta, Omega], "γδΩ"):
+        self._reject_removed_keys(kwargs)
+        for variable, symbol in zip([gamma, delta, zeta], "γδζ"):
             if not isinstance(variable, (int, float)):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
         theta = np.asarray(theta, dtype=float)
@@ -92,7 +97,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         ])
         super().__init__(*args, **kwargs)
         # set primitive params directly
-        conventional_parameters = np.concatenate([theta, [gamma, delta, Omega]])
+        conventional_parameters = np.concatenate([theta, [gamma, delta, zeta]])
         primitive_parameters = self.to_primitive(conventional_parameters)
         self._primitive_params[:] = primitive_parameters
         self._x[:] = self._forward_map(primitive_parameters)
@@ -105,19 +110,38 @@ class TwoAuxEmbedder(BaseEmbedder):
         """Return an embedder built from a config dictionary.
 
         Args:
-            parameters (dict): `theta`, `gamma`, `delta` and `Omega`, plus keyword
+            parameters (dict): `theta`, `gamma`, `delta` and `zeta`, plus keyword
                 arguments for the constructor. It is not modified.
 
         Returns:
             TwoAuxEmbedder: the new embedder
+
+        Raises:
+            TypeError: if a key of an earlier version, such as `Omega`, is present
         """
         param_copy = copy.deepcopy(parameters)
+        # before the pops, so that `Omega` in place of `zeta` is not a bare KeyError
+        cls._reject_removed_keys(param_copy)
         theta = param_copy.pop("theta")
         gamma = param_copy.pop("gamma")
         delta = param_copy.pop("delta")
-        Omega = param_copy.pop("Omega")
-        return cls(theta, gamma, delta, Omega, **param_copy)
-    
+        zeta = param_copy.pop("zeta")
+        return cls(theta, gamma, delta, zeta, **param_copy)
+
+    @staticmethod
+    def _reject_removed_keys(parameters: dict) -> None:
+        """Raise TypeError for a key that belonged to an earlier version of the embedder.
+
+        Args:
+            parameters (dict): keyword arguments or config parameters
+
+        Raises:
+            TypeError: if a key of _REMOVED_KEYS is present, naming what replaced it
+        """
+        for key, reason in _REMOVED_KEYS.items():
+            if key in parameters:
+                raise TypeError(f"TwoAuxEmbedder no longer takes '{key}': {reason}")
+
     @staticmethod
     def from_harmonic(
         weight: float, omega: float, gamma: float 
@@ -130,7 +154,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             gamma (float): its damping rate
 
         Returns:
-            dict: `theta` = [sqrt(2·weight/π), 0], `gamma`, `delta` = 0 and `Omega` = omega
+            dict: `theta` = [sqrt(2·weight/π), 0], `gamma`, `delta` = 0 and `zeta` = omega
 
         Notes:
             The kernel is (2·weight/π)·exp(-γ|t|)·cos(ωt).
@@ -139,7 +163,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             "theta" : [float(np.sqrt(2*weight/np.pi)), 0.0],
             "gamma" : float(gamma),
             "delta" : 0.0,
-            "Omega" : float(omega)
+            "zeta" : float(omega)
         }
         return conventional_parameters
 
@@ -166,7 +190,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Notes:
             θ and A are first rotated so that the symmetric part of A is diagonal, which
-            gives the form [[γ+δ, Ω], [-Ω, γ-δ]].
+            gives the form [[γ+δ, ζ], [-ζ, γ-δ]].
         """
         theta = np.asarray(theta, dtype=float)
         if theta.shape != (2,):
@@ -177,8 +201,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         theta, A = cls.rotate_matrix(theta, A)
         gamma = (A[0,0] + A[1,1]) / 2
         delta = (A[0,0] - A[1,1]) / 2
-        Omega = A[0,1]
-        return cls(theta, gamma, delta, Omega, **kwargs)
+        zeta = A[0,1]
+        return cls(theta, gamma, delta, zeta, **kwargs)
 
     @staticmethod
     def _gaps(alpha, g, y):
@@ -186,7 +210,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Args:
             alpha (float): the asymmetry α
-            g (float): δ² - Ω²
+            g (float): δ² - ζ²
             y (float): the primitive parameter that sets γ
 
         Returns:
@@ -234,7 +258,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Args:
             alpha (float): the asymmetry α
-            g (float): δ² - Ω²
+            g (float): δ² - ζ²
             y (float): the primitive parameter that sets γ
             nu (int): 0 for γ, 1 for the gradient, 2 for the Hessian
 
@@ -264,7 +288,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
         Args:
             alpha (float): the asymmetry α
-            g (float): δ² - Ω²
+            g (float): δ² - ζ²
             y (float): the primitive parameter that sets γ
             nu (int): 0 for G, 1 for the gradient, 2 for the Hessian
 
@@ -316,7 +340,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         """Return the primitive parameters [r, α, g, y] of conventional parameters.
 
         Args:
-            conventional_params (array-like): [θ₁, θ₂, γ, δ, Ω]
+            conventional_params (array-like): [θ₁, θ₂, γ, δ, ζ]
 
         Returns:
             ndarray: [r, α, g, y], with y = ln[(γ² - α²)(γ² - g)]/2
@@ -334,14 +358,14 @@ class TwoAuxEmbedder(BaseEmbedder):
            raise ValueError(f"The conventional parameters must be supplied "
                             f"as a length-5 vector, instead got {conventional_params.shape = }")
         th2 = conventional_params[:2]**2
-        gamma, delta, Omega = conventional_params[2:]
+        gamma, delta, zeta = conventional_params[2:]
         r2 = th2[0] + th2[1]
         alpha = delta * (th2[0] - th2[1]) / r2
-        g = delta**2 - Omega**2
+        g = delta**2 - zeta**2
         # γ ∓ α and γ² - g as sums of terms that are non-negative when γ ≥ |δ|
         gamma_minus_alpha = ((gamma - delta)*th2[0] + (gamma + delta)*th2[1]) / r2
         gamma_plus_alpha = ((gamma + delta)*th2[0] + (gamma - delta)*th2[1]) / r2
-        gap_g = (gamma - delta)*(gamma + delta) + Omega**2
+        gap_g = (gamma - delta)*(gamma + delta) + zeta**2
         if not (gamma_minus_alpha > 0 and gamma_plus_alpha > 0 and gap_g > 0):
             raise ValueError(
                 f"The memory kernel must lie inside the admissible region "
@@ -360,8 +384,8 @@ class TwoAuxEmbedder(BaseEmbedder):
             primitive_params (array-like): [r, α, g, y]
 
         Returns:
-            ndarray: [θ₁, θ₂, γ, δ, Ω], with θ₁,₂ = r·sqrt((1 ± α/γ)/2), δ = γ and
-            Ω = sqrt(γ² - g)
+            ndarray: [θ₁, θ₂, γ, δ, ζ], with θ₁,₂ = r·sqrt((1 ± α/γ)/2), δ = γ and
+            ζ = sqrt(γ² - g)
 
         Raises:
             ValueError: if primitive_params does not have four entries
@@ -389,7 +413,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             primitive_params (array-like): [r, α, g, y]
 
         Returns:
-            tuple of ndarray: [θ₁, θ₂, γ, δ, Ω], as from to_conventional, and the Jacobian
+            tuple of ndarray: [θ₁, θ₂, γ, δ, ζ], as from to_conventional, and the Jacobian
             jac[i, j] = ∂conventional[i]/∂primitive[j], shape (5, 4)
 
         Raises:
@@ -404,7 +428,7 @@ class TwoAuxEmbedder(BaseEmbedder):
            raise ValueError(f"The primitive parameters must be supplied as a length-4 vector, instead got {primitive_params.shape = }")
         r, alpha, g, y = primitive_params
         conventional_params = self.to_conventional(primitive_params)
-        theta1, theta2, gamma, _, Omega = conventional_params
+        theta1, theta2, gamma, _, zeta = conventional_params
         gap_alpha, gap_g, D = self._gaps(alpha, g, y)
         gamma_plus_alpha, gamma_minus_alpha = self._gamma_pm(gamma, alpha, gap_alpha)
         # Logarithmic derivatives with respect to [ r, α, g, y ]. Near the boundary of the
@@ -427,8 +451,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         jac[1] = theta2 * (dlog_r + (dlog_minus - d_gamma/gamma)/2)
         # γ and δ = γ
         jac[2] = jac[3] = d_gamma
-        # Ω = sqrt(γ² - g)
-        jac[4] = Omega * dlog_gap_g/2
+        # ζ = sqrt(γ² - g)
+        jac[4] = zeta * dlog_gap_g/2
         return conventional_params, jac
     
     @staticmethod
@@ -471,7 +495,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         Returns:
             ndarray: shape (3, 3)
         """
-        theta1, theta2, gamma, delta, Omega = self.to_conventional(primitive_params)
+        theta1, theta2, gamma, delta, zeta = self.to_conventional(primitive_params)
         A = np.zeros((3,3))
         A[0,1] = theta1
         A[0,2] = theta2
@@ -479,8 +503,8 @@ class TwoAuxEmbedder(BaseEmbedder):
         A[2,0] = -theta2
         A[1,1] = gamma + delta
         A[2,2] = gamma - delta
-        A[1,2] = Omega
-        A[2,1] = -Omega
+        A[1,2] = zeta
+        A[2,1] = -zeta
         return A
     
     def drift_matrix_param_grad(
@@ -496,7 +520,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             ndarray: ∂Ap/∂p, shape (4, 3, 3)
 
         Notes:
-            The derivatives with respect to the conventional parameters [θ₁, θ₂, γ, δ, Ω]
+            The derivatives with respect to the conventional parameters [θ₁, θ₂, γ, δ, ζ]
             are constant, and jac_conventional supplies the chain rule.
         """
     
@@ -513,7 +537,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         # dA/d(delta)
         grad_A_conventional[3, 1, 1] = 1.0
         grad_A_conventional[3, 2, 2] = -1.0
-        # dA/d(Omega)
+        # dA/d(zeta)
         grad_A_conventional[4, 1, 2] = 1.0
         grad_A_conventional[4, 2, 1] = -1.0
         # chain rule
@@ -545,7 +569,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         """Return exp(-γt)·cosh(t√g) and exp(-γt)·t·sinhc(t√g).
 
         Args:
-            g (float): δ² - Ω²; g > 0 is overdamped, g ≤ 0 underdamped or critical
+            g (float): δ² - ζ²; g > 0 is overdamped, g ≤ 0 underdamped or critical
             gamma (float): the mean decay rate γ
             gap_g (float): γ² - g, from _gaps
             t (ndarray): non-negative times, as floats
@@ -576,7 +600,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         """Return exp(-γt) times the derivative of sinhc(t√g) with respect to g.
 
         Args:
-            g (float): δ² - Ω²; g > 0 is overdamped, g ≤ 0 underdamped or critical
+            g (float): δ² - ζ²; g > 0 is overdamped, g ≤ 0 underdamped or critical
             gamma (float): the mean decay rate γ
             gap_g (float): γ² - g, from _gaps
             t (ndarray): non-negative times, as floats
