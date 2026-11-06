@@ -70,14 +70,14 @@ class TwoAuxEmbedder(BaseEmbedder):
     def __len__(self) -> int:
         return 2
 
-    def _get_nparam(self) -> int:
-        """Number of conventional parameters [θ₁, θ₂, γ, δ, ζ].
-        """
+    @property
+    def nparam(self) -> int:
+        """Number of conventional parameters [θ₁, θ₂, γ, δ, ζ]."""
         return 5
 
-    def _get_ndof(self) -> int:
-        """Number of primitive parameters [r, γ, Ω, φ].
-        """
+    @property
+    def ndof(self) -> int:
+        """Number of primitive parameters [r, γ, Ω, φ]."""
         return 4
 
     def __init__(

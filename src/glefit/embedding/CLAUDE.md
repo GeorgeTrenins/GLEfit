@@ -45,7 +45,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 
 ## New embedder
 
-Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override `_get_ndof`, `to_primitive` and `to_conventional`, and `propagation_matrix` if the fitted form is not the one to simulate, as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
+Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, the `nparam` property, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. Add the class to `EMBEDDER_MAP` in `__init__.py`. If different parameters can give the same kernel, also override the `ndof` property, `to_primitive` and `to_conventional`, and `propagation_matrix` if the fitted form is not the one to simulate, as gen2x2 does. A non-symmetric A with more than one θ entry needs the `grad_wrt_A` fix in `glefit/merit` first.
 
 ## Testing
 

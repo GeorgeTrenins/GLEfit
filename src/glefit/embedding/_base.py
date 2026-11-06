@@ -92,29 +92,17 @@ class BaseEmbedder(ABC):
         """
         pass
 
-    @abstractmethod
-    def _get_nparam(self) -> int:
-        """Number of conventional parameters used to define the drift matrix.
-        """
-        pass
-
     @property
+    @abstractmethod
     def nparam(self) -> int:
         """Number of conventional parameters used to define the drift matrix.
         """
-        return self._get_nparam()
-    
-    def _get_ndof(self) -> int:
-        """Number of primitive (optimizable) parameters.
-        """
-        # By default, same as conventional parameters
-        return self._get_nparam()
 
     @property
     def ndof(self) -> int:
-        """Number of primitive (optimizable) parameters.
+        """Number of primitive (optimizable) parameters, by default nparam.
         """
-        return self._get_ndof()
+        return self.nparam
 
     def to_primitive(
         self,

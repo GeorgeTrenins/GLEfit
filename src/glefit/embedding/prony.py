@@ -21,9 +21,9 @@ class PronyEmbedder(BaseEmbedder):
     def __len__(self) -> int:
         return 1
     
-    def _get_nparam(self) -> int:
-        """Number of independent parameters used to define the drift matrix.
-        """
+    @property
+    def nparam(self) -> int:
+        """Number of parameters [θ, γ]."""
         return 2
 
     def __init__(self, theta: float, gamma: float, *args, **kwargs) -> None:

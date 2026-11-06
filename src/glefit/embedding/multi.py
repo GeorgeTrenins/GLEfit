@@ -48,10 +48,14 @@ class MultiEmbedder(BaseEmbedder):
     def __len__(self) -> int:
         return self._naux
     
-    def _get_nparam(self) -> int:
+    @property
+    def nparam(self) -> int:
+        """Total number of conventional parameters of the components."""
         return self._nparam
-    
-    def _get_ndof(self) -> int:
+
+    @property
+    def ndof(self) -> int:
+        """Total number of primitive parameters of the components."""
         return self._ndof
     
     def to_primitive(

@@ -21,9 +21,9 @@ class PronyCosineEmbedder(BaseEmbedder):
     def __len__(self) -> int:
         return 2
     
-    def _get_nparam(self) -> int:
-        """Number of independent parameters used to define the drift matrix.
-        """
+    @property
+    def nparam(self) -> int:
+        """Number of parameters [θ, γ, ω]."""
         return 3
 
     def __init__(self, theta: float, gamma: float, omega: float, *args, **kwargs) -> None:
