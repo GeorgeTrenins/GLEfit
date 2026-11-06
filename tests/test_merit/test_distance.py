@@ -153,6 +153,25 @@ def test_all_returns_distance_gradient_and_hessian(prop_and_x, exact):
                     rtol=RTOL_HESS, atol=ATOL_HESS)
 
 
+@pytest.mark.parametrize("prop_class, method, grid, scale", [
+    (MemoryKernel, "kernel", TIME / 1.0e-3, [1.0, 1.0e-3, 1.0e-3, 1.0]),
+    (MemorySpectrum, "spectrum", FREQ * 1.0e-3,
+     [np.sqrt(1.0e-3), 1.0e-3, 1.0e-3, 1.0]),
+], ids=["kernel", "spectrum"])
+def test_gen2x2_hessian_is_accurate_in_a_large_time_unit(
+        prop_class, method, grid, scale):
+    emb = EMBEDDERS["gen2x2"]()
+    emb.primitive_params = emb.primitive_params * scale
+    prop = prop_class(grid, TARGET, emb, "squared", weight=WEIGHT)
+    f = getattr(emb, method)
+    expected = expected_hessian(
+        f(grid), f(grid, nu=1, mapped=True), f(grid, nu=2, mapped=True))
+
+    actual = prop.hessian()
+
+    assert_allclose(actual, expected, rtol=RTOL_HESS, atol=ATOL_HESS)
+
+
 @pytest.mark.parametrize(
     "method", ["function", "gradient", "both", "hessian", "all"])
 def test_passing_x_leaves_the_embedder_unchanged(method, kind):

@@ -28,15 +28,13 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 
 Agenda set by the maintainer on 2026-11-05: first the flagged issues in `glefit.merit` (1), then the structural simplification (2).
 
-1. Fix the flagged issues in `glefit.merit` (see "Tracked in other modules" in `ISSUES.md` and "Known gaps" in `glefit/merit/CLAUDE.md`), including gen2x2 spectrum fits that stall near Ω ≈ 0. Setup of that experiment: a prototype maximal-gauge gen2x2 embedder fitted with EF, 10 starts per target, only γ constrained.
-   - All 50 kernel fits succeeded, but 3 of 30 spectrum fits stalled near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular.
-   - Without ω = 0 in the grid, 3 of 10 fixture-data fits stopped exactly at Ω = 0 with a gradient of about 1e-14.
-   - Constraining Ω as well avoided both (80/80).
-   - Reproduce with `05_notebooks/gen2x2_note_verification/fit_constraints_diag.py`.
-2. Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations.
+1. Finish `glefit.merit`: correct the docstrings listed under "Outdated text in the code" in `glefit/merit/CLAUDE.md`. Done from `bcad8d3`: `BaseScalarProperty` removed, merit functions tested, `MemorySpectrum` fixed where A cannot be diagonalized, and Ω of gen2x2 log-mapped.
+   - On 2026-11-06 the maintainer reversed the 2026-11-05 decision to constrain only γ, after the fit experiment was re-run with the shipped embedder. Log-mapping Ω makes fits independent of the time unit and kept all 40 spectrum fits away from the two bad points described in `ISSUES.md`, but does not remove them.
+2. Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations. Consider naming the parameter when a mapper rejects a value: gen2x2 with Ω = 0 now raises "Invalid parameter value p = 0.0, must be greater than a = 0.0", from `_forward_map`.
 
 ## Lessons
 
 - Near (not on) the Debye limit Ω = γ|sin 2φ|, the small amplitude a₋ or a₊ has a relative error of about ε/(distance to the limit), from the rounding of sin 2φ alone, whatever the formula (5.8e-11 at a distance of 1e-6). Test rounding on the limit itself, with element-wise tolerances.
-- Starting exactly at r = 0, Ω = 0 or φ = 0 stalls that parameter, because K is even in it there, so its derivative vanishes. In the fit experiment, Ω = 0 stopped at a false convergence (residual 0.37), φ = 0 escaped through roundoff after 50 steps, and r = 0 stopped at step 0.
+- Starting exactly at r = 0, Ω = 0 or φ = 0 stalls that parameter, because K is even in it there, so its derivative vanishes. In the fit experiment, Ω = 0 stopped at a false convergence (residual 0.37), φ = 0 escaped through roundoff after 50 steps, and r = 0 stopped at step 0. Ω = 0 is now rejected by its mapper.
+- A bug can vanish at a lucky test point: the eigendecomposition in `MemorySpectrum` was exact at critical damping for γ = 1.5 but wrong by up to 2 for γ = 1 and 2. Scan a few values before choosing a test case.
 - Leave `tutorials/` alone for now.

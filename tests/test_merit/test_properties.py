@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from glefit.embedding import PronyEmbedder, TwoAuxEmbedder
+from glefit.mappers import IdentityMapper, LowerBoundMapper
 from glefit.merit import MemoryKernel, MemorySpectrum
 
 
@@ -91,8 +92,10 @@ def test_function_at_critical_damping_matches_drift_matrix_reference(
 @pytest.mark.parametrize("method", ["function", "grad_wrt_A"])
 def test_spectrum_rejects_singular_A_at_zero_frequency(method):
     # δ = γ and ζ = 0 give Ω = 0 and A = [[2, 0], [0, 0]], so
-    # Λ(0) = θᵀA⁻¹θ does not exist
-    emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 0.0)
+    # Λ(0) = θᵀA⁻¹θ does not exist. The default mappers reject Ω = 0.
+    emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 0.0, mappers=[
+        IdentityMapper(), LowerBoundMapper(), IdentityMapper(),
+        IdentityMapper()])
     prop = MemorySpectrum(FREQ, np.zeros_like(FREQ), emb, "squared")
 
     with pytest.raises(ValueError, match="singular"):

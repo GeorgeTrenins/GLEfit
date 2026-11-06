@@ -38,7 +38,7 @@ Default mappers, set by each embedder's constructor:
 | --- | --- | --- |
 | `prony` | θ, γ | `LowerBoundMapper()` for both |
 | `pronycos` | θ, γ, ω | `LowerBoundMapper()` for all three |
-| `gen2x2` | r, γ, Ω, φ | `LowerBoundMapper()` for γ, `IdentityMapper()` for r, Ω and φ |
+| `gen2x2` | r, γ, Ω, φ | `LowerBoundMapper()` for γ and Ω, `IdentityMapper()` for r and φ |
 | `multi` | its components' | its components' |
 
 No embedder uses `UpperBoundMapper` or `IntervalMapper` by default. To use them, pass `mappers` to the constructor in Python:

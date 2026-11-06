@@ -30,8 +30,7 @@ It rejects any 2×2 block A whose symmetric part is indefinite, even when the ke
 
 These affect embedders, but the fix belongs elsewhere:
 
-- Spectrum fits with gen2x2 can stall near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular. To fix in `glefit.merit`; see `src/glefit/embedding/TODO.md`.
-- The fit Hessian takes absolute finite-difference steps in unmapped parameters, such as r and Ω of gen2x2, so it is less accurate when they are far from 1. See `glefit/merit/CLAUDE.md`.
+- Spectrum fits with gen2x2 can stop at two bad points near Ω = 0, which the default log mapper of Ω only keeps fits away from. With ω = 0 in the grid, Ω and φ → 0 at fixed sin φ/Ω turn the second mode into a spike at ω = 0 that fits only that point; the valley is so narrow (Hessian eigenvalues 1e-2 to 1e7) that fits stop there. This can in principle be averted by adding a penalty for the long-time limit of the memory kernel. At Ω = 0, the second mode drops out of Λ at ω > 0, and a single Lorentzian can be a true local minimum, as for the `expohmic_nm_spectrum.csv` fixture (residual 0.98 against 0.31). With Ω unmapped, 6 of 40 spectrum fits stopped at one of them, and none with ln Ω; started next to them, fits with ln Ω still stop there.
 - `tutorials/` still pass `sigma`, `threshold` and `Omega` to gen2x2, which raise `TypeError`.
 
 ### Resolved

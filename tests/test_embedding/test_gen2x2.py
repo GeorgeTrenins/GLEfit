@@ -14,6 +14,7 @@ import pytest
 import sympy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from glefit.embedding import TwoAuxEmbedder
+from glefit.mappers import IdentityMapper, LowerBoundMapper
 
 
 RTOL = 1.0e-12
@@ -65,7 +66,11 @@ def reference(sympy_reference):
 
 
 def embedder_at(primitive_params):
-    emb = TwoAuxEmbedder([1.0, 1.0], 3.0, 0.0, 2.0)
+    # The closed forms hold for any real r, Ω and φ, so only γ is mapped
+    # here: the default mappers would reject Ω ≤ 0
+    emb = TwoAuxEmbedder([1.0, 1.0], 3.0, 0.0, 2.0, mappers=[
+        IdentityMapper(), LowerBoundMapper(), IdentityMapper(),
+        IdentityMapper()])
     emb.primitive_params = np.array(primitive_params)
     return emb
 
@@ -268,7 +273,7 @@ def test_drift_matrix_x_grad_uses_its_argument_not_stored_params(
     emb = embedder_at(CASES["overdamped"])
     r, gamma, Omega, phi = params = CASES["underdamped"]
     x = np.array([r, np.log(gamma), Omega, phi])
-    # default mappers: dp/dx = [1, γ, 1, 1]
+    # the mappers of embedder_at: dp/dx = [1, γ, 1, 1]
     expected = (np.array([1.0, gamma, 1.0, 1.0])[:, None]
                 * reference.kernel(params, TIME, nu=1))
 
@@ -365,10 +370,20 @@ def test_propagation_matrix_in_the_debye_limit_has_a_single_mode(
     assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
 
 
-def test_default_mappers_take_log_of_gamma_only():
-    emb = embedder_at([-1.3, 1.5, -0.8, 2.0])
+def test_default_mappers_take_log_of_gamma_and_omega():
+    emb = TwoAuxEmbedder([1.0, 1.0], 3.0, 0.0, 2.0)
 
-    assert_allclose(emb.x, [-1.3, np.log(1.5), -0.8, 2.0], rtol=RTOL)
+    emb.primitive_params = np.array([-1.3, 1.5, 0.8, 2.0])
+
+    assert_allclose(emb.x, [-1.3, np.log(1.5), np.log(0.8), 2.0],
+                    rtol=RTOL)
+
+
+def test_conventional_params_with_omega_zero_are_rejected():
+    # δ = γ and ζ = 0 give Ω² = γ² - δ² + ζ² = 0: s₂ is undamped and
+    # decoupled from s₁, and ln Ω does not exist
+    with pytest.raises(ValueError, match="greater than"):
+        TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 0.0)
 
 
 def test_conversion_to_primitive():
@@ -480,12 +495,11 @@ def test_from_matrix_follows_the_rotation_invariants(Q):
 @pytest.mark.parametrize("theta, A", [
     ([0.0, 1.0], [[2.0, 1.5], [-1.5, 0.0]]),
     ([1.0, 0.0], [[2.0, 1.5], [-1.5, 0.0]]),
-    ([0.6, 0.8], [[2.0, 0.0], [0.0, 0.0]]),
-], ids=["brownian-oscillator", "zero-static-friction", "Omega-zero"])
+], ids=["brownian-oscillator", "zero-static-friction"])
 def test_from_matrix_accepts_a_rotated_semidefinite_embedding(
         drift_matrix_reference, theta, A, angle):
-    # The symmetric part of A has a zero eigenvalue, and θᵀAθ, θᵀ adj(A) θ or
-    # det A vanishes. At these angles, rounding makes them about -1e-17.
+    # The symmetric part of A has a zero eigenvalue, and θᵀAθ or θᵀ adj(A) θ
+    # vanishes. At these angles, rounding makes them about -1e-17.
     R = rotation(angle)
     theta = R @ np.array(theta)
     A = R @ np.array(A) @ R.T
@@ -503,8 +517,10 @@ def test_from_matrix_accepts_a_rotated_semidefinite_embedding(
     ([1.0, 0.5], [[-1.0, 0.0], [0.0, -0.5]], "semi-definite"),
     ([0.0, 0.0], [[1.5, 0.8], [0.2, 1.0]], "admissible"),
     ([1.0, 0.5], [[0.0, 1.0], [-1.0, 0.0]], "admissible"),
+    # det A = Ω² = 0, which the default mapper of Ω rejects
+    ([0.6, 0.8], [[2.0, 0.0], [0.0, 0.0]], "greater than"),
 ], ids=["indefinite", "slightly-indefinite", "negative-definite",
-        "theta-zero", "trace-zero"])
+        "theta-zero", "trace-zero", "Omega-zero"])
 def test_from_matrix_rejects_inadmissible_input(theta, A, match):
     with pytest.raises(ValueError, match=match):
         TwoAuxEmbedder.from_matrix(theta, A)

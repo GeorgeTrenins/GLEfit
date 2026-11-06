@@ -139,9 +139,9 @@ def test_drift_matrix_and_its_gradient_use_their_argument_not_stored_params(
 @pytest.mark.parametrize("method, grid", GRIDS, ids=["kernel", "spectrum"])
 def test_mapped_gradient_applies_each_component_mapper_jacobian(emb, method, grid):
     p = emb.primitive_params
-    # default mappers: p = exp(x), except r, Ω and φ of gen2x2 
-    # (indices 2, 4, and 5), which are unbounded
-    dp_dx = np.array([p[0], p[1], 1.0, p[3], 1.0, 1.0, p[6], p[7], p[8]])
+    # default mappers: p = exp(x), except r and φ of gen2x2
+    # (indices 2 and 5), which are unbounded
+    dp_dx = np.array([p[0], p[1], 1.0, p[3], p[4], 1.0, p[6], p[7], p[8]])
     expected = dp_dx[:, None] * getattr(emb, method)(grid, nu=1)
 
     actual = getattr(emb, method)(grid, nu=1, mapped=True)

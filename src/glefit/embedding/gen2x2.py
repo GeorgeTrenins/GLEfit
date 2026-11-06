@@ -123,7 +123,9 @@ class TwoAuxEmbedder(BaseEmbedder):
             embedder fits the primitive parameters [r, γ, Ω, φ] and builds the
             drift matrix in the maximal gauge δ = γ, where θ = r(cos φ, sin φ)
             and ζ = Ω. K and Λ depend only on r², Ω² and cos 2φ, so any real
-            r, Ω and φ with γ > 0 give a valid embedding.
+            r, Ω and φ with γ > 0 give a valid embedding. The default
+            mappers still take ln Ω, so that fits cannot reach Ω = 0 and
+            do not depend on the time unit; they reject Ω = 0.
         """
         self._reject_removed_keys(kwargs)
         for variable, symbol in zip([gamma, delta, zeta], "γδζ"):
@@ -138,7 +140,7 @@ class TwoAuxEmbedder(BaseEmbedder):
             "mappers", [
                 IdentityMapper(),   # r ∈ R
                 LowerBoundMapper(), # γ > 0
-                IdentityMapper(),   # Ω ∈ R
+                LowerBoundMapper(), # Ω > 0
                 IdentityMapper()    # φ ∈ R
         ])
         super().__init__(*args, **kwargs)
