@@ -20,7 +20,10 @@ from typing import Optional
 class MemoryKernel(BaseProperty):
     """Memory friction kernel K(t) = θᵀ exp(-tA) θ
     where θ is the coupling vector and A is the auxiliary variable drift matrix.
-    
+
+    θᵀ is read from the top row of Ap and θ from its negated left column,
+    as in the dynamics. Every existing embedder makes the two equal.
+
     The gradient w.r.t. the drift matrix uses the matrix exponential Fréchet
     derivative for computational efficiency.
     
@@ -43,30 +46,33 @@ class MemoryKernel(BaseProperty):
         else:
             emb = self.emb
             Ap = emb.compute_drift_matrix(emb._inverse_map(x))
-        theta = Ap[0, 1:]
-        A = Ap[1:,1:]
+        row, col, A = Ap[0, 1:], -Ap[1:, 0], Ap[1:, 1:]
         return np.einsum(
-            'ijk,j,k->i', 
-            expm(-self.grid[:,None,None] * A), 
-            theta, theta)
-    
+            'ijk,j,k->i',
+            expm(-self.grid[:,None,None] * A),
+            row, col)
+
     @staticmethod
     def _grad_thetaT_expA_theta(
-            A: npt.NDArray[np.floating], 
-            theta: npt.NDArray[np.floating],
-            time: Union[float, npt.NDArray[np.floating]]
+            A: npt.NDArray[np.floating],
+            row: npt.NDArray[np.floating],
+            time: Union[float, npt.NDArray[np.floating]],
+            col: Optional[npt.NDArray[np.floating]] = None
             ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """Compute ∇_A(θᵀ exp(-τA) θ) using matrix exponential Fréchet derivative.
-        
-        Uses scipy.linalg.expm_frechet for the directional derivative in the 
+
+        Uses scipy.linalg.expm_frechet for the directional derivative in the
         direction E = θθᵀ, ∂/∂A(θᵀ exp(-τA) θ) = −τ L_exp(-τA^T, θθᵀ)
         where L_exp is the Fréchet derivative of the matrix exponential.
-        
+        The first θ is row and the second is col.
+
         Args:
             A: Drift submatrix of shape (n, n)
-            theta: Coupling vector of shape (n,)
+            row: θᵀ, from the top row of Ap, shape (n,)
             time: Scalar or 1D array of time values
-            
+            col: θ, from the negated left column of Ap, shape (n,).
+                None means the same as row.
+
         Returns:
             Tuple of (exp_matrix, frechet_derivative) where:
             - exp_matrix: exp(-tA^T) with shape (n, n) or (n_times, n, n)
@@ -87,8 +93,10 @@ class MemoryKernel(BaseProperty):
         else:
             raise TypeError(f"time must be float or a 1-D numpy array of floats; got {type(time).__name__}")
         
+        if col is None:
+            col = row
         # Outer product: θ θᵀ
-        E = np.outer(theta, theta)
+        E = np.outer(row, col)
         # Fréchet derivative: L_exp(-τA^T, E)
         expA, K = expm_frechet(-time * A.T, E, compute_expm=True)
         return expA, -time * K
@@ -115,15 +123,15 @@ class MemoryKernel(BaseProperty):
         
         time = self.grid
         ans = np.zeros((len(time),) + Ap.shape)
-        theta = Ap[0,1:]
-        A_aux = Ap[1:,1:]
-        
+        row, col, A_aux = Ap[0, 1:], -Ap[1:, 0], Ap[1:, 1:]
+
         # Compute derivatives w.r.t. the auxiliary variable drift matrix
-        expA, grad_expA = self._grad_thetaT_expA_theta(A_aux, theta, time)
-        
+        expA, grad_expA = self._grad_thetaT_expA_theta(
+            A_aux, row, time, col=col)
+
         # Fill in gradient components
-        ans[:,0,1:] = np.einsum('j,tjk->tk', theta, expA)    # exp(-tA)θ
-        ans[:,1:,0] = -np.einsum('tkj,j->tk', expA, theta)  # -exp(-tAᵀ)θ
+        ans[:,0,1:] = np.einsum('j,tjk->tk', col, expA)    # exp(-tA)θ
+        ans[:,1:,0] = -np.einsum('tkj,j->tk', expA, row)  # -exp(-tAᵀ)θ
         ans[:,1:,1:] = grad_expA
         
         return ans
@@ -137,6 +145,9 @@ class MemorySpectrum(BaseProperty):
     Evaluation takes one complex linear solve per frequency and also works
     where A cannot be diagonalized, as for gen2x2 at critical damping. 
     It fails where A + iω is singular, and there Λ is not defined.
+
+    θᵀ is read from the top row of Ap and θ from its negated left column,
+    as in the dynamics. Every embedder makes the two equal.
 
     Attributes:
         grid: Frequencies where the spectrum is evaluated
@@ -153,7 +164,8 @@ class MemorySpectrum(BaseProperty):
 
         Args:
             Ap: full drift matrix [[0, θᵀ], [-θ, A]] of shape (n+1, n+1).
-                θ is read from the top row.
+                θ is read from the negated left column, or with transpose
+                from the top row.
             omega: frequencies of shape (n_freq,)
             transpose: if True, use Aᵀ instead of A
 
@@ -163,9 +175,10 @@ class MemorySpectrum(BaseProperty):
         Raises:
             ValueError: if A + iω is singular at one of the frequencies
         """
-        theta, A = Ap[0, 1:], Ap[1:, 1:]
         if transpose:
-            A = A.T
+            theta, A = Ap[0, 1:], Ap[1:, 1:].T
+        else:
+            theta, A = -Ap[1:, 0], Ap[1:, 1:]
         M = A + 1j * omega[:, None, None] * np.eye(len(theta))
         try:
             return np.linalg.solve(M, theta)

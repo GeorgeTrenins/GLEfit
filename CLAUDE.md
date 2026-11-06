@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 371 passing tests, `tests/test_merit` has 114, `tests/test_utils` has 28, `tests/test_optimize.py` checks the file that `optimize.py` writes, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject parameters on their bounds. Its references are SymPy and mpmath.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 371 passing tests, `tests/test_merit` has 118, `tests/test_utils` has 28, `tests/test_optimize.py` checks the file that `optimize.py` writes, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject parameters on their bounds. Its references are SymPy and mpmath.
 
 `legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py`, `test_utils/test_numderiv.py` and `test_mappers/test_intervals.py` cannot be imported. 73 tests pass, 51 fail and those three files fail to import. The failures are known, caused by tests lagging the code:
 
@@ -65,7 +65,7 @@ Config behavior that the validator does not make obvious:
 
 ### The drift matrix
 
-Every fitted quantity derives from the (n+1)×(n+1) matrix `Ap = [[0, θᵀ], [-θ, A]]`. Row and column 0 belong to the physical coordinate, and the coupling is skew-symmetric. `MemoryKernel` computes θᵀ exp(-tA) θ and `MemorySpectrum` computes θᵀ A (A² + ω²)⁻¹ θ.
+Every fitted quantity derives from the (n+1)×(n+1) matrix `Ap = [[0, θᵀ], [-θ, A]]`. Row and column 0 belong to the physical coordinate, and the coupling is skew-symmetric. `MemoryKernel` computes θᵀ exp(-tA) θ and `MemorySpectrum` computes θᵀ A (A² + ω²)⁻¹ θ, both with θᵀ from row 0 and θ from the negated column 0.
 
 ### Three parameter spaces
 

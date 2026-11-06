@@ -44,6 +44,12 @@ DRIFT_MATRICES = {
                             [-0.9, 1.5, 0.3, -0.2],
                             [0.4, -0.6, 1.1, 0.4],
                             [-0.6, 0.5, -0.1, 0.8]],
+    # The left column is not -θ, which no embedder builds. K and Λ then
+    # take θᵀ from the top row and θ from the negated left column, as
+    # the dynamics do.
+    "row-differs-from-column": [[0.0, 0.9, -0.4],
+                                [-0.5, 1.5, 0.3],
+                                [0.7, -0.6, 1.1]],
 }
 PROPERTIES = [(MemoryKernel, "kernel", TIME),
               (MemorySpectrum, "spectrum", FREQ)]
@@ -59,6 +65,14 @@ def unit_directions(size):
     return np.eye(size * size).reshape(-1, size, size)
 
 
+class FixedDriftMatrix:
+    """Stand-in for an embedder whose drift matrix no embedder builds.
+    function() with x=None reads only the attribute A."""
+
+    def __init__(self, Ap):
+        self.A = np.array(Ap)
+
+
 @pytest.mark.parametrize("Ap", list(DRIFT_MATRICES.values()), ids=list(DRIFT_MATRICES))
 @pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,
                          ids=["kernel", "spectrum"])
@@ -72,6 +86,20 @@ def test_grad_wrt_A_matches_exact_derivative_for_every_entry_of_Ap(
 
     assert_allclose(np.moveaxis(actual, 0, -1).reshape(expected.shape), expected,
                     rtol=RTOL, atol=ATOL)
+
+
+@pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,
+                         ids=["kernel", "spectrum"])
+def test_function_reads_theta_from_the_left_column(
+        prop_class, method, grid, drift_matrix_reference):
+    Ap = np.array(DRIFT_MATRICES["row-differs-from-column"])
+    emb = FixedDriftMatrix(Ap)
+    prop = prop_class(grid, np.zeros_like(grid), emb, "squared")
+    expected, _ = getattr(drift_matrix_reference, method)(Ap, grid)
+
+    actual = prop.function()
+
+    assert_allclose(actual, expected, rtol=RTOL)
 
 
 @pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,

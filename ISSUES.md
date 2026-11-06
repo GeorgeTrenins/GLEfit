@@ -8,9 +8,6 @@ Only `glefit.embedding` keeps its issues here so far. The other modules still li
 
 ### Open
 
-**EMB-12 · open · Fits never read the left column of Ap.**
-`MemoryKernel` and `MemorySpectrum` take θ from the top row of Ap only. A wrong left column from `compute_drift_matrix` therefore leaves fits unchanged, but it is written to `optimized_Ap_matrix.json`, which simulations use. The left column of `drift_matrix_param_grad` does enter the fit gradient. `tests/test_embedding` checks the left column directly, and `DriftMatrixReference` reads θ from it.
-
 **EMB-14 · open · `MultiEmbedder` needs a list or tuple of components.**
 A generator fails with the unclear `ValueError: need at least one array to concatenate`.
 
@@ -43,6 +40,7 @@ These affect embedders, but the fix belongs elsewhere:
 - **EMB-9** · `290c7d3` · Stable gen2x2 inputs could be rejected.
 - **EMB-10** · `7d4463c` · A starting value on a mapper bound crashed fits; the bounded mappers now reject it.
 - **EMB-11** · `ae075a0` · `from_dict` ignored unknown keys; it now raises `TypeError`, but allows `mappers`.
+- **EMB-12** · `fix(merit): read θ from the left column of Ap` · Fits read θ only from the top row of Ap, so their values ignored the left column and disagreed with their gradient.
 - **EMB-13** · `9d29a67` · `to_primitive` lost relative accuracy in g.
 - **EMB-16** · `4a5b5f3` · `TwoAuxEmbedder.kernel_hess` was not implemented.
 - **EMB-17** · `baba304` · `MultiEmbedder` now rejects a `mappers` argument.

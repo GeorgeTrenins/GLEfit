@@ -29,7 +29,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 
 - Closed forms: `kernel_*` and `spectrum_*`, called by `kernel()`, `spectrum()` and `spectral_density()`. Fits never use them.
 - Derivatives via chain rule w.r.t. drift matrix: `glefit.merit` computes K, Λ and their gradients from `compute_drift_matrix` and `drift_matrix_param_grad`. Both must use only their argument, never stored state, because `merit` passes trial values.
-- A bug in one route does not show in the other, so tests compare them. `merit` reads θ only from the top row of Ap, so test the left column directly (EMB-12).
+- A bug in one route does not show in the other, so tests compare them. `merit` and `DriftMatrixReference` read θᵀ from the top row and θ from the negated left column. A fit would follow a wrong left column without complaint, so tests check it directly.
 
 ## Conventions
 

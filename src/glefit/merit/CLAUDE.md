@@ -10,6 +10,8 @@ This measures how well a Kantorovich-style Markovian embedding reproduces genera
 Ap = [[ 0, θᵀ],      K(t) = θᵀ exp(-tA) θ
       [-θ, A ]]      Λ(ω) = θᵀ A (A² + ω²)⁻¹ θ
 ```
+θᵀ is read from row 0 of `Ap` and θ from the negated column 0, as in the dynamics. Every embedder makes the two equal, but `function` and `grad_wrt_A` treat them as independent, so both describe the same function of `Ap`.
+
 The `optimizer` changes a vector `x` of p parameters that have no limits on their values, and the `embedder` turns `x` into `Ap`. The merit function, called the `distance` in the code, is:
 
 ```text
@@ -80,7 +82,7 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 
 ### Test gaps
 
-- `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries and A that cannot be diagonalized. It also tests the values at `gen2x2` critical damping, and the `ValueError` for singular A at ω = 0.
+- `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. It also tests the values for that left column and at `gen2x2` critical damping, and the `ValueError` for singular A at ω = 0.
 - `tests/test_merit/test_distance.py` tests `function`, `distance`, `gradient`, `both`, `hessian` and `all` for the four shipped embedders with non-uniform weights, at the embedder's parameters and at a trial `x`. Values are compared with `DriftMatrixReference`, derivatives with the embedders' closed forms. It does not test `from_dict`, input checks or points where an embedder switches branch.
 - In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
 
@@ -89,8 +91,8 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 ### A new property on a grid
 
 1. Subclass `BaseProperty` in `properties.py`.
-2. Implement `function(x=None)`. For a trial `x`, build the matrix with `emb.compute_drift_matrix(emb._inverse_map(x))`.
-3. Implement `grad_wrt_A(A=None)`. Differentiate θᵀ in row 0 and θ in the negated column 0 of `Ap` separately, as the existing properties do. The two differ unless A is symmetric.
+2. Implement `function(x=None)`. For a trial `x`, build the matrix with `emb.compute_drift_matrix(emb._inverse_map(x))`. Read θᵀ from row 0 and θ from the negated column 0.
+3. Implement `grad_wrt_A(A=None)`. Differentiate θᵀ in row 0 and θ in the negated column 0 of `Ap` separately, as the existing properties do. The two derivatives differ unless A is symmetric.
 4. Import the class in `__init__.py` and add it to `PROPERTY_MAP`. No other registration is needed: the config validator checks only `type` and `parameters`.
 
 ### Other changes
@@ -110,7 +112,7 @@ PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 
 A new or changed property or metric should have tests that:
 
-- compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: finite differences are not exact
+- compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries, a left column other than −θ) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: finite differences are not exact
 - compare `gradient` and `hessian` against the embedders' closed-form derivatives, with non-uniform weights, as `tests/test_merit/test_distance.py` does
 - compare against closed forms where they exist, for example `emb.spectrum(grid, nu=1, mapped=True)`
 - include special values, such as repeated eigenvalues and points where the embedder switches branch
