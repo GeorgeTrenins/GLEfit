@@ -17,8 +17,6 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 **EMB-18 · open · `from_matrix` exists only for gen2x2.**
 A full Ap cannot be loaded back into an embedder.
 
-**EMB-21 · open · gen2x2 `from_matrix` rejects some admissible kernels.**
-It rejects any 2×2 block A whose symmetric part is indefinite, even when the kernel is admissible (bounded, with J ≥ 0) and the maximal gauge would represent it, for example θ = (1, 1)/√2 with A = [[2, 3], [−3, −0.1]]. On 2026-11-05 the maintainer decided to keep rejecting such input. Low priority.
 
 ### Tracked in other modules
 
