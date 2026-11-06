@@ -98,7 +98,7 @@ class MultiEmbedder(BaseEmbedder):
 
     @conventional_params.setter
     def conventional_params(self, value: npt.ArrayLike) -> None:
-        arr = np.asarray(value)
+        arr = self._checked(value, self.nparam, "conventional_params")
         for emb, c in zip(self._embs, self._c_slices):
             emb.conventional_params = arr[c]
 
@@ -109,7 +109,7 @@ class MultiEmbedder(BaseEmbedder):
 
     @x.setter
     def x(self, value: npt.ArrayLike) -> None:
-        arr = np.asarray(value)
+        arr = self._checked(value, self.ndof, "x")
         for emb, p in zip(self._embs, self._p_slices):
             emb.x = arr[p]
 
@@ -120,7 +120,7 @@ class MultiEmbedder(BaseEmbedder):
 
     @primitive_params.setter
     def primitive_params(self, value: npt.ArrayLike) -> None:
-        arr = np.asarray(value)
+        arr = self._checked(value, self.ndof, "primitive_params")
         for emb, p in zip(self._embs, self._p_slices):
             emb.primitive_params = arr[p]
 

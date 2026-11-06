@@ -214,6 +214,34 @@ def test_param_setter_updates_each_component_by_its_slice(emb, components, name,
     assert_allclose(getattr(components[2], name), values[2], rtol=RTOL)
 
 
+# nparam = 10 conventional and ndof = 9 primitive or mapped parameters
+SETTER_SIZES = {"conventional_params": 10, "primitive_params": 9, "x": 9}
+
+
+@pytest.mark.parametrize("extra", [-1, 1], ids=["too-short", "too-long"])
+@pytest.mark.parametrize("name, size", SETTER_SIZES.items(),
+                         ids=list(SETTER_SIZES))
+def test_param_setter_rejects_the_wrong_length(emb, name, size, extra):
+    # valid values for every component, so that only the length is wrong
+    values = np.ones(size + extra)
+
+    with pytest.raises(ValueError,
+                       match=rf"{name} must have shape \({size},\)"):
+        setattr(emb, name, values)
+
+
+@pytest.mark.parametrize("name, size", SETTER_SIZES.items(),
+                         ids=list(SETTER_SIZES))
+def test_rejected_param_setter_leaves_every_component_unchanged(
+        emb, name, size):
+    before = emb.conventional_params
+
+    with pytest.raises(ValueError):
+        setattr(emb, name, np.ones(size - 1))
+
+    assert_array_equal(emb.conventional_params, before)
+
+
 def test_from_dict_builds_the_components_in_order():
     # gen2x2 reads back in the maximal gauge, as in test_gen2x2
     params = {"embedders": [

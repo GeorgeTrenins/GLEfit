@@ -125,7 +125,17 @@ class BaseEmbedder(ABC):
         if primitive_params.shape != (self.ndof,):
            raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {primitive_params.shape = }")
         return np.copy(primitive_params)
-    
+
+    @staticmethod
+    def _checked(value: npt.ArrayLike, size: int, name: str) -> np.ndarray:
+        """Return value as an array, after checking that its shape is
+        (size,). name is the parameter set, for the error message."""
+        arr = np.asarray(value)
+        if arr.shape != (size,):
+            raise ValueError(
+                f"{name} must have shape {(size,)}, got {arr.shape}")
+        return arr
+
     @property
     def primitive_params(self) -> npt.NDArray[np.floating]:
         """Internal primitive parameters."""
@@ -134,10 +144,7 @@ class BaseEmbedder(ABC):
     @primitive_params.setter
     def primitive_params(self, value: npt.ArrayLike) -> None:
         """Set primitive parameters directly (bypasses conventional mapping)."""
-        cur = self._primitive_params
-        arr = np.asarray(value)
-        if arr.shape != cur.shape:
-            raise ValueError(f"primitive_params must have shape {cur.shape}, got {arr.shape}")
+        arr = self._checked(value, self.ndof, "primitive_params")
         self._primitive_params[:] = arr
         self._x[:] = self._forward_map(arr)
 
@@ -148,10 +155,7 @@ class BaseEmbedder(ABC):
     
     @x.setter
     def x(self, value: npt.ArrayLike) -> None:
-        cur = self._x
-        arr = np.asarray(value)
-        if arr.shape != cur.shape:
-            raise ValueError(f"x must have shape {cur.shape}, got {arr.shape}")
+        arr = self._checked(value, self.ndof, "x")
         self._x[:] = arr
         self._primitive_params[:] = self._inverse_map(arr)
         
@@ -163,9 +167,7 @@ class BaseEmbedder(ABC):
     @conventional_params.setter
     def conventional_params(self, value: npt.ArrayLike) -> None:
         """Set conventional parameters; store as primitive internally."""
-        arr = np.asarray(value)
-        if arr.shape != (self.nparam,):
-            raise ValueError(f"conventional_params must have shape ({self.nparam},), got {arr.shape}")
+        arr = self._checked(value, self.nparam, "conventional_params")
         prim = self.to_primitive(arr)
         self._primitive_params[:] = prim
         self._x[:] = self._forward_map(prim)
