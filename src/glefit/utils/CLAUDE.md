@@ -78,6 +78,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 ### Test gaps
 
 - `tests/test_utils/test_special.py` tests only `sinc`, against SymPy.
+- `tests/test_utils/test_numderiv.py` tests `jacobian` with `order` only: exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks. It does not test `diff` or the other options of `jacobian`.
 - `legacy_tests/test_utils/test_special.py` fails to import, since it tests the removed functions.
 - `legacy_tests/test_utils/test_numderiv.py` does not test `max_step`, the error paths or integer inputs.
 - `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
