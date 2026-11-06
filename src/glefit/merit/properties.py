@@ -25,7 +25,7 @@ class MemoryKernel(BaseArrayProperty):
     derivative for computational efficiency.
     
     Attributes:
-        array: Time points where kernel is evaluated
+        grid: Time points where kernel is evaluated
         target: Target kernel values at each time
     """
 

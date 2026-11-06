@@ -11,8 +11,8 @@ that quantify the discrepancy between computed GLE properties and target values.
 
 Key concepts:
 - Deviation metrics: Quantify discrepancy between computed and target values
-- Properties: Physical quantities computed from GLE embeddings (e.g., memory kernels, 
-              spectra, or linear combinations of such properties)
+- Properties: Physical quantities computed from GLE embeddings on a grid,
+              the memory kernel or the spectrum
 - Parameters vs transformed parameters: Raw parameters may have restricted domains,
   which are mapped to unrestricted transformed parameters via constraint mappers
 '''
@@ -63,8 +63,9 @@ def _validate_scalararr(x: ScalarArr, *, name: str) -> None:
 def check_value_target(func: F) -> F:
     """Decorator validating (value, target) argument pairs in deviation metric methods.
     
-    Automatically wraps deviation metric implementations to validate that value and target
-    are both floats or 1D floating-point arrays with matching dimensionality.
+    Automatically wraps deviation metric implementations to check that value
+    and target are each a float or a 1-D floating-point array. Their shapes
+    are not compared.
     
     Args:
         func: Deviation metric method to wrap
@@ -94,7 +95,7 @@ class BaseDeviation(ABC):
         >>> metric = SquaredDeviation()
         >>> value = np.array([1.0, 2.0])
         >>> target = np.array([1.5, 1.8])
-        >>> deviation = metric(value, target)  # Returns (0.5**2 + 0.2**2)
+        >>> deviation = metric(value, target)  # [0.5**2, 0.2**2], per point
         >>> grad = metric.gradient(value, target)  # Returns 2*(value - target)
     """
 
@@ -215,16 +216,17 @@ class BaseProperty(ABC):
     drift matrix A. It is evaluated on a grid, such as the kernel 
     on a time grid or the spectrum on a frequency grid.
     
-    Properties support automatic differentiation via the chain rule:
+    Derivatives come from the chain rule:
         ∂property/∂x = ∂property/∂A · ∂A/∂x
-    
+
     where x are the transformed parameters (with constraints imposed via mappers).
-    
+
     Args:
         target: Target value(s) for this property
         emb: GLE embedding providing the drift matrix A
         metric: Name of deviation metric to use (e.g., "squared")
-        weight: Weight factor for this property in combined objectives
+        weight: Weight of each grid point in the distance: one number for
+            all points or one per point
         
     Attributes:
         deviation_metric: Instance of BaseDeviation for measuring errors
@@ -493,10 +495,6 @@ class BaseArrayProperty(BaseProperty):
         """Weighted sum of element-wise deviations.
         
         Implements: sum(weights * deviation(values, targets))
-        
-        Note:
-            Currently uses weighted sum (1-norm). Can be generalized later
-            to support other aggregation methods (e.g., weighted L2-norm).
         """
         return np.sum(self.weight * self.deviation_metric(self.value, self.target))
     

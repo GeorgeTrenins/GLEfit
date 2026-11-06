@@ -65,7 +65,7 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 - **`MemorySpectrum` raises `ValueError` where A + iω is singular.** Λ is not defined there. This happens with ω = 0 in the grid when A is singular, as for `gen2x2` at Ω = 0.
 
 - **The distance is a plain sum, while `gtol` is absolute.** The distance grows with the size of the data and with the number of grid points. With targets 1000 times smaller and `gtol=1e-4`, a fit stopped at step 0 with 50% error, and it counts as converged. Doubling the grid doubles the distance and gradient. Dense parts of a non-uniform grid count for more unless `weight` corrects for it.
-- **The Hessian's finite-difference step is about 7e-4·max(1, |x|).** It is absolute in unmapped parameters, so their units matter. All rates are log-mapped, so changing the time unit by 1e-3 to 1e2 left the Hessian error of a `gen2x2` fit below 4e-9. r and φ of `gen2x2` have no mapper, but φ is dimensionless and K and Λ are quadratic in r, where the stencil is exact. With Ω unmapped, as before the default mapper changed, the error was O(1) at a time unit of 1e-3, and only 3 of 10 spectrum fits succeeded.
+- **The Hessian's finite-difference step is about 7e-4·max(1, |x|).** It is absolute in unmapped parameters, so their units matter. All rates are log-mapped, so changing the time unit by 1e-3 to 1e2 left the Hessian error of a `gen2x2` fit below 4e-9. r and φ of `gen2x2` have no mapper, but φ is dimensionless and K and Λ are quadratic in r, where the stencil is exact. With Ω unmapped, as before the default mapper changed, the error was O(1) at a time unit of 1e-3, and only 2 or 3 of 10 spectrum fits succeeded, depending on rounding.
 - **`all()` is expensive.** It needs 4p + 2 gradient evaluations. With 44 parameters and 400 grid points, one call took about 1 s for the spectrum and 13 s for the kernel.
 - **Time grids must not be negative.** `MemoryKernel` uses t as given, while the embedders' closed forms use |t|. At t = -1 they gave -0.69 and -0.25.
 - **Direct Python use is checked late.** Constructors do not compare `target` with `grid`. A wrong length fails at the first evaluation, and a target of length 1 is silently applied to every point. Integer `target` arrays fail at `distance`, and integer `grid` arrays fail at the `MemoryKernel` gradient. The config loaders convert to float and check lengths, so config runs are safe.
@@ -83,13 +83,6 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 - `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries and A that cannot be diagonalized. It also tests the values at `gen2x2` critical damping, and the `ValueError` for singular A at ω = 0.
 - `tests/test_merit/test_distance.py` tests `function`, `distance`, `gradient`, `both`, `hessian` and `all` for the four shipped embedders with non-uniform weights, at the embedder's parameters and at a trial `x`. Values are compared with `DriftMatrixReference`, derivatives with the embedders' closed forms. It does not test `from_dict`, input checks or points where an embedder switches branch.
 - In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
-
-### Outdated text in the code
-
-- The `BaseDeviation` example says the metric returns one summed number. It returns one number per point.
-- `check_value_target` says it checks that dimensions match. It checks each argument separately.
-- `BaseProperty` says "automatic differentiation". The chain rule is written by hand.
-- The module docstring and `BaseProperty` mention combined objectives, which do not exist.
 
 ## Adding features
 
