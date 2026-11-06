@@ -34,10 +34,7 @@ class BaseEmbedder(ABC):
     """
 
     def __init__(self, *args, **kwargs):
-        naux = self.__len__()
-        self._A : np.ndarray = np.empty((naux+1, naux+1))
         ndof = self.ndof
-        self._grad_A : np.ndarray = np.empty((ndof, naux+1, naux+1))
         self._primitive_params : np.ndarray = np.empty(ndof)
         self._x : np.ndarray = np.empty(ndof)
         self._mappers: list[BaseMapper] = kwargs.get("mappers")

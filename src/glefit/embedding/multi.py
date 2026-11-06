@@ -233,7 +233,7 @@ class MultiEmbedder(BaseEmbedder):
         in a block-diagonal form, with coupling terms in the first row/column.
         The first row/column contains all couplings to the system coordinate.
         """
-        A = np.zeros_like(self._A)
+        A = np.zeros((len(self) + 1, len(self) + 1))
         primitive_params = np.asarray(primitive_params)
         ub = 1
         j = 0
@@ -259,7 +259,7 @@ class MultiEmbedder(BaseEmbedder):
             Square matrix of shape (N+1, N+1), with the same block structure
             as compute_drift_matrix
         """
-        Ap = np.zeros_like(self._A)
+        Ap = np.zeros((len(self) + 1, len(self) + 1))
         ub = 1
         for emb in self._embs:
             lb, ub = ub, ub + len(emb)
@@ -294,7 +294,7 @@ class MultiEmbedder(BaseEmbedder):
         with all parameters from each embedder appearing consecutively.
         """
         primitive_params = np.asarray(primitive_params)
-        grad_A = np.zeros_like(self._grad_A)
+        grad_A = np.zeros((self.ndof, len(self) + 1, len(self) + 1))
         ub = 1
         j = 0
         for emb in self._embs:

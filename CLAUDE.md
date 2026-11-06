@@ -76,7 +76,7 @@ Fits therefore depend only on `compute_drift_matrix` and `drift_matrix_param_gra
 
 Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. If primitive parameters differ from conventional ones, also override `_get_ndof`, `to_primitive` and `to_conventional`.
 
-`BaseEmbedder.__init__` calls `__len__` and `ndof`, so set anything they need before calling `super().__init__`. Set default mappers with `kwargs.setdefault("mappers", [...])`.
+`BaseEmbedder.__init__` reads `ndof`, so set anything it needs before calling `super().__init__`. Set default mappers with `kwargs.setdefault("mappers", [...])`.
 
 `MultiEmbedder` is a direct sum whose components own the parameter state. Its setters and map methods delegate by slice, and the conventional and primitive slices differ when a component is `gen2x2`.
 
