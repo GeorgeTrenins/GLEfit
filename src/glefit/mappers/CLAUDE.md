@@ -106,7 +106,7 @@ Checked at commit `10dc1e7`. Everything under Wrong results and Surprising limit
 ### Test gaps
 
 - `tests/test_mappers.py` compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy, at bounds -2.5, 3 and (-1, 4) and x = -3, 0, 5, and checks that `forward` rejects p on a bound. Nothing tests round trips, reversed bounds, NaN, or `IdentityMapper`. A one-off check found round-trip errors below 3e-15 and correct derivatives with bounds (4, -1).
-- The Hessian failure message in `legacy_tests/test_mappers/test_intervals.py` prints `grad` instead of `hess`.
+- `legacy_tests/test_mappers/test_intervals.py` fails to import. `tests/test_mappers.py` replaces it.
 
 ### Outdated text in the code
 

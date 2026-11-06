@@ -10,7 +10,7 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 - In code, comments and test names, keep lines to 80 characters, and do not cite `docs/` or equation numbers: the notes do not ship with the code.
 - The maintainer edits files between steps. Re-read a file before editing it.
 - Python runs in the `tools` conda env with `PYTHONPATH=src`. `conda run` does not forward stdin, so put scripts in the scratchpad instead of heredocs.
-- Run `legacy_tests` from the scratchpad directory, with `--continue-on-collection-errors`, since `test_utils/test_special.py` cannot be imported and would otherwise stop the whole run. `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
+- Run `legacy_tests` from the scratchpad directory, with `--continue-on-collection-errors`, since three files cannot be imported and would otherwise stop the whole run. `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
 - Do not use `glefit.utils.numderiv` as a test reference (unreviewed). Use SymPy, or the mpmath references in `tests/conftest.py` and `tests/test_embedding/conftest.py`.
 - Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run each new test alone, and the suite in random order with a few seeds (`--randomly-seed=N`; `-p no:randomly` turns `pytest-randomly` off). Nothing may be installed.
 
@@ -20,7 +20,7 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 - `tests/test_embedding/` has 334 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]).
-- `legacy_tests/`: 79 pass, 51 fail and 1 file fails to import, all known; the root `CLAUDE.md` lists why.
+- `legacy_tests/`: 73 pass, 51 fail and 3 files fail to import, all known; the root `CLAUDE.md` lists why.
 - `ISSUES.md` holds the embedding issues. A fix moves its issue to "Resolved" in the same commit.
 
 ## Next

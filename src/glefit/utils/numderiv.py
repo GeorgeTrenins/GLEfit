@@ -18,12 +18,6 @@ STENCILS = {
     {
         2 : [ -1/2, 0, 1/2 ],  
         4 : [ 1/12, -2/3, 0, 2/3, -1/12 ]
-    },
-    2 : # second-order derivatives
-    {
-        2 : [ 1, -2,  1],
-        4 : [-1/12, 4/3, -5/2, 4/3, -1/12],
-        6 : [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90]
     }
 }
 
@@ -51,84 +45,6 @@ def refine_step_nearest(x: float, h: float) -> float:
     temp = x + h
     return temp - x
 
-
-def diff(
-    f: Callable[[float], float],
-    x: float,
-    *,
-    h: Optional[float] = None,
-    rel_step: Optional[float] = None,
-    max_step: Optional[float] = None,
-    order: Optional[int] = 2, 
-    nu: Optional[int] = 1,
-    args: Optional[tuple] = None,
-    kwargs: Optional[dict] = None
-) -> float:
-    """
-    Compute the derivative of scalar function f: R -> R at point x
-    using central finite differences.
-
-    Parameters
-    ----------
-    f : callable
-        Function mapping R -> R. Signature: f(x, *args, **kwargs) and returns a float
-    x : float
-        Point at which to compute the derivative.
-    h : float, optional
-        Absolute step size. If None, chosen automatically.
-    rel_step : float, optional
-        Relative step factor. If provided and `h` is None, the step is h = rel_step * max(1, |x_i|). Default is chosen as eps^(1/(nu+order)) where eps is the fractional accuracy of the float type. 
-    max_step : float, optional
-        Upper bound for any |h_i|. No upper bound applied by default
-    order : {2, 4}, default=2
-        Stencil order. 2 -> 3-point central (O(h^2)); 4 -> 5-point central (O(h^4)).
-    nu : {1, 2}, default=1
-        Order of derivative.
-    args, kwargs : extra arguments passed to f.
-
-    Returns
-    -------
-    deriv : float
-        nu-th order derivative of f(x) 
-
-    Notes
-    -----
-    - Ensures x ± h are representable (avoids zero-perturbation due to limited precision).
-    """
-    if args is None:
-        args = tuple()
-    if kwargs is None:
-        kwargs = {}
-    if not isinstance(x, float):
-        raise TypeError(f"`x` is expected to be a float, instead got {type(x).__name__}")
-    if h is None:
-        if rel_step is None:
-            rel_step = _central_finite_difference_hrel(x, nu, order) 
-        h = rel_step * np.maximum(1.0, np.abs(x)) 
-    else:
-        h = abs(float(h))
-    if max_step is not None:
-        max_step = abs(float(max_step))
-        h = np.clip(h, a_max=max_step)
-    # ensure (x+h) - x is exactly representable
-    h = refine_step_nearest(x, h)
-    try:
-        derivative_order_nu = STENCILS[nu]
-    except KeyError as e:
-        raise e(f"Requested derivative order {nu = }, currently only supporting {list(STENCILS.keys())}")
-    try:
-        stencil = derivative_order_nu[order]
-    except KeyError as e:
-        raise e(f"Requested stencil order = {order} for derivative order {nu = }, currently only supporting {list(derivative_order_nu.keys())}")
-    ans = 0.0
-    # stencil amplitude
-    a = (len(stencil) - 1)//2
-    for k, c in zip(range(-a, a+1), stencil):
-        if c == 0: continue
-        y = x + k*h
-        ans += c*f(y)
-    ans /= h**nu
-    return ans
 
 def jacobian(
     f: Callable[[np.ndarray], np.ndarray],

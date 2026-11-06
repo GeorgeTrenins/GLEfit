@@ -10,7 +10,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 
 | File | Provides | Used by |
 | --- | --- | --- |
-| `numderiv.py` | `diff`, `jacobian`: central finite differences | Fitting Hessian in `glefit.merit`, tests |
+| `numderiv.py` | `jacobian`: central finite differences | Fitting Hessian in `glefit.merit` |
 | `special.py` | `sinc` | `gen2x2` embedder |
 | `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step, `MemorySpectrum`. `symmat_inv_vec` is unused |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
@@ -22,14 +22,14 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 ## `numderiv.py`
 
 ```python
-diff(f, x, *, h=None, rel_step=None, max_step=None, order=2, nu=1, args=None, kwargs=None)  # f: R → R
 jacobian(f, x, *, fshape=None, h=None, rel_step=None, max_step=None, order=2, value=False, args=None, kwargs=None)  # f: Rⁿ → Rᵐ, returns (m, n)
 ```
 
-- **Stencils:** `diff` supports `nu=1` with `order` 2 or 4, and `nu=2` with `order` 2, 4 or 6. `jacobian` supports `order` 2 or 4.
-- **Step:** by default h = ε^(1/(nu+order))·max(1, |x|), adjusted so that x + h is exactly representable. `glefit.merit` calls `jacobian(..., order=4)`, which gives h ≈ 7.4e-4·max(1, |x|).
-- **Inputs:** `diff` needs a Python `float` (`np.float64` passes). `jacobian` needs `f` to return a 1-dimensional array, so callers flatten and reshape, as `gradhess_wrt_params` does.
-- **Cost:** `jacobian` makes 2n calls at order 2 and 4n at order 4, plus one if `fshape` is not given or `value=True`.
+- **Stencils:** `order` 2 or 4.
+- **Step:** by default h = ε^(1/(1+order))·max(1, |x|), adjusted so that x + h is exactly representable. `glefit.merit` calls `jacobian(..., order=4)`, which gives h ≈ 7.4e-4·max(1, |x|).
+- **Inputs:** `f` must return a 1-dimensional array, so callers flatten and reshape, as `gradhess_wrt_params` does.
+- **Cost:** 2n calls at order 2 and 4n at order 4, plus one if `fshape` is not given or `value=True`.
+
 
 ## `special.py`
 
@@ -58,12 +58,12 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 
 ## Known gaps
 
-Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limits was reproduced by running the code. Apart from the items below, `diff` and `jacobian` matched SymPy or finite differences.
+Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limits was reproduced by running the code. Apart from the items below, `jacobian` matched SymPy or finite differences.
 
 ### Wrong results
 
-- **`max_step` crashes `diff` and `jacobian`.** `np.clip(h, a_max=max_step)` raises `TypeError` for the missing `a_min` in NumPy 2.4.2. Fix: `np.minimum(h, max_step)`.
-- **Error paths in `numderiv.py` raise the wrong error.** `raise e(...)` calls a caught exception object, so an unsupported `nu` or `order`, or a wrongly shaped `h` in `jacobian`, raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
+- **`max_step` crashes `jacobian`.** `np.clip(h, a_max=max_step)` raises `TypeError` for the missing `a_min` in NumPy 2.4.2. Fix: `np.minimum(h, max_step)`.
+- **Error paths in `numderiv.py` raise the wrong error.** `raise e(...)` calls a caught exception object, so an unsupported `order` or a wrongly shaped `h` raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
 
 ### Surprising limits
 
@@ -72,15 +72,12 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 
 ### Missing features
 
-- `numderiv` has no mixed second derivatives and no `nu=1, order=6` stencil.
 - `units.py` is not connected to the config or the data, so all inputs must already share one unit system.
 
 ### Test gaps
 
 - `tests/test_utils/test_special.py` tests only `sinc`, against SymPy.
-- `tests/test_utils/test_numderiv.py` tests `jacobian` with `order` only: exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks. It does not test `diff` or the other options of `jacobian`.
-- `legacy_tests/test_utils/test_special.py` fails to import, since it tests the removed functions.
-- `legacy_tests/test_utils/test_numderiv.py` does not test `max_step`, the error paths or integer inputs.
+- `tests/test_utils/test_numderiv.py` tests `jacobian` with `order` only: exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks. It does not test the other options.
 - `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
 
 ### Outdated text in the code
