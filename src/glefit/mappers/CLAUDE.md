@@ -105,8 +105,8 @@ Checked at commit `10dc1e7`. Everything under Wrong results and Surprising limit
 
 ### Test gaps
 
-- `tests/test_mappers/test_intervals.py` compares only `grad` and `hess` with numerical derivatives of `inverse`, at the default bounds and x = -3, 0, 5. Nothing tests `forward`, round trips, other bounds, the errors, or `IdentityMapper`. A one-off check found round-trip errors below 3e-15 and correct derivatives with bounds -2.5, 3, (-1, 4) and (4, -1).
-- The Hessian failure message in that test prints `grad` instead of `hess`.
+- `tests/test_mappers.py` compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy, at bounds -2.5, 3 and (-1, 4) and x = -3, 0, 5, and checks that `forward` rejects p on a bound. Nothing tests round trips, reversed bounds, NaN, or `IdentityMapper`. A one-off check found round-trip errors below 3e-15 and correct derivatives with bounds (4, -1).
+- The Hessian failure message in `legacy_tests/test_mappers/test_intervals.py` prints `grad` instead of `hess`.
 
 ### Outdated text in the code
 
@@ -122,7 +122,7 @@ Checked at commit `10dc1e7`. Everything under Wrong results and Surprising limit
 2. Implement `forward(p)`, `inverse(x)`, `grad(x)` and `hess(x)` for single numbers. `grad` and `hess` are the first and second derivatives of `inverse`.
 3. In `forward`, raise `ValueError` for p outside the open range, using `not diff > 0` so that the bound and NaN are rejected.
 4. Store only constants on the instance, since one instance may be shared.
-5. Export the class from `__init__.py` and add it to the loop in `tests/test_mappers/test_intervals.py`.
+5. Export the class from `__init__.py` and add it, with its p(x) in SymPy, to `MAPS` in `tests/test_mappers.py`.
 6. To make it an embedder's default, change that embedder's `kwargs.setdefault("mappers", [...])`. There must be exactly `ndof` mappers, in primitive-parameter order.
 
 ### Other changes
@@ -140,7 +140,7 @@ PYTHONPATH=src conda run -n tools python -m pytest tests/test_mappers tests/test
 
 A new or changed mapper should have tests that:
 
-- compare `grad` and `hess` with `glefit.utils.numderiv.diff(mapper.inverse, x, nu=1 or 2)`
+- compare `inverse`, `grad` and `hess` with p(x) and its derivatives in SymPy, as `tests/test_mappers.py` does
 - check that `inverse(forward(p))` returns p and `forward(inverse(x))` returns x
 - use bounds other than the defaults, including negative ones
 - check that `forward` raises at, beyond and on NaN, and that `inverse` stays within the bounds for large |x|
