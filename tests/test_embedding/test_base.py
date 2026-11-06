@@ -254,3 +254,47 @@ def test_constructor_rejects_an_unknown_keyword(cls, args):
 def test_constructor_rejects_an_extra_positional_argument(cls, args):
     with pytest.raises(TypeError, match="positional"):
         cls(*args(), 1.0)
+
+
+# NumPy scalars as constructor arguments, and the conventional parameters
+# they give. gen2x2 is in the maximal gauge (δ = γ), so it reads back
+# unchanged.
+NUMPY_SCALARS = {
+    "prony-float32": (
+        PronyEmbedder, (np.float32(0.5), np.float32(2.0)), [0.5, 2.0]),
+    "prony-int64": (
+        PronyEmbedder, (np.int64(1), np.int64(3)), [1.0, 3.0]),
+    "pronycos-float32": (
+        PronyCosineEmbedder,
+        (np.float32(0.5), np.float32(0.25), np.float32(2.0)),
+        [0.5, 0.25, 2.0]),
+    "pronycos-int64": (
+        PronyCosineEmbedder, (np.int64(1), np.int64(2), np.int64(3)),
+        [1.0, 2.0, 3.0]),
+    "gen2x2-float32": (
+        TwoAuxEmbedder,
+        ([1.0, 2.0], np.float32(2.0), np.float32(2.0), np.float32(1.5)),
+        [1.0, 2.0, 2.0, 2.0, 1.5]),
+    "gen2x2-int64": (
+        TwoAuxEmbedder,
+        ([1.0, 2.0], np.int64(2), np.int64(2), np.int64(1)),
+        [1.0, 2.0, 2.0, 2.0, 1.0]),
+}
+
+
+@pytest.mark.parametrize("cls, args, expected", NUMPY_SCALARS.values(),
+                         ids=list(NUMPY_SCALARS))
+def test_numpy_scalar_params_are_accepted(cls, args, expected):
+    actual = cls(*args).conventional_params
+
+    assert_allclose(actual, expected, rtol=RTOL)
+
+
+@pytest.mark.parametrize("cls, args, _expected", NUMPY_SCALARS.values(),
+                         ids=list(NUMPY_SCALARS))
+def test_numpy_scalar_params_are_stored_as_double(cls, args, _expected):
+    emb = cls(*args)
+
+    dtypes = (emb.primitive_params.dtype, emb.x.dtype)
+
+    assert dtypes == (np.float64, np.float64)

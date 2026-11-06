@@ -8,9 +8,6 @@ Only `glefit.embedding` keeps its issues here so far. The other modules still li
 
 ### Open
 
-**EMB-15 · open · Constructors reject NumPy scalars.**
-`np.float32` and `np.int64` parameters raise `TypeError`, for example `θ must be a float, got float32`.
-
 **EMB-18 · open · `from_matrix` exists only for gen2x2.**
 A full Ap cannot be loaded back into an embedder.
 
@@ -38,6 +35,7 @@ These affect embedders, but the fix belongs elsewhere:
 - **EMB-12** · `fix(merit): read θ from the left column of Ap` · Fits read θ only from the top row of Ap, so their values ignored the left column and disagreed with their gradient.
 - **EMB-13** · `9d29a67` · `to_primitive` lost relative accuracy in g.
 - **EMB-14** · `fix(embedding): keep MultiEmbedder's own list of components` · `MultiEmbedder` failed with an unclear error for a generator or an empty list of components, and shared the caller's list.
+- **EMB-15** · `fix(embedding): accept NumPy scalars in the constructors` · Constructors rejected NumPy scalars other than `np.float64`; they now accept any real number and store it at double precision.
 - **EMB-16** · `4a5b5f3` · `TwoAuxEmbedder.kernel_hess` was not implemented.
 - **EMB-17** · `baba304` · `MultiEmbedder` now rejects a `mappers` argument.
 - **EMB-19** · `c05dee4` and the next commit · Every embedder method that takes parameters accepts lists, and is annotated `npt.ArrayLike`.

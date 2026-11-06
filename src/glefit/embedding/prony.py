@@ -14,6 +14,7 @@ from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
 import copy
+import numbers
 
 
 class PronyEmbedder(BaseEmbedder):
@@ -49,13 +50,14 @@ class PronyEmbedder(BaseEmbedder):
         ValueError
             If θ or γ are not positive float values.
         TypeError
-            If θ or γ are not float values.
+            If θ or γ is not a real number. Python and NumPy floats and
+            ints are accepted, and stored at double precision.
         """
 
         # Check types
-        if not isinstance(theta, (int, float)):
+        if not isinstance(theta, numbers.Real):
             raise TypeError(f"θ must be a float, got {type(theta).__name__}")
-        if not isinstance(gamma, (int, float)):
+        if not isinstance(gamma, numbers.Real):
             raise TypeError(f"γ must be a float, got {type(gamma).__name__}")
         kwargs.setdefault("mappers", [LowerBoundMapper(), LowerBoundMapper()])
         super().__init__(*args, **kwargs)

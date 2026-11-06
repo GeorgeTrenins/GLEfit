@@ -14,6 +14,7 @@ from glefit.mappers import LowerBoundMapper
 import numpy as np
 import numpy.typing as npt
 import copy
+import numbers
 
 
 class PronyCosineEmbedder(BaseEmbedder):
@@ -52,12 +53,13 @@ class PronyCosineEmbedder(BaseEmbedder):
         ValueError
             If input arguments are not positive float values.
         TypeError
-            If input are not float values.
+            If an input is not a real number. Python and NumPy floats and
+            ints are accepted, and stored at double precision.
         """
 
         # Check types
         for variable, symbol in zip([theta, gamma, omega], "θγω"):
-            if not isinstance(variable, (int, float)):
+            if not isinstance(variable, numbers.Real):
                 raise TypeError(f"{symbol} must be a float, got {type(variable).__name__}")
         kwargs.setdefault(
             "mappers", 3*[LowerBoundMapper(),]

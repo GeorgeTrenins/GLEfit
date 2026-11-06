@@ -15,6 +15,7 @@ from glefit.utils.special import sinc
 import numpy as np
 import numpy.typing as npt
 import copy
+import numbers
 
 # With G = γ² - Ω² > 0, the kernel is evaluated by _kernel_trig for √G·t up to
 # this value, and by _kernel_exponentials above it (see _kernel_partials)
@@ -103,9 +104,10 @@ class TwoAuxEmbedder(BaseEmbedder):
                 default mappers
 
         Raises:
-            TypeError: if gamma, delta or zeta is not a float or int, or if
+            TypeError: if gamma, delta or zeta is not a real number, or if
                 `sigma`, `threshold` or `Omega` is passed, which belonged to
-                earlier versions
+                earlier versions. Python and NumPy floats and ints are
+                accepted, and stored at double precision.
             ValueError: if theta does not have two entries, or if the
                 embedding is not admissible (see to_primitive)
 
@@ -131,7 +133,7 @@ class TwoAuxEmbedder(BaseEmbedder):
         """
         self._reject_removed_keys(kwargs)
         for variable, symbol in zip([gamma, delta, zeta], "γδζ"):
-            if not isinstance(variable, (int, float)):
+            if not isinstance(variable, numbers.Real):
                 raise TypeError(
                     f"{symbol} must be a float, got {type(variable).__name__}")
         theta = np.asarray(theta, dtype=float)
@@ -146,7 +148,8 @@ class TwoAuxEmbedder(BaseEmbedder):
                 IdentityMapper()    # φ ∈ R
         ])
         super().__init__(*args, **kwargs)
-        self.conventional_params = np.concatenate([theta, [gamma, delta, zeta]])
+        self.conventional_params = np.array(
+            [*theta, gamma, delta, zeta], dtype=float)
 
     @classmethod
     def from_dict(
