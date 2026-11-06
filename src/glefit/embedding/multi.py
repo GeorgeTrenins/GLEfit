@@ -69,7 +69,7 @@ class MultiEmbedder(BaseEmbedder):
 
     def to_primitive(
         self,
-        conventional_params: npt.NDArray[np.floating]
+        conventional_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
         """
@@ -82,7 +82,7 @@ class MultiEmbedder(BaseEmbedder):
 
     def to_conventional(
         self,
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         """
@@ -126,7 +126,9 @@ class MultiEmbedder(BaseEmbedder):
         for emb, p in zip(self._embs, self._p_slices):
             emb.primitive_params = arr[p]
 
-    def _apply_to_params(self, func_name: str, arr: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def _apply_to_params(
+        self, func_name: str, arr: npt.ArrayLike
+    ) -> npt.NDArray[np.floating]:
         """Apply a parameter transformation function to the primitive parameters of every component embedder.
 
         Parameters
@@ -146,19 +148,19 @@ class MultiEmbedder(BaseEmbedder):
             ans[p] = getattr(emb, func_name)(arr[p])
         return ans
 
-    def _forward_map(self, params: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def _forward_map(self, params: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Transform optimizable (primitive) params so that inequality constraints are automatically imposed"""
         return self._apply_to_params('_forward_map', params)
 
-    def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def _inverse_map(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Undo the inequality constraint-imposing mapping."""
         return self._apply_to_params('_inverse_map', x)
 
-    def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def jac_px(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform."""
         return self._apply_to_params('jac_px', x)
 
-    def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def hess_px(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is an embedding parameter and x_n is its transform."""
         return self._apply_to_params('hess_px', x)
 
@@ -177,7 +179,7 @@ class MultiEmbedder(BaseEmbedder):
 
     def compute_drift_matrix(
         self,
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Construct the drift matrix for the combined embedding system.
 
@@ -220,7 +222,7 @@ class MultiEmbedder(BaseEmbedder):
 
     def drift_matrix_param_grad(
         self,
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Construct the gradient of the drift matrix for the combined system.
 

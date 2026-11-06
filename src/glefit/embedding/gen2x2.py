@@ -82,7 +82,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def __init__(
         self,
-        theta: npt.NDArray[np.floating],
+        theta: npt.ArrayLike,
         gamma: float,
         delta: float,
         zeta: float,
@@ -220,8 +220,8 @@ class TwoAuxEmbedder(BaseEmbedder):
     @classmethod
     def from_matrix(
         cls,
-        theta: npt.NDArray[np.floating],
-        A: npt.NDArray[np.floating],
+        theta: npt.ArrayLike,
+        A: npt.ArrayLike,
         **kwargs
     ) -> "TwoAuxEmbedder":
         """Return an embedder with given couplings and auxiliary drift matrix.
@@ -276,7 +276,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def to_primitive(
         self,
-        conventional_params: npt.NDArray[np.floating]
+        conventional_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Return the primitive parameters [r, γ, Ω, φ] of conventional ones.
 
@@ -338,7 +338,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def to_conventional(
         self,
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Return the conventional parameters in the maximal gauge δ = γ.
 
@@ -361,7 +361,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def compute_drift_matrix(
         self,
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Return the drift matrix Ap in the maximal gauge.
 
@@ -414,7 +414,7 @@ class TwoAuxEmbedder(BaseEmbedder):
 
     def drift_matrix_param_grad(
         self,
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Return the derivatives of Ap with respect to primitive parameters.
 

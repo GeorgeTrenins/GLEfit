@@ -106,7 +106,7 @@ class BaseEmbedder(ABC):
 
     def to_primitive(
         self,
-        conventional_params: npt.NDArray[np.floating]
+        conventional_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
         """
@@ -118,7 +118,7 @@ class BaseEmbedder(ABC):
     
     def to_conventional(
         self,
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         """
@@ -177,7 +177,7 @@ class BaseEmbedder(ABC):
     def _apply_mappers(
         self,
         method: str,
-        values: npt.NDArray[np.floating],
+        values: npt.ArrayLike,
         unmapped: Callable[[np.ndarray], np.ndarray]
     ) -> npt.NDArray[np.floating]:
         """Apply `method` of each mapper to the matching entry of values.
@@ -195,30 +195,30 @@ class BaseEmbedder(ABC):
         return ans
 
     def _forward_map(
-        self, primitive_params: npt.NDArray[np.floating]
+        self, primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Transform optimizable params so that inequality constraints are automatically imposed"""
         return self._apply_mappers("forward", primitive_params, np.copy)
 
-    def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def _inverse_map(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Undo the inequality constraint-imposing mapping.
         """
         return self._apply_mappers("inverse", x, np.copy)
 
-    def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def jac_px(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
         return self._apply_mappers("grad", x, np.ones_like)
 
-    def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    def hess_px(self, x: npt.ArrayLike) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is a primitive embedding parameter and x_n is its transform.
         """
         return self._apply_mappers("hess", x, np.zeros_like)
     
     def grad_param_to_x(
             self, 
-            grad: npt.NDArray[np.floating], 
-            x: npt.NDArray[np.floating]
+            grad: npt.ArrayLike, 
+            x: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Convert a gradient with respect to the primitive parameters to a gradient w.r.t.
         mapped parameters imposing inequality constraints.
@@ -228,9 +228,9 @@ class BaseEmbedder(ABC):
     
     def hess_param_to_x(
             self, 
-            grad: npt.NDArray[np.floating], 
-            hess: npt.NDArray[np.floating], 
-            x: npt.NDArray[np.floating]
+            grad: npt.ArrayLike, 
+            hess: npt.ArrayLike, 
+            x: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Compute the Hessian w.r.t.mapped parameters from the gradient and Hessian w.r.t primitive parameters.
         """
@@ -244,7 +244,7 @@ class BaseEmbedder(ABC):
     @abstractmethod
     def compute_drift_matrix(
         self, 
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Calculate the drift matrix for a given set of primitive parameters.
 
@@ -302,7 +302,7 @@ class BaseEmbedder(ABC):
     @abstractmethod
     def drift_matrix_param_grad(
         self, 
-        primitive_params: npt.NDArray[np.floating]
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Calculate the gradient of the drift matrix with respect to the primitive parameters
 
@@ -319,7 +319,7 @@ class BaseEmbedder(ABC):
         pass
 
     def drift_matrix_x_grad(
-        self, x: npt.NDArray[np.floating]
+        self, x: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Calculate the gradient of the drift matrix with respect to the mapped parameters
 

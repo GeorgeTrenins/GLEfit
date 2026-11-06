@@ -20,9 +20,6 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 **EMB-18 · open · `from_matrix` exists only for gen2x2.**
 A full Ap cannot be loaded back into an embedder.
 
-**EMB-19 · open · Annotations say `NDArray` where lists are accepted.**
-Every method that takes parameters accepts lists: `to_primitive`, `to_conventional` and `prony.compute_drift_matrix`, which raised `AttributeError`, convert their input since the structural simplification. The annotations still say `NDArray`. The other docstring and message corrections are in `557a9f3`.
-
 **EMB-21 · open · gen2x2 `from_matrix` rejects some admissible kernels.**
 It rejects any 2×2 block A whose symmetric part is indefinite, even when the kernel is admissible (bounded, with J ≥ 0) and the maximal gauge would represent it, for example θ = (1, 1)/√2 with A = [[2, 3], [−3, −0.1]]. On 2026-11-05 the maintainer decided to keep rejecting such input. Low priority.
 
@@ -49,5 +46,6 @@ These affect embedders, but the fix belongs elsewhere:
 - **EMB-13** · `9d29a67` · `to_primitive` lost relative accuracy in g.
 - **EMB-16** · `4a5b5f3` · `TwoAuxEmbedder.kernel_hess` was not implemented.
 - **EMB-17** · `baba304` · `MultiEmbedder` now rejects a `mappers` argument.
+- **EMB-19** · `c05dee4` and the next commit · Every embedder method that takes parameters accepts lists, and is annotated `npt.ArrayLike`.
 - **EMB-20** · `3985b1b`..`4f7c107` · gen2x2 fits (r, γ, Ω, φ) in the maximal gauge, and `optimized_Ap_matrix.json` holds the minimal gauge.
 - **EMB-22** · `9291892` · gen2x2 `from_matrix` rejected some semi-definite A through rounding.

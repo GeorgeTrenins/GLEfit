@@ -4,7 +4,8 @@
 @File    :   test_base.py
 @Time    :   2026/11/03 12:00:00
 @Author  :   George Trenins
-@Desc    :   Test the parameter handling and derivative dispatch of BaseEmbedder, mostly through PronyEmbedder
+@Desc    :   Test the parameter handling and derivative dispatch of
+             BaseEmbedder, mostly through PronyEmbedder
 '''
 
 

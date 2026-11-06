@@ -72,7 +72,7 @@ class PronyEmbedder(BaseEmbedder):
 
     def compute_drift_matrix(
         self, 
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         theta, gamma = self.to_conventional(primitive_params)
         A = np.zeros((2,2))
@@ -83,7 +83,7 @@ class PronyEmbedder(BaseEmbedder):
     
     def drift_matrix_param_grad(
         self, 
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """Gradient of drift matrix w.r.t. [θ, γ].
         

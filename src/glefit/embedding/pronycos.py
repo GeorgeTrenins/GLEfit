@@ -88,7 +88,7 @@ class PronyCosineEmbedder(BaseEmbedder):
 
     def compute_drift_matrix(
         self, 
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         theta, gamma, omega = np.asarray(primitive_params)
         A = np.zeros((3,3))
@@ -101,7 +101,7 @@ class PronyCosineEmbedder(BaseEmbedder):
     
     def drift_matrix_param_grad(
         self, 
-        primitive_params: npt.NDArray
+        primitive_params: npt.ArrayLike
     ) -> npt.NDArray[np.floating]:
         """The gradient of the drift matrix of the extended Markovian system.
         
