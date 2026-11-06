@@ -39,7 +39,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 - `propagation_matrix()` returns the Ap for simulations: the drift matrix by default, the minimal gauge for gen2x2 (the most similar damping rates γ ± δ and the smallest coupling ζ), and the components' matrices for `MultiEmbedder`. Fits never use it. The gen2x2 θ jumps across cos 2φ = 0 when |Ω| > γ, with the same kernel on both sides.
 - Constructors: set what `ndof` needs, check types, call `kwargs.setdefault("mappers", [...])`, call `super().__init__`, then set the parameters.
 - `from_dict` raises `TypeError` for keys other than the required ones and `mappers` (`_check_config_keys`), copies its input, pops the required keys and passes `mappers` to the constructor. `MultiEmbedder.from_dict` takes only `embedders`. `from_harmonic` (pronycos, gen2x2) returns a dict for `from_dict`, not an embedder.
-- `MultiEmbedder`: the components hold the parameters and their mappers (passing `mappers` raises `TypeError`), but set values on the `MultiEmbedder`. Slice conventional arrays by `nparam` and primitive arrays by `ndof`.
+- `MultiEmbedder`: the components hold the parameters and their mappers (passing `mappers` raises `TypeError`), but set values on the `MultiEmbedder`. It keeps no copy, so a component edited directly is seen at once. Slice conventional arrays by `nparam` and primitive arrays by `ndof`.
 - `analysis/plot_objective.py` uses the private attributes `_embs` and `_mappers`.
 - Style: write `lamda` for λ. Start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
