@@ -82,7 +82,8 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 ### Test gaps
 
-- `tests/test_merit/test_properties.py` tests only `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries.
+- `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries.
+- `tests/test_merit/test_distance.py` tests `function`, `distance`, `gradient`, `both`, `hessian` and `all` for the four shipped embedders with non-uniform weights, at the embedder's parameters and at a trial `x`. Values are compared with `DriftMatrixReference`, derivatives with the embedders' closed forms. It does not test `from_dict`, input checks or points where an embedder switches branch.
 - In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
 
 ### Outdated text in the code
@@ -120,6 +121,6 @@ PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 A new or changed property or metric should have tests that:
 
 - compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: finite differences are not exact
-- compare `gradient` and `hessian` against numerical derivatives of the distance, with non-uniform weights
+- compare `gradient` and `hessian` against the embedders' closed-form derivatives, with non-uniform weights, as `tests/test_merit/test_distance.py` does
 - compare against closed forms where they exist, for example `emb.spectrum(grid, nu=1, mapped=True)`
 - include special values, such as repeated eigenvalues and points where the embedder switches branch
