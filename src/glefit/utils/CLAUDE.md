@@ -22,13 +22,13 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 ## `numderiv.py`
 
 ```python
-jacobian(f, x, *, fshape=None, h=None, rel_step=None, max_step=None, order=2, value=False, args=None, kwargs=None)  # f: Rⁿ → Rᵐ, returns (m, n)
+jacobian(f, x, *, order=2)  # f: Rⁿ → Rᵐ, returns (m, n)
 ```
 
 - **Stencils:** `order` 2 or 4.
 - **Step:** by default h = ε^(1/(1+order))·max(1, |x|), adjusted so that x + h is exactly representable. `glefit.merit` calls `jacobian(..., order=4)`, which gives h ≈ 7.4e-4·max(1, |x|).
 - **Inputs:** `f` must return a 1-dimensional array, so callers flatten and reshape, as `gradhess_wrt_params` does.
-- **Cost:** 2n calls at order 2 and 4n at order 4, plus one if `fshape` is not given or `value=True`.
+- **Cost:** 2n calls at order 2 and 4n at order 4, plus one at x.
 
 
 ## `special.py`
@@ -62,8 +62,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 
 ### Wrong results
 
-- **`max_step` crashes `jacobian`.** `np.clip(h, a_max=max_step)` raises `TypeError` for the missing `a_min` in NumPy 2.4.2. Fix: `np.minimum(h, max_step)`.
-- **Error paths in `numderiv.py` raise the wrong error.** `raise e(...)` calls a caught exception object, so an unsupported `order` or a wrongly shaped `h` raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
+- **An unsupported `order` raises the wrong error.** `raise e(...)` calls the caught exception object, so `jacobian` raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
 
 ### Surprising limits
 
@@ -77,19 +76,18 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 ### Test gaps
 
 - `tests/test_utils/test_special.py` tests only `sinc`, against SymPy.
-- `tests/test_utils/test_numderiv.py` tests `jacobian` with `order` only: exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks. It does not test the other options.
+- `tests/test_utils/test_numderiv.py` tests `jacobian`, but only the exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks.
 - `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
 
 ### Outdated text in the code
 
 - `WAM_discretization` documents `Lambda` as a callable and does not document `omega`, `wmax` or `options`.
-- The `jacobian` docstring gives the default step as ε^(1/3), which is true only for `order=2`.
 - The `units.py` docstring contains a stray `"""` and lists five of the seven unit systems.
 
 ## Adding features
 
 - **Special functions:** follow the `nu` interface of `sinc`, and test real and complex arguments, small and large, against SymPy.
-- **Finite differences:** add stencils to `STENCILS`. Keys are the derivative order, then the accuracy order.
+- **Finite differences:** add first-derivative stencils to `STENCILS`, keyed by their order of accuracy. The default step uses that order.
 - **Discretization schemes:** add them to `bath.py`, taking Λ on a grid and returning values that `from_harmonic` accepts.
 
 ## Testing
@@ -104,5 +102,5 @@ New or changed code should have tests that:
 
 - compare `special.py` functions and their derivatives against SymPy, at small and large arguments
 - pass integer and scalar inputs
-- check `numderiv` against known derivatives, including with `h`, `rel_step` and `max_step`
+- check `jacobian` against exact derivatives, as `tests/test_utils/test_numderiv.py` does
 - check `WAM_discretization` against the closed form for a Debye spectrum, where C(ω) = η ωc arctan(ω/ωc)

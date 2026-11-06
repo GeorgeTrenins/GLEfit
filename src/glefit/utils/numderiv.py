@@ -10,144 +10,68 @@
 
 from __future__ import print_function, division, absolute_import
 import numpy as np
-from typing import Callable, Iterable, Optional, Union, Tuple
+from typing import Callable, Iterable
 
 
+# Central stencils for a first derivative, keyed by their order of accuracy:
+# the weights of f(x + k h) for k = -a, ..., a.
 STENCILS = {
-    1 : # first-order derivative
-    {
-        2 : [ -1/2, 0, 1/2 ],  
-        4 : [ 1/12, -2/3, 0, 2/3, -1/12 ]
-    }
+    2 : [ -1/2, 0, 1/2 ],
+    4 : [ 1/12, -2/3, 0, 2/3, -1/12 ],
 }
-
-
-def _central_finite_difference_hrel(x:float, nu: int, order: int) -> float:
-    """Return the optimal relative finite-difference step according to the generalization of the prescription in 
-    Numerical Recipes (3rd edition), Chapter 5.7
-
-    Args:
-        x (float): function argument - used to determine the correct machine epsilon
-        nu (int): order of the derivative
-        order (int): order of the finite difference stencil
-
-    """
-
-    eps = np.finfo(np.asarray(x, dtype=float).dtype).eps
-    hrel = eps**(1/(nu+order))
-    return hrel
-
-def refine_step_nearest(x: float, h: float) -> float:
-    """
-    Return a refined step `href` so that y = round_to_float(x + h) and href = y - x is exactly representable.
-    """
-    
-    temp = x + h
-    return temp - x
 
 
 def jacobian(
     f: Callable[[np.ndarray], np.ndarray],
     x: Iterable[float],
     *,
-    fshape: Optional[Tuple[int, ...]] = None,
-    h: Optional[Union[float, Iterable[float]]] = None,
-    rel_step: Optional[float] = None,
-    max_step: Optional[float] = None,
-    order: Optional[int] = 2,
-    value: Optional[bool] = False,
-    args: Optional[tuple] = None,
-    kwargs: Optional[dict] = None,
-) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+    order: int = 2,
+) -> np.ndarray:
     """
-    Compute the Jacobian J of a vector-valued function f: R^n -> R^m at point x
-    using central finite differences.
+    Return the Jacobian of f: Rⁿ → Rᵐ at x by central finite differences.
 
-    Parameters
-    ----------
-    f : callable
-        Function mapping R^n -> R^m. Signature: f(x, *args, **kwargs) and returns 1D array-like of length m.
-    x : array_like, shape (n,)
-        Point at which to compute the Jacobian.
-    fshape: tuple of int, optional
-        Shape of the output of f(x). If absent, one call is made to f() before the finite-difference calculation to determine the shape.
-    h : float or array_like, shape (n,), optional
-        Absolute step size(s) per coordinate. If None, chosen automatically.
-    rel_step : float, optional
-        Relative step factor. If provided and `h` is None, steps are:
-        h_i = rel_step * max(1, |x_i|). Default is eps**(1/3) for central differences.
-    max_step : float, optional
-        Upper bound for any |h_i|.
-    order : {2, 4}, default=2
-        Stencil order. 2 -> 3-point central (O(h^2)); 4 -> 5-point central (O(h^4)).
-    value: bool, optional
-        If true, in addition to the jacobian return f(x) as the second output
-    args, kwargs : extra arguments passed to f.
+    Each x_i is stepped by h_i = ε^(1/(1+order))·max(1, |x_i|), where ε is
+    the machine epsilon. This balances the truncation error, of order
+    h^order, against the rounding error of f, of order ε/h (Numerical
+    Recipes, 3rd edition, section 5.7). h_i is then adjusted so that
+    x_i + h_i is exactly representable.
 
-    Returns
-    -------
-    J : ndarray, shape (m, n)
-        Jacobian matrix where J[j, i] = df_j/dx_i at x.
+    Args:
+        f (callable): maps an array of shape (n,) to one of shape (m,)
+        x (array_like): point of shape (n,)
+        order (int, optional): order of accuracy, 2 (3 points) or
+            4 (5 points). Defaults to 2.
 
-    Notes
-    -----
-    - Uses per-coordinate step sizes scaled to x to balance truncation vs rounding error.
-    - Ensures x ± h_i are representable (avoids zero-perturbation due to limited precision).
+    Returns:
+        ndarray: J of shape (m, n), with J[j, i] = ∂f_j/∂x_i
     """
-    if args is None:
-        args = tuple()
-    if kwargs is None:
-        kwargs = {}
     x = np.atleast_1d(np.asarray(x, dtype=float))
     if x.ndim != 1:
-        raise ValueError(f"x must be a 1D array-like (shape (n,)), instead got shape = {x.shape}")
+        raise ValueError(f"x must be a 1D array-like (shape (n,)), "
+                         f"instead got shape = {x.shape}")
     n = x.size
-    # Evaluate once to infer output size and dtype
-    if fshape is None or value:
-        y0 = np.asarray(f(x, *args, **kwargs), dtype=float)
-        if y0.ndim != 1:
-            raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {y0.shape}.")
-        m = y0.size
-    else:
-        if len(fshape) != 1:
-            raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), instead got shape = {fshape}.")
-        m = fshape[0]
-    if h is None:
-        # optimal size for 2nd order central difference
-        if rel_step is None:
-            # estimate of fractional error in evaluating f()
-            rel_step = _central_finite_difference_hrel(x, 1, order)
-        h = rel_step * np.maximum(1.0, np.abs(x))
-    else:
-        try:
-            h = np.abs(h) * np.ones_like(x)
-        except ValueError as e:
-            raise e("h must be either a float or a 1D arrays of the same shape as x")
-        if h.ndim != 1:
-            raise ValueError("If provided, h must have the same shape as x.")
-    if max_step is not None:
-        max_step = abs(float(max_step))
-        h = np.clip(h, a_max=max_step)
+    # evaluate once to get the output size
+    y0 = np.asarray(f(x), dtype=float)
+    if y0.ndim != 1:
+        raise ValueError(f"f(x) must return a 1D array-like (shape (m,)), "
+                         f"instead got shape = {y0.shape}.")
+    m = y0.size
+    h = np.finfo(float).eps**(1/(1+order)) * np.maximum(1.0, np.abs(x))
     # make sure (x + h) - x is exactly representable
-    h = refine_step_nearest(x, h)
+    h = (x + h) - x
     J = np.zeros((m, n), dtype=float)
-    # get the stencil for a first-order derivative
     try:
-        stencil = STENCILS[1][order]
+        stencil = STENCILS[order]
     except KeyError as e:
-        raise e(f"Requested stencil order = {order} for derivative order nu = 1, currently only supporting {list(STENCILS[1].keys())}")
+        raise e(f"Requested stencil order = {order}, "
+                f"currently only supporting {list(STENCILS)}")
     a = (len(stencil) - 1)//2
     for i in range(n):
-        hi = h[i]
         for k, c in zip(range(-a, a+1), stencil):
             if c == 0:
                 continue
-            else:
-                xh = x.copy()
-                xh[i] += k*hi
-                J[:, i] += c*np.asarray(f(xh, *args, **kwargs), dtype=float)
+            xh = x.copy()
+            xh[i] += k*h[i]
+            J[:, i] += c*np.asarray(f(xh), dtype=float)
     J /= h
-    if value:
-        return J, y0
-    else:
-        return J
+    return J
