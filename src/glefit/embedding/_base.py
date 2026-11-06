@@ -348,84 +348,23 @@ class BaseEmbedder(ABC):
     grad_A = drift_matrix_gradient
 
     @abstractmethod
-    def kernel_func(
-        self, 
-        time: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
-        """
-        Computes the memory kernel function for the current state of the embedder.
-
-        Parameters
-        ----------
-        time : scalar or array-like
-            The input time values for which to compute the kernel.
-
-        Returns
-        -------
-        np.ndarray
-            The computed kernel values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
+    def kernel_func(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return K at each entry of the 1-D array time, shape (ngrid,)."""
 
     @abstractmethod
-    def kernel_grad(
-        self, 
-        time: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
-        """
-        Computes the gradient of the memory kernel function w.r.t. primitive parameters for the current state of the embedder.
-
-        Parameters
-        ----------
-        time : scalar or array-like
-            The input time values for which to compute the kernel.
-
-        Returns
-        -------
-        np.ndarray
-            The computed kernel values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
+    def kernel_grad(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return ∂K/∂p, for the primitive parameters p, at each entry of
+        the 1-D array time, shape (ndof, ngrid)."""
 
     @abstractmethod
-    def kernel_hess(
-        self, 
-        time: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
-        """
-        Computes the hessian of the memory kernel function w.r.t. primitive parameters for the current state of the embedder.
-
-        Parameters
-        ----------
-        time : scalar or array-like
-            The input time values for which to compute the kernel.
-
-        Returns
-        -------
-        np.ndarray
-            The computed kernel values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
+    def kernel_hess(self, time: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return ∂²K/∂p², for the primitive parameters p, at each entry of
+        the 1-D array time, shape (ndof, ndof, ngrid)."""
 
     def kernel(
-        self, 
-        time: ScalarArr, 
-        nu: Optional[int]=0, 
+        self,
+        time: ScalarArr,
+        nu: Optional[int]=0,
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
         """Return the memory kernel K(t), or its derivatives.
@@ -453,105 +392,28 @@ class BaseEmbedder(ABC):
         TypeError
             If nu is not an integer
         """
-        time = np.atleast_1d(time)
-        if time.ndim != 1:
-            raise ValueError(f"Expecting `time` to be scalar or a 1D array, instead got {time.ndim = }.")
-        if not isinstance(nu, int):
-            raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
-        if nu == 0:
-            return self.kernel_func(time)
-        elif nu == 1:
-            grad = self.kernel_grad(time)
-            return self.grad_param_to_x(grad, self.x) if mapped else grad
-        elif nu == 2:
-            hess = self.kernel_hess(time)
-            if mapped:
-                grad = self.kernel_grad(time)
-                return self.hess_param_to_x(grad, hess, self.x)
-            return hess
-        else:
-            raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
-        
+        return self._closed_form(
+            "time", time, nu, mapped,
+            self.kernel_func, self.kernel_grad, self.kernel_hess)
 
     @abstractmethod
-    def spectrum_func(
-        self, 
-        frequency: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
+    def spectrum_func(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return Λ at each entry of the 1-D array frequency, shape (ngrid,).
         """
-        Computes the spectrum for the embedding.
-
-        Parameters
-        ----------
-        frequency : scalar or array-like
-            The frequencies for which to compute the spectrum.
-
-        Returns
-        -------
-        np.ndarray
-            The computed spectrum values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
-
-    
-    @abstractmethod
-    def spectrum_grad(
-        self, 
-        frequency: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
-        """
-        Computes the gradient of the spectrum w.r.t. primitive parameters for the current state of the embedder.
-
-        Parameters
-        ----------
-        frequency : scalar or array-like
-            The frequencies for which to compute the spectrum.
-
-        Returns
-        -------
-        np.ndarray
-            The computed spectrum values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
 
     @abstractmethod
-    def spectrum_hess(
-        self, 
-        frequency: ScalarArr, 
-    )-> npt.NDArray[np.floating]:
-        """
-        Computes the hessian of the spectrum w.r.t. primitive parameters for the current state of the embedder.
+    def spectrum_grad(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return ∂Λ/∂p, for the primitive parameters p, at each entry of
+        the 1-D array frequency, shape (ndof, ngrid)."""
 
-        Parameters
-        ----------
-        frequency : scalar or array-like
-            The frequencies for which to compute the spectrum.
+    @abstractmethod
+    def spectrum_hess(self, frequency: ScalarArr) -> npt.NDArray[np.floating]:
+        """Return ∂²Λ/∂p², for the primitive parameters p, at each entry of
+        the 1-D array frequency, shape (ndof, ndof, ngrid)."""
 
-        Returns
-        -------
-        np.ndarray
-            The computed kernel values as a NumPy array of floating point numbers.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not implemented in the subclass.
-        """
-        pass
-        
     def spectrum(
-        self, 
-        frequency: ScalarArr, 
+        self,
+        frequency: ScalarArr,
         nu: Optional[int]=0,
         mapped: Optional[bool]=False
     ) -> npt.NDArray[np.floating]:
@@ -582,27 +444,40 @@ class BaseEmbedder(ABC):
         TypeError
             If nu is not an integer
         """
-        frequency = np.atleast_1d(frequency)
-        if frequency.ndim != 1:
+        return self._closed_form(
+            "frequency", frequency, nu, mapped,
+            self.spectrum_func, self.spectrum_grad, self.spectrum_hess)
+
+    def _closed_form(
+        self,
+        name: str,
+        grid: ScalarArr,
+        nu: int,
+        mapped: bool,
+        func: Callable[[np.ndarray], np.ndarray],
+        grad: Callable[[np.ndarray], np.ndarray],
+        hess: Callable[[np.ndarray], np.ndarray]
+    ) -> npt.NDArray[np.floating]:
+        """The body of kernel() and spectrum(), which pass their closed
+        forms as func, grad and hess, and name their grid argument."""
+        grid = np.atleast_1d(grid)
+        if grid.ndim != 1:
             raise ValueError(
-                f"Expecting `frequency` to be scalar or a 1D array, "
-                f"instead got {frequency.ndim = }.")
+                f"Expecting `{name}` to be scalar or a 1D array, "
+                f"instead got {name}.ndim = {grid.ndim}.")
         if not isinstance(nu, int):
             raise TypeError(f"nu must be an integer, got {type(nu).__name__}")
         if nu == 0:
-            return self.spectrum_func(frequency)
-        elif nu == 1:
-            grad = self.spectrum_grad(frequency)
-            return self.grad_param_to_x(grad, self.x) if mapped else grad
-        elif nu == 2:
-            hess = self.spectrum_hess(frequency)
-            if mapped:
-                grad = self.spectrum_grad(frequency)
-                return self.hess_param_to_x(grad, hess, self.x)
-            return hess
-        else:
-            raise ValueError(f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
-        
+            return func(grid)
+        if nu == 1:
+            g = grad(grid)
+            return self.grad_param_to_x(g, self.x) if mapped else g
+        if nu == 2:
+            h = hess(grid)
+            return self.hess_param_to_x(grad(grid), h, self.x) if mapped else h
+        raise ValueError(
+            f"Invalid value for nu = {nu}. Valid values are 0, 1, and 2.")
+
     def spectral_density(
             self, 
             frequency: ScalarArr, 
