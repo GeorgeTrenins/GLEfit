@@ -65,7 +65,7 @@ emb.primitive_params  # [1.0, 10.0]: γ is exactly at its bound, see Surprising 
 
 Fits use only `forward`, `inverse` and `grad`. The fitting Hessian is a finite difference of the gradient in x, so a wrong `hess` does not change a fit, but it makes the closed-form second derivatives disagree with it.
 
-`MultiEmbedder` passes each slice of x to its components' mappers. Its own `mappers` argument is checked for length and then ignored.
+`MultiEmbedder` passes each slice of x to its components' mappers. It takes no `mappers` argument of its own and raises `TypeError` if given one. Embedder constructors accept no other keyword besides their parameters and `mappers`.
 
 ## Conventions
 
@@ -127,7 +127,7 @@ Checked at commit `10dc1e7`. Everything under Wrong results and Surprising limit
 
 ### Other changes
 
-- **Mappers in config files:** add a name-to-class registry here, and build mapper objects in each embedder's `from_dict`. `MultiEmbedder` would need to pass them to its components, since it ignores its own.
+- **Mappers in config files:** add a name-to-class registry here, and build mapper objects in each embedder's `from_dict`. `MultiEmbedder` would need to pass them to its components, since it takes none of its own.
 - **Vectorized mappers:** change `_forward_map`, `_inverse_map`, `jac_px` and `hess_px` in `glefit/embedding/_base.py` together with the mappers, and make `forward`'s check work on arrays.
 
 ## Testing

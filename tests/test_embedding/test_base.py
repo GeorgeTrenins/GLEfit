@@ -230,3 +230,27 @@ def test_mapper_rejection_names_the_parameter(make, values, label):
 
     with pytest.raises(ValueError, match=f"{label}: Invalid parameter value"):
         emb.primitive_params = values
+
+
+# each embedder class with valid constructor arguments
+CONSTRUCTORS = {
+    "prony": (PronyEmbedder, lambda: (THETA, GAMMA)),
+    "pronycos": (PronyCosineEmbedder, lambda: (0.9, 0.7, 2.1)),
+    "gen2x2": (TwoAuxEmbedder, lambda: ([1.0, 2.0], 1.5, 0.25, 3.0)),
+    "multi": (MultiEmbedder, lambda: ([PronyEmbedder(0.5, 2.0)],)),
+}
+
+
+@pytest.mark.parametrize("cls, args", CONSTRUCTORS.values(),
+                         ids=list(CONSTRUCTORS))
+def test_constructor_rejects_an_unknown_keyword(cls, args):
+    # a misspelling of `mappers`
+    with pytest.raises(TypeError, match=r"\['mapper'\]"):
+        cls(*args(), mapper=[])
+
+
+@pytest.mark.parametrize("cls, args", CONSTRUCTORS.values(),
+                         ids=list(CONSTRUCTORS))
+def test_constructor_rejects_an_extra_positional_argument(cls, args):
+    with pytest.raises(TypeError, match="positional"):
+        cls(*args(), 1.0)

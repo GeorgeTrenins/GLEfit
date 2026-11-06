@@ -37,6 +37,18 @@ class BaseEmbedder(ABC):
     _primitive_names: tuple[str, ...] = ()
 
     def __init__(self, *args, **kwargs):
+        # subclasses pass on what their own arguments leave over, which
+        # may only be `mappers`
+        name = type(self).__name__
+        if args:
+            raise TypeError(
+                f"{name} got {len(args)} unexpected positional "
+                f"argument(s): {args}")
+        unexpected = sorted(set(kwargs) - {"mappers"})
+        if unexpected:
+            raise TypeError(
+                f"{name} got unexpected keyword arguments {unexpected}; "
+                f"besides its parameters, it takes only 'mappers'")
         ndof = self.ndof
         self._primitive_params : np.ndarray = np.empty(ndof)
         self._x : np.ndarray = np.empty(ndof)
