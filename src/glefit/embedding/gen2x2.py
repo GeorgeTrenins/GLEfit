@@ -67,6 +67,8 @@ def _amplitudes(gamma, Omega, c2, s2, kappa):
 
 class TwoAuxEmbedder(BaseEmbedder):
 
+    _primitive_names = ("r", "γ", "Ω", "φ")
+
     def __len__(self) -> int:
         return 2
 

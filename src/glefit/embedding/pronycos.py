@@ -18,6 +18,8 @@ import copy
 
 class PronyCosineEmbedder(BaseEmbedder):
 
+    _primitive_names = ("θ", "γ", "ω")
+
     def __len__(self) -> int:
         return 2
     

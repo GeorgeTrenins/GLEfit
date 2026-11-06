@@ -217,3 +217,16 @@ def test_value_rejected_by_a_mapper_leaves_the_embedder_unchanged(emb, name):
 
     assert_array_equal(emb.primitive_params, p_before)
     assert_array_equal(emb.x, x_before)
+
+
+@pytest.mark.parametrize("make, values, label", [
+    (EMBEDDERS["prony"], [2.0, -0.5], "PronyEmbedder parameter γ"),
+    (EMBEDDERS["pronycos"], [0.9, 0.7, -2.0],
+     "PronyCosineEmbedder parameter ω"),
+    (EMBEDDERS["gen2x2"], [1.0, 1.5, 0.0, 0.3], "TwoAuxEmbedder parameter Ω"),
+], ids=["prony", "pronycos", "gen2x2"])
+def test_mapper_rejection_names_the_parameter(make, values, label):
+    emb = make()
+
+    with pytest.raises(ValueError, match=f"{label}: Invalid parameter value"):
+        emb.primitive_params = values

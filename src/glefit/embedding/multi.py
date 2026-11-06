@@ -145,9 +145,14 @@ class MultiEmbedder(BaseEmbedder):
         numpy.ndarray
             Array of transformed parameters
         """
-        ans = np.zeros_like(arr, dtype=float)
-        for emb, p in zip(self._embs, self._p_slices):
-            ans[p] = getattr(emb, func_name)(arr[p])
+        arr = np.asarray(arr, dtype=float)
+        ans = np.zeros_like(arr)
+        for k, (emb, p) in enumerate(zip(self._embs, self._p_slices)):
+            try:
+                ans[p] = getattr(emb, func_name)(arr[p])
+            except ValueError as err:
+                raise ValueError(
+                    f"MultiEmbedder.embedders[{k}]: {err}") from err
         return ans
 
     def _forward_map(self, params: npt.ArrayLike) -> npt.NDArray[np.floating]:

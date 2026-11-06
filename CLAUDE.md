@@ -26,7 +26,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 359 passing tests, `tests/test_merit` has 114, `tests/test_utils` has 28, `tests/test_optimize.py` checks the file that `optimize.py` writes, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject parameters on their bounds. Its references are SymPy and mpmath.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 363 passing tests, `tests/test_merit` has 114, `tests/test_utils` has 28, `tests/test_optimize.py` checks the file that `optimize.py` writes, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject parameters on their bounds. Its references are SymPy and mpmath.
 
 `legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py`, `test_utils/test_numderiv.py` and `test_mappers/test_intervals.py` cannot be imported. 73 tests pass, 51 fail and those three files fail to import. The failures are known, caused by tests lagging the code:
 
@@ -74,7 +74,7 @@ Fits therefore depend only on `compute_drift_matrix` and `drift_matrix_param_gra
 
 ### Embedders
 
-Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, the `nparam` property, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`. If primitive parameters differ from conventional ones, also override the `ndof` property, `to_primitive` and `to_conventional`.
+Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, the `nparam` property, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`, and set `_primitive_names` for error messages. If primitive parameters differ from conventional ones, also override the `ndof` property, `to_primitive` and `to_conventional`.
 
 `BaseEmbedder.__init__` reads `ndof`, so set anything it needs before calling `super().__init__`. Set default mappers with `kwargs.setdefault("mappers", [...])`.
 

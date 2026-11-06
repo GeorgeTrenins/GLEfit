@@ -259,6 +259,16 @@ def test_value_rejected_by_a_component_mapper_changes_no_component(
     assert_array_equal(emb.conventional_params, before)
 
 
+def test_mapper_rejection_names_the_component_and_parameter(emb):
+    # γ < 0 for pronycos, the third component
+    values = emb.primitive_params
+    values[7] = -1.0
+
+    with pytest.raises(ValueError, match=r"embedders\[2\]: "
+                       "PronyCosineEmbedder parameter γ: Invalid"):
+        emb.primitive_params = values
+
+
 def test_from_dict_builds_the_components_in_order():
     # gen2x2 reads back in the maximal gauge, as in test_gen2x2
     params = {"embedders": [

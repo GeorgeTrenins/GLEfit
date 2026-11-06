@@ -33,6 +33,9 @@ class BaseEmbedder(ABC):
     - Mapped params x: one-to-one transforms of primitive params imposing constraints; used in optimization.
     """
 
+    # names of the primitive parameters, in order, for error messages
+    _primitive_names: tuple[str, ...] = ()
+
     def __init__(self, *args, **kwargs):
         ndof = self.ndof
         self._primitive_params : np.ndarray = np.empty(ndof)
@@ -191,9 +194,16 @@ class BaseEmbedder(ABC):
         if self._mappers is None:
             return unmapped(values)
         ans = np.zeros_like(values)
+        names = self._primitive_names
         for i, (mapper, v) in enumerate(zip(self._mappers, values)):
             mapper: BaseMapper
-            ans[i] = getattr(mapper, method)(v)
+            try:
+                ans[i] = getattr(mapper, method)(v)
+            except ValueError as err:
+                name = names[i] if i < len(names) else f"#{i}"
+                raise ValueError(
+                    f"{type(self).__name__} parameter {name}: {err}"
+                ) from err
         return ans
 
     def _forward_map(

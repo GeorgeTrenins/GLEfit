@@ -18,6 +18,8 @@ import copy
 
 class PronyEmbedder(BaseEmbedder):
 
+    _primitive_names = ("θ", "γ")
+
     def __len__(self) -> int:
         return 1
     

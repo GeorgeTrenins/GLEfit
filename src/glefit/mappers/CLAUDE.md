@@ -72,7 +72,7 @@ Fits use only `forward`, `inverse` and `grad`. The fitting Hessian is a finite d
 - **Direction:** `forward` goes from p to x and removes the limit. `inverse` goes from x to p. Docstrings define each map by its inverse, for example "p = exp(x) + a".
 - **Arguments:** `grad` and `hess` take x, not p, and return derivatives of `inverse`.
 - **p is primitive:** for `gen2x2`, mappers act on r, γ, Ω and φ, not on θ, δ or ζ. Limits that couple parameters, such as the stability condition γ ≥ |δ|, must be built into the primitive parameters instead.
-- **Errors:** `forward` raises `ValueError` when p is outside its range or on a bound, which would map to x = ±inf. It is the only place where limits are checked.
+- **Errors:** `forward` raises `ValueError` when p is outside its range or on a bound, which would map to x = ±inf. It is the only place where limits are checked. Embedders put the class and parameter name in front of the message, as in "TwoAuxEmbedder parameter Ω: …", and `MultiEmbedder` adds the component, as in "MultiEmbedder.embedders[1]: …".
 - **Scalars only:** each method takes and returns one number. `forward` raises on arrays. `IdentityMapper.grad` returns `1.0` whatever the input, and `IdentityMapper.forward` and `inverse` return 0-dimensional arrays.
 - **No state:** a mapper stores only its bounds, so one instance can serve several parameters. `pronycos` uses `3*[LowerBoundMapper(),]`.
 - **No mappers:** `_mappers = None` on an embedder means no limits. It is read at every call, so changing it after construction leaves the stored `x` out of date until a setter runs.
