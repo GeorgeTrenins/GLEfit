@@ -67,6 +67,27 @@ def test_sizes_add_up_over_components(emb):
     assert (len(emb), emb.nparam, emb.ndof) == (5, 10, 9)
 
 
+def test_generator_of_components_is_accepted(components):
+    expected = MultiEmbedder(components).A
+
+    actual = MultiEmbedder(c for c in components).A
+
+    assert_array_equal(actual, expected)
+
+
+def test_appending_to_the_input_list_changes_nothing(emb, components):
+    expected = emb.conventional_params
+
+    components.append(PronyEmbedder(3.0, 0.1))
+
+    assert_array_equal(emb.conventional_params, expected)
+
+
+def test_empty_list_of_components_is_rejected():
+    with pytest.raises(ValueError, match="at least one component"):
+        MultiEmbedder([])
+
+
 def test_drift_matrix_places_component_blocks_on_the_diagonal():
     # Ap = [[0, θᵀ], [-θ, A]]
     expected = [[0.0, 1.3, 0.9, 0.0],

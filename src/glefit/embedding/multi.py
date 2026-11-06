@@ -16,6 +16,12 @@ import numpy.typing as npt
 
 class MultiEmbedder(BaseEmbedder):
     """Direct sum of component embedders.
+
+    Args:
+        embedders: the components in order, as any non-empty iterable. The
+            embedder keeps its own list of them, so later changes to the
+            caller's list do not reach it, but it does not copy the
+            components themselves.
     """
 
     def __init__(self, embedders: Iterable[BaseEmbedder], *args, **kwargs):
@@ -23,13 +29,15 @@ class MultiEmbedder(BaseEmbedder):
             raise TypeError(
                 "MultiEmbedder takes no mappers: each component maps its own "
                 "parameters")
-        self._embs = embedders
+        self._embs = list(embedders)
+        if not self._embs:
+            raise ValueError("MultiEmbedder needs at least one component")
         self._naux = sum([len(emb) for emb in self._embs])
-        self._nparam = sum([emb.nparam for emb in embedders])
-        self._ndof = sum([emb.ndof for emb in embedders])
-        self._c_slices = self._slices([emb.nparam for emb in embedders])
-        self._p_slices = self._slices([emb.ndof for emb in embedders])
-        self._aux_slices = self._slices([len(emb) for emb in embedders], 1)
+        self._nparam = sum([emb.nparam for emb in self._embs])
+        self._ndof = sum([emb.ndof for emb in self._embs])
+        self._c_slices = self._slices([emb.nparam for emb in self._embs])
+        self._p_slices = self._slices([emb.ndof for emb in self._embs])
+        self._aux_slices = self._slices([len(emb) for emb in self._embs], 1)
         super().__init__(*args, **kwargs)
 
     @staticmethod
