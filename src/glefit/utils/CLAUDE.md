@@ -58,11 +58,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 
 ## Known gaps
 
-Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limits was reproduced by running the code. Apart from the items below, `jacobian` matched SymPy or finite differences.
-
-### Wrong results
-
-- **An unsupported `order` raises the wrong error.** `raise e(...)` calls the caught exception object, so `jacobian` raises `TypeError: 'KeyError' object is not callable`. Fix: `raise KeyError(...) from e`, or `ValueError`.
+Checked at commit `ffd03fd`. Everything under Surprising limits was reproduced by running the code.
 
 ### Surprising limits
 

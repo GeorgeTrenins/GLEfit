@@ -11,12 +11,13 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 - The maintainer edits files between steps. Re-read a file before editing it.
 - Python runs in the `tools` conda env with `PYTHONPATH=src`. `conda run` does not forward stdin, so put scripts in the scratchpad instead of heredocs.
 - Run `legacy_tests` from the scratchpad directory, with `--continue-on-collection-errors`, since three files cannot be imported and would otherwise stop the whole run. `legacy_tests/test_optimize` writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory.
-- Do not use `glefit.utils.numderiv` as a test reference (unreviewed). Use SymPy, or the mpmath references in `tests/conftest.py` and `tests/test_embedding/conftest.py`.
+- Use SymPy, or the mpmath references in `tests/conftest.py` and `tests/test_embedding/conftest.py`.
 - Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run each new test alone, and the suite in random order with a few seeds (`--randomly-seed=N`; `-p no:randomly` turns `pytest-randomly` off). Nothing may be installed.
 
 ## Status
 
 - The plan's points 1–5 are done, up to `ae075a0`: tests for the module, `ISSUES.md`, the gen2x2 redesign (EMB-20) and the small fixes.
+- `numderiv` is reviewed and fixed, from `67412e2`: only `jacobian(f, x, *, order)` is left, tested in `tests/test_utils/test_numderiv.py`.
 - `tests/test_embedding/` has 334 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]).
@@ -25,15 +26,14 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 
 ## Next
 
-Agenda set by the maintainer on 2026-11-05: first `numderiv` (1), then the flagged issues in `glefit.merit` (2). The structural simplification (3) comes after.
+Agenda set by the maintainer on 2026-11-05: first the flagged issues in `glefit.merit` (1), then the structural simplification (2).
 
-1. Review and fix `glefit.utils.numderiv`. It builds the Hessian used in fits (`merit/_base.py` lines 519 and 781). Known: the `max_step` crash, and error paths that raise `TypeError: 'KeyError' object is not callable`. See "Known gaps" in `glefit/utils/CLAUDE.md`.
-2. Fix the flagged issues in `glefit.merit` (see "Tracked in other modules" in `ISSUES.md` and "Known gaps" in `glefit/merit/CLAUDE.md`), including gen2x2 spectrum fits that stall near Ω ≈ 0. Setup of that experiment: a prototype maximal-gauge gen2x2 embedder fitted with EF, 10 starts per target, only γ constrained.
+1. Fix the flagged issues in `glefit.merit` (see "Tracked in other modules" in `ISSUES.md` and "Known gaps" in `glefit/merit/CLAUDE.md`), including gen2x2 spectrum fits that stall near Ω ≈ 0. Setup of that experiment: a prototype maximal-gauge gen2x2 embedder fitted with EF, 10 starts per target, only γ constrained.
    - All 50 kernel fits succeeded, but 3 of 30 spectrum fits stalled near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular.
    - Without ω = 0 in the grid, 3 of 10 fixture-data fits stopped exactly at Ω = 0 with a gradient of about 1e-14.
    - Constraining Ω as well avoided both (80/80).
    - Reproduce with `05_notebooks/gen2x2_note_verification/fit_constraints_diag.py`.
-3. Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations.
+2. Structural simplification of `_base.py` and `multi.py` (not planned yet). Includes EMB-19: make the inputs consistent, then the annotations.
 
 ## Lessons
 

@@ -45,6 +45,11 @@ def jacobian(
     Returns:
         ndarray: J of shape (m, n), with J[j, i] = ∂f_j/∂x_i
     """
+    try:
+        stencil = STENCILS[order]
+    except KeyError:
+        raise ValueError(f"order must be one of {list(STENCILS)}, "
+                         f"got {order!r}") from None
     x = np.atleast_1d(np.asarray(x, dtype=float))
     if x.ndim != 1:
         raise ValueError(f"x must be a 1D array-like (shape (n,)), "
@@ -60,11 +65,6 @@ def jacobian(
     # make sure (x + h) - x is exactly representable
     h = (x + h) - x
     J = np.zeros((m, n), dtype=float)
-    try:
-        stencil = STENCILS[order]
-    except KeyError as e:
-        raise e(f"Requested stencil order = {order}, "
-                f"currently only supporting {list(STENCILS)}")
     a = (len(stencil) - 1)//2
     for i in range(n):
         for k, c in zip(range(-a, a+1), stencil):

@@ -127,7 +127,7 @@ PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 
 A new or changed property or metric should have tests that:
 
-- compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: it is unreviewed
+- compare `grad_wrt_A` entry by entry against `DriftMatrixReference` in `tests/conftest.py`, using a general matrix (non-symmetric A, several θ entries) as well as the shipped embedders. Do not use `glefit.utils.numderiv` as a reference: finite differences are not exact
 - compare `gradient` and `hessian` against numerical derivatives of the distance, with non-uniform weights
 - compare against closed forms where they exist, for example `emb.spectrum(grid, nu=1, mapped=True)`
 - include special values, such as repeated eigenvalues and points where the embedder switches branch

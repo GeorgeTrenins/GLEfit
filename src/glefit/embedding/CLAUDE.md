@@ -51,7 +51,7 @@ Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, `_get_nparam`, `co
 
 Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding` from the repository root.
 
-- The references are `SympyReference` (closed forms in SymPy) in `tests/test_embedding/conftest.py` and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath) in `tests/conftest.py`. Do not use `glefit.utils.numderiv`, which is unreviewed.
+- The references are `SympyReference` (closed forms in SymPy) in `tests/test_embedding/conftest.py` and `DriftMatrixReference` (K, Λ and exact directional derivatives of a numerical Ap, in mpmath) in `tests/conftest.py`.
 - Include branch points and special values, which random values miss: for gen2x2, Ω = γ and Ω ≈ γ, Ω = 0, φ = 0, π/4 and π/2, the Debye limit on both sides of φ = π/4, √G·t on both sides of 1, Ω ≪ γ at long times, and negative r and Ω.
 - Rounding in a vanishing term shows only in an element-wise relative comparison, not in `assert_close`, which scales by the largest value in each row.
 - The gen2x2 reference writes cosh(t√G) and sinhc(t√G) as ₀F₁ series in G, so SymPy can differentiate them and mpmath can evaluate them at G = 0.

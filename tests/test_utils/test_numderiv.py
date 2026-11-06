@@ -78,3 +78,9 @@ def test_jacobian_rejects_x_that_is_not_one_dimensional():
 def test_jacobian_rejects_f_that_does_not_return_a_one_dimensional_array():
     with pytest.raises(ValueError, match=r"f\(x\) must return a 1D"):
         jacobian(lambda v: np.atleast_2d(v), [1.0])
+
+
+@pytest.mark.parametrize("order", [3, 6])
+def test_jacobian_rejects_unsupported_order(order):
+    with pytest.raises(ValueError, match="order must be one of"):
+        jacobian(lambda v: v, [1.0], order=order)
