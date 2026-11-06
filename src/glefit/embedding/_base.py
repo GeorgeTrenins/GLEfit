@@ -147,8 +147,11 @@ class BaseEmbedder(ABC):
     def primitive_params(self, value: npt.ArrayLike) -> None:
         """Set primitive parameters directly (bypasses conventional mapping)."""
         arr = self._checked(value, self.ndof, "primitive_params")
+        # map before storing anything, so that a `value` that a mapper
+        # rejects leaves the embedder unchanged
+        x = self._forward_map(arr)
         self._primitive_params[:] = arr
-        self._x[:] = self._forward_map(arr)
+        self._x[:] = x
 
     @property
     def x(self) -> npt.NDArray[np.floating]:
@@ -158,8 +161,9 @@ class BaseEmbedder(ABC):
     @x.setter
     def x(self, value: npt.ArrayLike) -> None:
         arr = self._checked(value, self.ndof, "x")
+        p = self._inverse_map(arr)
         self._x[:] = arr
-        self._primitive_params[:] = self._inverse_map(arr)
+        self._primitive_params[:] = p
         
     @property
     def conventional_params(self) -> npt.NDArray[np.floating]:
@@ -170,9 +174,7 @@ class BaseEmbedder(ABC):
     def conventional_params(self, value: npt.ArrayLike) -> None:
         """Set conventional parameters; store as primitive internally."""
         arr = self._checked(value, self.nparam, "conventional_params")
-        prim = self.to_primitive(arr)
-        self._primitive_params[:] = prim
-        self._x[:] = self._forward_map(prim)
+        self.primitive_params = self.to_primitive(arr)
 
     def _apply_mappers(
         self,

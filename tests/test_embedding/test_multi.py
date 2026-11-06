@@ -242,6 +242,23 @@ def test_rejected_param_setter_leaves_every_component_unchanged(
     assert_array_equal(emb.conventional_params, before)
 
 
+# γ of pronycos, the last component, in each parameter set
+@pytest.mark.parametrize("name, index", [
+    ("conventional_params", 8), ("primitive_params", 7),
+], ids=["conventional_params", "primitive_params"])
+def test_value_rejected_by_a_component_mapper_changes_no_component(
+        emb, name, index):
+    # valid new values for prony and gen2x2, but γ < 0 for pronycos
+    values = 1.1 * getattr(emb, name)
+    values[index] = -1.0
+    before = emb.conventional_params
+
+    with pytest.raises(ValueError, match="greater than"):
+        setattr(emb, name, values)
+
+    assert_array_equal(emb.conventional_params, before)
+
+
 def test_from_dict_builds_the_components_in_order():
     # gen2x2 reads back in the maximal gauge, as in test_gen2x2
     params = {"embedders": [

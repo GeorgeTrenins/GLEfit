@@ -205,3 +205,15 @@ def test_list_input_gives_the_same_result_as_an_array(make, method, argument):
     actual = getattr(emb, method)(values.tolist())
 
     assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("name", ["primitive_params", "conventional_params"])
+def test_value_rejected_by_a_mapper_leaves_the_embedder_unchanged(emb, name):
+    # a new θ, but γ < 0, which the lower-bound mapper of γ rejects
+    p_before, x_before = emb.primitive_params, emb.x
+
+    with pytest.raises(ValueError, match="greater than"):
+        setattr(emb, name, [3.0, -0.5])
+
+    assert_array_equal(emb.primitive_params, p_before)
+    assert_array_equal(emb.x, x_before)

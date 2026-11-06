@@ -20,7 +20,7 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 - `numderiv` is reviewed and fixed, from `67412e2`: only `jacobian(f, x, *, order)` is left, tested in `tests/test_utils/test_numderiv.py`.
 - `glefit.merit` is revised, from `bcad8d3`: `BaseScalarProperty` removed, merit functions tested in `tests/test_merit/test_distance.py`, `MemorySpectrum` fixed where A cannot be diagonalized, Ω of gen2x2 log-mapped, and docstrings corrected.
   - On 2026-11-06 the maintainer reversed the 2026-11-05 decision to constrain only γ, after the fit experiment was re-run with the shipped embedder. Log-mapping Ω makes fits independent of the time unit and kept all 60 spectrum fits away from the two bad points described in `ISSUES.md`, but does not remove them. The scripts are `05_notebooks/gen2x2_note_verification/exp_*.py`.
-- `tests/test_embedding/` has 355 tests and runs in about 3 s:
+- `tests/test_embedding/` has 359 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]).
 - `legacy_tests/`: 73 pass, 51 fail and 3 files fail to import, all known; the root `CLAUDE.md` lists why.
@@ -30,8 +30,7 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 
 Agenda set by the maintainer on 2026-11-05: `numderiv` and `glefit.merit` are done; the structural simplification is next.
 
-1. Structural simplification of `_base.py` and `multi.py`, planned with the maintainer on 2026-11-06. Done from `a62a49d`: `_A` and `_grad_A` removed, `nparam` and `ndof` as properties, one loop for the mapper methods, one implementation of `kernel()` and `spectrum()`, `MultiEmbedder` reading its components, its setters checking lengths, and EMB-19. Left, one commit each:
-   - fix: a setter whose value a mapper rejects must leave the embedder unchanged. The base setters write the primitive parameters before computing x, and `MultiEmbedder` sets one component after another.
+1. Structural simplification of `_base.py` and `multi.py`, planned with the maintainer on 2026-11-06. Done from `a62a49d`: `_A` and `_grad_A` removed, `nparam` and `ndof` as properties, one loop for the mapper methods, one implementation of `kernel()` and `spectrum()`, `MultiEmbedder` reading its components, its setters checking lengths, EMB-19, and setters that change nothing when they reject a value. Left, one commit each:
    - fix: name the parameter when a mapper rejects a value. gen2x2 with Ω = 0 raises "Invalid parameter value p = 0.0, must be greater than a = 0.0", from `_forward_map`.
    - fix: reject unknown constructor keywords, which are now ignored. Also correct `mappers/CLAUDE.md`, which says that `MultiEmbedder` ignores `mappers`.
    - refactor(merit): merge `BaseProperty` into its only child, `BaseArrayProperty`.

@@ -101,8 +101,7 @@ class MultiEmbedder(BaseEmbedder):
     @conventional_params.setter
     def conventional_params(self, value: npt.ArrayLike) -> None:
         arr = self._checked(value, self.nparam, "conventional_params")
-        for emb, c in zip(self._embs, self._c_slices):
-            emb.conventional_params = arr[c]
+        self.primitive_params = self.to_primitive(arr)
 
     @property
     def x(self) -> npt.NDArray[np.floating]:
@@ -123,6 +122,9 @@ class MultiEmbedder(BaseEmbedder):
     @primitive_params.setter
     def primitive_params(self, value: npt.ArrayLike) -> None:
         arr = self._checked(value, self.ndof, "primitive_params")
+        # map every slice first, so that a value that a component's mapper
+        # rejects raises before any component has changed
+        self._forward_map(arr)
         for emb, p in zip(self._embs, self._p_slices):
             emb.primitive_params = arr[p]
 
