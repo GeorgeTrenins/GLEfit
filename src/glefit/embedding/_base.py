@@ -9,7 +9,7 @@
 
 
 from __future__ import print_function, division, absolute_import
-from typing import Union, Iterable, Optional
+from typing import Callable, Union, Iterable, Optional
 from glefit.mappers import BaseMapper
 import numpy as np
 import numpy.typing as npt
@@ -170,58 +170,46 @@ class BaseEmbedder(ABC):
         self._primitive_params[:] = prim
         self._x[:] = self._forward_map(prim)
 
+    def _apply_mappers(
+        self,
+        method: str,
+        values: npt.NDArray[np.floating],
+        unmapped: Callable[[np.ndarray], np.ndarray]
+    ) -> npt.NDArray[np.floating]:
+        """Apply `method` of each mapper to the matching entry of values.
+
+        Without mappers (`_mappers` is None, as analysis/plot_objective.py
+        sets), return unmapped(values) instead.
+        """
+        values = np.asarray(values, dtype=float)
+        if self._mappers is None:
+            return unmapped(values)
+        ans = np.zeros_like(values)
+        for i, (mapper, v) in enumerate(zip(self._mappers, values)):
+            mapper: BaseMapper
+            ans[i] = getattr(mapper, method)(v)
+        return ans
+
     def _forward_map(
         self, primitive_params: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
         """Transform optimizable params so that inequality constraints are automatically imposed"""
-        primitive_params = np.asarray(primitive_params, dtype=float)
-        if self._mappers is None:
-            return np.copy(primitive_params)
-        else:
-            x = np.zeros_like(primitive_params)
-            for i, (mapper,p) in enumerate(zip(self._mappers, primitive_params)):
-                mapper: BaseMapper
-                x[i] = mapper.forward(p)
-            return x
+        return self._apply_mappers("forward", primitive_params, np.copy)
 
     def _inverse_map(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Undo the inequality constraint-imposing mapping.
         """
-        x = np.asarray(x, dtype=float)
-        if self._mappers is None:
-            return np.copy(x)
-        else:
-            p = np.zeros_like(x)
-            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
-                mapper: BaseMapper
-                p[i] = mapper.inverse(xi)
-            return p
+        return self._apply_mappers("inverse", x, np.copy)
 
     def jac_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns J_{n} = ∂ p_n / ∂ x_n, where p_n is an embedding parameter and x_n is its transform.
         """
-        x = np.asarray(x, dtype=float)
-        if self._mappers is None:
-            return np.ones_like(x)
-        else:
-            p = np.zeros_like(x)
-            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
-                mapper: BaseMapper
-                p[i] = mapper.grad(xi)
-            return p
-    
+        return self._apply_mappers("grad", x, np.ones_like)
+
     def hess_px(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
         """Returns H_{n} = ∂² p_n / ∂ x_n², where p_n is a primitive embedding parameter and x_n is its transform.
         """
-        x = np.asarray(x, dtype=float)
-        if self._mappers is None:
-            return np.zeros_like(x)
-        else:
-            p = np.zeros_like(x)
-            for i, (mapper,xi) in enumerate(zip(self._mappers, x)):
-                mapper: BaseMapper
-                p[i] = mapper.hess(xi)
-            return p
+        return self._apply_mappers("hess", x, np.zeros_like)
     
     def grad_param_to_x(
             self, 
