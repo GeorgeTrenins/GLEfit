@@ -15,7 +15,6 @@ from typing import Union
 import numpy as np
 import numpy.typing as npt
 from typing import Optional
-from glefit.utils.linalg import mat_inv_vec
 
 
 class MemoryKernel(BaseArrayProperty):
@@ -131,50 +130,69 @@ class MemoryKernel(BaseArrayProperty):
 
 
 class MemorySpectrum(BaseArrayProperty):
-    """Spectral density Λ(ω) = θᵀA(A² + ω²I)⁻¹θ for GLE dynamics, computed via eigenvalue
-    decomposition of the drift matrix.
-    
+    """Spectrum Λ(ω) = θᵀA(A² + ω²)⁻¹θ, the cosine transform of K(t). The
+    spectral density is ω·Λ(ω).
+
+    For real A, A(A² + ω²)⁻¹ = Re (A + iω)⁻¹, so Λ(ω) = Re θᵀ(A + iω)⁻¹θ. 
+    Evaluation takes one complex linear solve per frequency and also works
+    where A cannot be diagonalized, as for gen2x2 at critical damping. 
+    It fails where A + iω is singular, and there Λ is not defined.
+
     Attributes:
-        array: Frequency points where spectrum is evaluated
-        target: Target spectral density values
+        grid: Frequencies where the spectrum is evaluated
+        target: Target values of Λ at each frequency
     """
 
     @staticmethod
+    def _solve_resolvent(
+        Ap: npt.NDArray[np.floating],
+        omega: npt.NDArray[np.floating],
+        transpose: bool = False
+    ) -> npt.NDArray[np.complexfloating]:
+        """Return (A + iω)⁻¹θ, or (Aᵀ + iω)⁻¹θ, at each frequency.
+
+        Args:
+            Ap: full drift matrix [[0, θᵀ], [-θ, A]] of shape (n+1, n+1).
+                θ is read from the top row.
+            omega: frequencies of shape (n_freq,)
+            transpose: if True, use Aᵀ instead of A
+
+        Returns:
+            Complex array of shape (n_freq, n)
+
+        Raises:
+            ValueError: if A + iω is singular at one of the frequencies
+        """
+        theta, A = Ap[0, 1:], Ap[1:, 1:]
+        if transpose:
+            A = A.T
+        M = A + 1j * omega[:, None, None] * np.eye(len(theta))
+        try:
+            return np.linalg.solve(M, theta)
+        except np.linalg.LinAlgError:
+            raise ValueError(
+                "A + iω is singular at a grid frequency, "
+                "and Λ(ω) is not defined there"
+            ) from None
+
+    @classmethod
     def _compute_spec_from_A(
-        Ap: npt.NDArray[np.floating], 
+        cls,
+        Ap: npt.NDArray[np.floating],
         omega: npt.NDArray[np.floating]
     ) -> npt.NDArray[np.floating]:
-        """Compute spectral density via eigenvalue decomposition.
-        
-        Args:
-            Ap: Full drift matrix of shape (n+1, n+1)
-            omega: Frequency values of shape (n_freq,)
-            
-        Returns:
-            Real-valued spectrum of shape (n_freq,)
-        """
-        theta = Ap[0, 1:]
-        A = Ap[1:,1:]
-        lamda, Q = np.linalg.eig(A)
-        
-        # Transform coupling vector to eigenbasis
-        y = mat_inv_vec(Q, theta)  # y = Q⁻¹θ
-        z = Q.T @ theta           
-        
-        # Sum over eigenvalues: Λ(ω) = Σᵢ yᵢzᵢλᵢ/(λᵢ² + ω²)
-        return np.real(np.sum(
-            y*z*lamda / (lamda**2 + omega[:,None]**2),
-            axis=-1
-        ))
-        
+        """Return Λ(ω) = Re θᵀ(A + iω)⁻¹θ, shape (n_freq,), for the full
+        drift matrix Ap of shape (n, n) and frequencies omega."""
+        return np.real(cls._solve_resolvent(Ap, omega) @ Ap[0, 1:])
+
     def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Compute Λ(ω) at all frequency points.
-        
+
         Args:
             x: Transformed parameters. If None, uses current embedding.
-            
+
         Returns:
-            Spectral density values at each frequency, shape (n_freq,)
+            Λ at each frequency, shape (n_freq,)
         """
         if x is None:
             Ap = self.emb.A
@@ -185,41 +203,29 @@ class MemorySpectrum(BaseArrayProperty):
     
     def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of Λ(ω) w.r.t. full drift matrix: ∂Λ/∂A.
-        
-        θᵀ in the top row and θ in the negated left column are differentiated
-        separately, as in MemoryKernel.grad_wrt_A.
-        
+
         Args:
             A: Full drift matrix of shape (n+1, n+1). If None, uses current embedding.
-            
+
         Returns:
             Gradient array of shape (n_freq, n+1, n+1)
+
+        Notes:
+            With R = (A + iω)⁻¹, Λ = Re(θᵀRθ) and ∂R/∂A_jk = -R E_jk R
+            where E_jk is an (n+1, n+1) matrix unit with 1 (its only 
+            non-zero entry) at (j, k). Hence, ∂Λ/∂θᵀ = Re(Rθ), 
+            ∂Λ/∂θ = Re(Rᵀθ), and ∂Λ/∂A_jk = -Re[(Rᵀθ)_j (Rθ)_k].
         """
         if A is None:
             Ap = self.emb.A
         else:
             Ap = np.copy(A)
-        
-        theta = Ap[0, 1:]
-        A_aux = Ap[1:,1:]
+
         omega = self.grid
+        y = self._solve_resolvent(Ap, omega)                  # Rθ
+        z = self._solve_resolvent(Ap, omega, transpose=True)  # Rᵀθ
         ans = np.zeros((len(omega),) + Ap.shape)
-        
-        # Eigenvalue decomposition
-        lamda, Q = np.linalg.eig(A_aux)
-        Qinv = np.linalg.inv(Q)
-        a = mat_inv_vec(Q, theta)  # a = Q⁻¹θ
-        b = Q.T @ theta
-        M1 = 1/(lamda**2 + omega[:,None]**2)        # 1/(λᵢ² + ωⱼ²)
-        y = np.einsum('ij,...j->...i', Q, M1*a)     # y = (A² + ω²I)⁻¹θ
-        M2 = lamda*M1                               # λᵢ/(λᵢ² + ωⱼ²)
-        v = np.einsum('ij,...j->...i', Q, M2*a)     # v = A(A² + ω²I)⁻¹θ
-        u = np.einsum('...j,jk->...k', b*M2, Qinv)  # u = [θᵀA(A² + ω²I)⁻¹]ᵀ
-        M3 = lamda*M2                               # λᵢ²/(λᵢ² + ωⱼ²)
-        w = np.einsum('...j,jk->...k', b*M3, Qinv)  # w = [θᵀA²(A² + ω²I)⁻¹]ᵀ
-        ans[:,0,1:] = np.real(v)                    # ∂Λ/∂θ
-        ans[:,1:,0] = -np.real(u)                   # ∂Λ/∂(-θ) in the left column
-        ans[:,1:,1:] = np.real(
-            (theta - w)[:,:,None] * y[:,None,:] - u[:,:,None]*v[:,None,:]
-        )                                           # ∂Λ/∂A_aux
+        ans[:, 0, 1:] = np.real(y)                   # ∂Λ/∂θᵀ, top row
+        ans[:, 1:, 0] = -np.real(z)                  # ∂Λ/∂(-θ), left column
+        ans[:, 1:, 1:] = -np.real(z[:, :, None] * y[:, None, :])  # ∂Λ/∂A
         return ans

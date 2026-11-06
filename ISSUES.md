@@ -30,7 +30,6 @@ It rejects any 2×2 block A whose symmetric part is indefinite, even when the ke
 
 These affect embedders, but the fix belongs elsewhere:
 
-- `MemorySpectrum` is wrong where A cannot be diagonalized: gen2x2 at critical damping Ω = γ, for every φ, where A = γ[[2, 1], [−1, 0]]. The value was off by 0.28 at γ² − Ω² = 0, but only by 2e-11 at γ² − Ω² = 1e-12. The closed form and `MemoryKernel` are correct. See `glefit/merit/CLAUDE.md`.
 - Spectrum fits with gen2x2 can stall near Ω ≈ 0, where Λ(0) = 2γr² sin²φ/Ω² is singular. To fix in `glefit.merit`; see `src/glefit/embedding/TODO.md`.
 - The fit Hessian takes absolute finite-difference steps in unmapped parameters, such as r and Ω of gen2x2, so it is less accurate when they are far from 1. See `glefit/merit/CLAUDE.md`.
 - `tutorials/` still pass `sigma`, `threshold` and `Omega` to gen2x2, which raise `TypeError`.

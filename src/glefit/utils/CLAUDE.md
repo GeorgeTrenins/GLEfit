@@ -12,7 +12,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | --- | --- | --- |
 | `numderiv.py` | `jacobian`: central finite differences | Fitting Hessian in `glefit.merit` |
 | `special.py` | `sinc` | `gen2x2` embedder |
-| `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step, `MemorySpectrum`. `symmat_inv_vec` is unused |
+| `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step. `symmat_inv_vec` is unused |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
 | `rp.py` | `nmfreq`: ring-polymer normal-mode frequencies | Unused. Gives ωₙ for the `nm` methods in `glefit.spectral` |
 | `units.py` | Unit systems built on `sympy.physics.units` | Unused |

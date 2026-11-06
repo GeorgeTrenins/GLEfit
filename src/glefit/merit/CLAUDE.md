@@ -22,7 +22,7 @@ Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is
 | Config `type` | Class | Fits | Values use | Gradients use |
 | --- | --- | --- | --- | --- |
 | `kernel` | `MemoryKernel` | K on a time grid | `scipy.linalg.expm` | `scipy.linalg.expm_frechet` |
-| `spectrum` | `MemorySpectrum` | Λ on a frequency grid | Eigenvectors of A | Eigenvectors of A |
+| `spectrum` | `MemorySpectrum` | Λ on a frequency grid | Λ(ω) = Re θᵀ(A + iω)⁻¹θ, one complex solve per ω | The same solves, with A and Aᵀ |
 
 - `properties.py` holds these two classes.
 - `_base.py` holds the base classes: `BaseProperty`, with its child `BaseArrayProperty`, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
@@ -58,17 +58,15 @@ merit_function:
 
 ## Known gaps
 
-Checked at commit `85e5b71`. Everything under Wrong results and Surprising limits was reproduced by running the code.
-
-### Wrong results
-
-- **`MemorySpectrum` at repeated eigenvalues that cannot be diagonalized.** This happens in `gen2x2` at critical damping Ω = γ for every φ, because its maximal gauge then has A = γ[[2, 1], [−1, 0]]. The value was wrong by 0.28 at γ² − Ω² = 0, and by 2e-11 at γ² − Ω² = 1e-12. Ordinary repeated eigenvalues, such as two identical components, are fine. `MemoryKernel` is not affected. Solving (A² + ω²)y = θ at each frequency instead gave the correct value.
+Checked at commit `85e5b71`. Everything under Surprising limits was reproduced by running the code.
 
 ### Surprising limits
 
+- **`MemorySpectrum` raises `ValueError` where A + iω is singular.** Λ is not defined there. This happens with ω = 0 in the grid when A is singular, as for `gen2x2` at Ω = 0.
+
 - **The distance is a plain sum, while `gtol` is absolute.** The distance grows with the size of the data and with the number of grid points. With targets 1000 times smaller and `gtol=1e-4`, a fit stopped at step 0 with 50% error, and it counts as converged. Doubling the grid doubles the distance and gradient. Dense parts of a non-uniform grid count for more unless `weight` corrects for it.
 - **The Hessian's finite-difference step is about 7e-4·max(1, |x|).** Log-mapped parameters are almost unaffected by units, with errors below 3e-6. r, Ω and φ in `gen2x2` have no mapper, so the step is absolute; φ is dimensionless, but r and Ω carry units. Before EMB-20, when α and Γ had no mapper, rates of order 1, 0.1 and 0.01 gave Hessian errors of 5e-9, 5e-5 and 50%. This has not been measured again. Gradients are not affected, and `EF` still converged in one trial with rates of 0.001, taking 11 steps instead of 8. Choosing units that make the rates near 1 avoids this, and so would a step for each parameter, which `jacobian` would first need to accept again.
-- **`all()` is expensive.** It needs 4p + 2 gradient evaluations. With 44 parameters and 400 grid points, one call took about 0.8 s for the spectrum and 13 s for the kernel.
+- **`all()` is expensive.** It needs 4p + 2 gradient evaluations. With 44 parameters and 400 grid points, one call took about 1 s for the spectrum and 13 s for the kernel.
 - **Time grids must not be negative.** `MemoryKernel` uses t as given, while the embedders' closed forms use |t|. At t = -1 they gave -0.69 and -0.25.
 - **Direct Python use is checked late.** Constructors do not compare `target` with `grid`. A wrong length fails at the first evaluation, and a target of length 1 is silently applied to every point. Integer `target` arrays fail at `distance`, and integer `grid` arrays fail at the `MemoryKernel` gradient. The config loaders convert to float and check lengths, so config runs are safe.
 - **Weak config checks.** An unknown `metric` raises `KeyError` instead of `ConfigError`. A scalar dataset passed to `kernel` or `spectrum` fails with an unclear `IndexError`. Unknown keys are ignored, so a misspelled `weight` has no effect. Negative weights are accepted, which gives a negative distance.
@@ -82,7 +80,7 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 ### Test gaps
 
-- `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries.
+- `tests/test_merit/test_properties.py` tests `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries and A that cannot be diagonalized. It also tests the values at `gen2x2` critical damping, and the `ValueError` for singular A at ω = 0.
 - `tests/test_merit/test_distance.py` tests `function`, `distance`, `gradient`, `both`, `hessian` and `all` for the four shipped embedders with non-uniform weights, at the embedder's parameters and at a trial `x`. Values are compared with `DriftMatrixReference`, derivatives with the embedders' closed forms. It does not test `from_dict`, input checks or points where an embedder switches branch.
 - In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
 
@@ -90,7 +88,6 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 
 - The `BaseDeviation` example says the metric returns one summed number. It returns one number per point.
 - `check_value_target` says it checks that dimensions match. It checks each argument separately.
-- `MemorySpectrum` and `_compute_spec_from_A` call Λ the spectral density. Elsewhere, the spectral density is ω·Λ(ω).
 - `BaseProperty` says "automatic differentiation". The chain rule is written by hand.
 - The module docstring and `BaseProperty` mention combined objectives, which do not exist.
 

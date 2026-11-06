@@ -4,7 +4,7 @@
 @File    :   test_properties.py
 @Time    :   2026/11/04 18:30:00
 @Author  :   George Trenins
-@Desc    :   Test the gradients of K(t) and Λ(ω) with respect to the drift matrix
+@Desc    :   Test K(t), Λ(ω) and their gradients w.r.t. the drift matrix
 '''
 
 
@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from glefit.embedding import PronyEmbedder
+from glefit.embedding import PronyEmbedder, TwoAuxEmbedder
 from glefit.merit import MemoryKernel, MemorySpectrum
 
 
@@ -34,11 +34,18 @@ DRIFT_MATRICES = {
     "gen2x2-maximal-gauge": [[0.0, 1.0, 0.8],
                              [-1.0, 3.0, 2.0],
                              [-0.8, -2.0, 0.0]],
+    # γ = δ = Ω = 1: A has the double eigenvalue 1 and no second
+    # eigenvector, so it cannot be diagonalized
+    "gen2x2-critical-damping": [[0.0, 1.0, 0.8],
+                                [-1.0, 2.0, 1.0],
+                                [-0.8, -1.0, 0.0]],
     "general-3-variables": [[0.0, 0.9, -0.4, 0.6],
                             [-0.9, 1.5, 0.3, -0.2],
                             [0.4, -0.6, 1.1, 0.4],
                             [-0.6, 0.5, -0.1, 0.8]],
 }
+PROPERTIES = [(MemoryKernel, "kernel", TIME),
+              (MemorySpectrum, "spectrum", FREQ)]
 
 
 @pytest.fixture
@@ -52,8 +59,7 @@ def unit_directions(size):
 
 
 @pytest.mark.parametrize("Ap", list(DRIFT_MATRICES.values()), ids=list(DRIFT_MATRICES))
-@pytest.mark.parametrize("prop_class, method, grid",
-                         [(MemoryKernel, "kernel", TIME), (MemorySpectrum, "spectrum", FREQ)],
+@pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,
                          ids=["kernel", "spectrum"])
 def test_grad_wrt_A_matches_exact_derivative_for_every_entry_of_Ap(
         prop_class, method, grid, Ap, placeholder_emb, drift_matrix_reference):
@@ -65,3 +71,29 @@ def test_grad_wrt_A_matches_exact_derivative_for_every_entry_of_Ap(
 
     assert_allclose(np.moveaxis(actual, 0, -1).reshape(expected.shape), expected,
                     rtol=RTOL, atol=ATOL)
+
+
+@pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,
+                         ids=["kernel", "spectrum"])
+def test_function_at_critical_damping_matches_drift_matrix_reference(
+        prop_class, method, grid, drift_matrix_reference):
+    # δ = γ is already the maximal gauge, and ζ = γ gives Ω = γ, so the
+    # drift matrix is "gen2x2-critical-damping" above
+    emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 1.0)
+    prop = prop_class(grid, np.zeros_like(grid), emb, "squared")
+    expected, _ = getattr(drift_matrix_reference, method)(emb.A, grid)
+
+    actual = prop.function()
+
+    assert_allclose(actual, expected, rtol=RTOL)
+
+
+@pytest.mark.parametrize("method", ["function", "grad_wrt_A"])
+def test_spectrum_rejects_singular_A_at_zero_frequency(method):
+    # δ = γ and ζ = 0 give Ω = 0 and A = [[2, 0], [0, 0]], so
+    # Λ(0) = θᵀA⁻¹θ does not exist
+    emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 0.0)
+    prop = MemorySpectrum(FREQ, np.zeros_like(FREQ), emb, "squared")
+
+    with pytest.raises(ValueError, match="singular"):
+        getattr(prop, method)()
