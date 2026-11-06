@@ -25,7 +25,7 @@ Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is
 | `spectrum` | `MemorySpectrum` | Λ on a frequency grid | Eigenvectors of A | Eigenvectors of A |
 
 - `properties.py` holds these two classes.
-- `_base.py` holds the base classes: `BaseProperty`, with its children `BaseArrayProperty` and `BaseScalarProperty`, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
+- `_base.py` holds the base classes: `BaseProperty`, with its child `BaseArrayProperty`, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
 - `__init__.py` holds `PROPERTY_MAP`, which links each config `type` to its class.
 
 ```python
@@ -63,10 +63,6 @@ Checked at commit `85e5b71`. Everything under Wrong results and Surprising limit
 ### Wrong results
 
 - **`MemorySpectrum` at repeated eigenvalues that cannot be diagonalized.** This happens in `gen2x2` at critical damping Ω = γ for every φ, because its maximal gauge then has A = γ[[2, 1], [−1, 0]]. The value was wrong by 0.28 at γ² − Ω² = 0, and by 2e-11 at γ² − Ω² = 1e-12. Ordinary repeated eigenvalues, such as two identical components, are fine. `MemoryKernel` is not affected. Solving (A² + ω²)y = θ at each frequency instead gave the correct value.
-- **`BaseScalarProperty.gradient(x)` uses the wrong point.** It calls `self.value`, which ignores `x`, so it returned 3.54 where the true value was 11.46. Use `self.function(x=x)`. `both(x)` and `all(x)` are correct.
-- **`BaseScalarProperty.from_dict` always raises `TypeError`.** It calls `parameters.get("weight", default=1.0)`, and `dict.get` takes no keyword arguments.
-
-No scalar property exists yet, so the last two cannot be reached today.
 
 ### Surprising limits
 
@@ -80,7 +76,6 @@ No scalar property exists yet, so the last two cannot be reached today.
 ### Missing features
 
 - `squared` is the only metric.
-- `BaseScalarProperty` has no concrete subclass.
 - There are no combined objectives, such as fitting K and Λ together. Docstrings mention them, but the config accepts one `merit_function`.
 - Per-point weights cannot be read from a data file, as `TODO.md` notes. They must be listed in the config.
 - There is no analytic Hessian.
@@ -88,7 +83,6 @@ No scalar property exists yet, so the last two cannot be reached today.
 ### Test gaps
 
 - `tests/test_merit/test_properties.py` tests only `grad_wrt_A`, entry by entry against `DriftMatrixReference`, including non-symmetric A with several θ entries.
-- `legacy_tests/test_merit/test_properties.py` has no direct tests of `distance`, `both`, `all`, `hessian`, `weight`, `from_dict`, or anything scalar. `legacy_tests/test_optimize` reaches `all()`, but only checks that runs finish. A one-off check found the array versions correct and consistent, including with per-point weights.
 - In `legacy_tests`, `gen2x2` appears only in spectrum tests, at one ordinary point.
 
 ### Outdated text in the code
@@ -98,7 +92,6 @@ No scalar property exists yet, so the last two cannot be reached today.
 - `MemorySpectrum` and `_compute_spec_from_A` call Λ the spectral density. Elsewhere, the spectral density is ω·Λ(ω).
 - `BaseProperty` says "automatic differentiation". The chain rule is written by hand.
 - The module docstring and `BaseProperty` mention combined objectives, which do not exist.
-- `BaseArrayProperty.from_dict` is annotated as returning `BaseScalarProperty`.
 
 ## Adding features
 
@@ -112,7 +105,6 @@ No scalar property exists yet, so the last two cannot be reached today.
 ### Other changes
 
 - **New metric:** subclass `BaseDeviation`, implement `__call__`, `gradient` and `hessian` point by point, and add it to `METRICS`.
-- **New scalar property:** fix the two `BaseScalarProperty` bugs first, then subclass it. `function` must return a float, because 0-dimensional arrays fail the input checks.
 - **Combined objective:** add a `BaseProperty` that sums weighted parts. Optimizers need only `all()`, but `ConfigHandler` and `optimize.py` assume a single `merit_function`.
 - **Weights from a data file:** change `config/data_io.py`, and also `from_dict`, which unpacks each dataset as `(grid, target)`.
 - **Analytic Hessian:** override `gradhess_wrt_params`.

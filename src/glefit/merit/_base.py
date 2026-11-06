@@ -211,9 +211,9 @@ METRICS = {
 class BaseProperty(ABC):
     """Abstract base class for GLE properties.
     
-    A property is a physical quantity computed from the extended system's drift matrix A.
-    This can be a scalar (e.g., a single kernel value) or an array (e.g., kernel over 
-    a time grid or spectrum over a frequency grid).
+    A property is a physical quantity computed from the extended system's 
+    drift matrix A. It is evaluated on a grid, such as the kernel 
+    on a time grid or the spectrum on a frequency grid.
     
     Properties support automatic differentiation via the chain rule:
         ∂property/∂x = ∂property/∂A · ∂A/∂x
@@ -286,8 +286,7 @@ class BaseProperty(ABC):
     def distance(self) -> float:
         """Weighted distance of current property value from target.
         
-        For scalar properties: distance = weight * deviation(value, target)
-        For array properties: distance = sum(weights * deviation(values, targets))
+        distance = sum(weights * deviation(values, targets))
         """
         raise NotImplementedError
 
@@ -299,8 +298,7 @@ class BaseProperty(ABC):
             A: Full drift matrix of shape (n+1, n+1). If None, uses current embedding.
             
         Returns:
-            Gradient array. For scalar property: shape (n+1, n+1).
-            For array property of length m: shape (m, n+1, n+1).
+            Gradient array of shape (m, n+1, n+1), for m grid points.
         """
         raise NotImplementedError
 
@@ -314,8 +312,8 @@ class BaseProperty(ABC):
             x: Transformed parameters. If None, uses current values.
             
         Returns:
-            Gradient array. For scalar property: shape (p,).
-            For array property of length m: shape (p, m), where p = number of parameters.
+            Gradient array of shape (p, m), for p parameters and m grid
+            points.
         """
         emb = self.emb
         if x is None:
@@ -368,10 +366,8 @@ class BaseProperty(ABC):
             x: Transformed parameters. If None, uses current values.
             
         Returns:
-            Tuple of (gradient, hessian) with shapes:
-            - gradient: (p,) or (p, m) for array properties
-            - hessian: (p, p) or (p, p, m) for array properties
-            where p = number of parameters, m = property array length
+            Tuple of (gradient, hessian) with shapes (p, m) and (p, p, m),
+            for p parameters and m grid points.
         """
         raise NotImplementedError
     
@@ -404,172 +400,6 @@ class BaseProperty(ABC):
         raise NotImplementedError
 
 
-class BaseScalarProperty(BaseProperty):
-    """Base class for scalar-valued GLE properties.
-    
-    Scalar properties evaluate to a single value (e.g., memory kernel at t=0).
-    
-    Example:
-        A property that fits K(t=0.5) to a target value.
-    """
-
-    @classmethod
-    def from_dict(
-        cls,
-        parameters: dict,
-        data: dict,
-        embedder: BaseEmbedder
-    ) -> "BaseScalarProperty":
-        
-        try:
-            data_reference: str = parameters["data"]
-        except KeyError:
-            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'data' that should reference the numerical data used to construct the objective.")
-        try:
-            _, target = data[data_reference]
-        except KeyError:
-            raise ConfigError(f"The data reference {data_reference} for the objective function of type {cls.__name__} is invalid.")
-        try:
-            metric: str = parameters["metric"]
-        except KeyError:
-            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'metric' that determines how to quantify the deviation of the embedder from target.")
-        weight = parameters.get("weight", default=1.0)
-        return cls(target, embedder, metric, weight=weight)
-
-    def _set_weight(self, weight: ScalarArr) -> None:
-        """Validate and set scalar weight."""
-        if np.ndim(weight) != 0:
-            raise ValueError(f"Weight should be a scalar, instead got ndim = {np.ndim(weight)}")
-        self.weight = float(weight)
-    
-    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> float:
-        """Compute the scalar property value.
-        
-        Args:
-            x: Transformed parameters. If None, uses current embedding.
-            
-        Returns:
-            Scalar value of the property
-        """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement a property function")
-    
-    @property
-    def distance(self) -> float:
-        """Weighted distance from target."""
-        return self.weight * self.deviation_metric(self.value, self.target)
-    
-    def gradient(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Gradient of weighted distance to target w.r.t. parameters.
-        
-        Computes: weight · (∂d/∂property) · (∂property/∂x)
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Gradient vector of shape (p,)
-        """
-        # Derivative of distance metric w.r.t. property
-        grad_deviation_h: float = self.deviation_metric.gradient(self.value, self.target)
-        grad_deviation_h *= self.weight
-        # Gradient of the property w.r.t. optimizable parameters
-        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
-        # Chain rule
-        return grad_deviation_h * grad_h_params
-    
-    def both(self, x: Optional[npt.NDArray[np.floating]] = None) -> tuple[float, npt.NDArray[np.floating]]:
-        """Distance and gradient in one call.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (distance, gradient)
-        """
-        deviation, grad_deviation_h = self.deviation_metric.both(self.function(x=x), self.target)
-        deviation *= self.weight
-        grad_deviation_h *= self.weight
-        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
-        grad = grad_deviation_h * grad_h_params
-        return deviation, grad
-    
-    def gradhess_wrt_params(
-            self, 
-            x: Optional[npt.NDArray[np.floating]] = None
-    ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Gradient and numerical Hessian of property w.r.t. parameters.
-        
-        Hessian computed via 4th-order finite differences of gradient.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (gradient, hessian) with shapes (p,) and (p, p)
-        """
-        emb = self.emb
-        if x is None:
-            x = emb.x
-        grad = self.grad_wrt_params(x=x)
-        
-        # Compute Hessian via finite differences
-        def fun(v):
-            return self.grad_wrt_params(x=v)
-        
-        hess = jacobian(fun, x, order=4)
-        # Symmetrize
-        hess += hess.T
-        hess /= 2
-        return grad, hess
-    
-    def hessian(
-            self, 
-            x: Optional[npt.NDArray[np.floating]] = None
-    ) -> npt.NDArray[np.floating]:
-        """Hessian of weighted distance to target w.r.t. parameters.
-        
-        Uses Hessian of property and distance metric derivatives.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Hessian matrix of shape (p, p)
-        """
-        _, grad_deviation_h, hess_deviation_h = self.deviation_metric.all(self.function(x=x), self.target)
-        grad_deviation_h *= self.weight
-        hess_deviation_h *= self.weight
-        
-        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
-        ans = hess_deviation_h * grad_h_params[:,None] * grad_h_params[None,:]
-        ans += grad_deviation_h * hess_h_params
-        return ans
-
-    def all(
-            self, 
-            x: Optional[npt.NDArray[np.floating]] = None
-    ) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Distance, gradient, and Hessian in one call.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (distance, gradient, hessian)
-        """
-        deviation, grad_deviation_h, hess_deviation_h = self.deviation_metric.all(
-            self.function(x=x), self.target)
-        deviation *= self.weight
-        grad_deviation_h *= self.weight
-        hess_deviation_h *= self.weight
-        
-        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
-        hess = hess_deviation_h * grad_h_params[:,None] * grad_h_params[None,:]
-        hess += grad_deviation_h * hess_h_params
-        grad = grad_deviation_h * grad_h_params
-        return deviation, grad, hess
-
-    
 class BaseArrayProperty(BaseProperty):
     """Base class for array-valued GLE properties.
     
@@ -607,7 +437,7 @@ class BaseArrayProperty(BaseProperty):
         parameters: dict,
         data: dict,
         embedder: BaseEmbedder
-    ) -> "BaseScalarProperty":
+    ) -> "BaseArrayProperty":
         
         try:
             data_reference: str = parameters["data"]
