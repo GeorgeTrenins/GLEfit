@@ -21,7 +21,7 @@ A generator fails with the unclear `ValueError: need at least one array to conca
 A full Ap cannot be loaded back into an embedder.
 
 **EMB-19 · open · Annotations say `NDArray` where lists are accepted.**
-The inputs themselves are inconsistent: `_forward_map`, `grad_param_to_x`, `hess_param_to_x`, `drift_matrix_param_grad` and `drift_matrix_x_grad` accept lists for every embedder, and so does every method of gen2x2, but `to_primitive` and `to_conventional` of `prony`, `pronycos` and `multi`, and `prony.compute_drift_matrix`, raise `AttributeError`. Left for the structural simplification of `_base.py` and `multi.py` (maintainer, 2026-11-05). The other docstring and message corrections are in `557a9f3`.
+Every method that takes parameters accepts lists: `to_primitive`, `to_conventional` and `prony.compute_drift_matrix`, which raised `AttributeError`, convert their input since the structural simplification. The annotations still say `NDArray`. The other docstring and message corrections are in `557a9f3`.
 
 **EMB-21 · open · gen2x2 `from_matrix` rejects some admissible kernels.**
 It rejects any 2×2 block A whose symmetric part is indefinite, even when the kernel is admissible (bounded, with J ≥ 0) and the maximal gauge would represent it, for example θ = (1, 1)/√2 with A = [[2, 3], [−3, −0.1]]. On 2026-11-05 the maintainer decided to keep rejecting such input. Low priority.

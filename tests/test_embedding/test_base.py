@@ -4,7 +4,7 @@
 @File    :   test_base.py
 @Time    :   2026/11/03 12:00:00
 @Author  :   George Trenins
-@Desc    :   Test the parameter handling and derivative dispatch of BaseEmbedder, through PronyEmbedder
+@Desc    :   Test the parameter handling and derivative dispatch of BaseEmbedder, mostly through PronyEmbedder
 '''
 
 
@@ -13,7 +13,8 @@ import numpy as np
 import pytest
 import sympy as sp
 from numpy.testing import assert_allclose, assert_array_equal
-from glefit.embedding import PronyEmbedder
+from glefit.embedding import (MultiEmbedder, PronyCosineEmbedder,
+                              PronyEmbedder, TwoAuxEmbedder)
 from glefit.mappers import IdentityMapper, LowerBoundMapper
 
 
@@ -176,3 +177,30 @@ def test_scalar_grid_point_keeps_a_length_one_grid_axis(emb, method, nu, shape):
 def test_spectral_density_is_frequency_times_spectrum(emb):
     # Λ(2) = θ²γ / (γ² + 4) = 2 / 4.25
     assert_allclose(emb.spectral_density(2.0), [2.0 * 2.0 / 4.25], rtol=RTOL)
+
+
+EMBEDDERS = {
+    "prony": lambda: PronyEmbedder(THETA, GAMMA),
+    "pronycos": lambda: PronyCosineEmbedder(0.9, 0.7, 2.1),
+    "gen2x2": lambda: TwoAuxEmbedder([1.0, 2.0], 1.5, 0.25, 3.0),
+    "multi": lambda: MultiEmbedder([
+        PronyEmbedder(0.5, 2.0),
+        TwoAuxEmbedder([1.0, -0.5], 1.0, 0.2, 0.7)]),
+}
+
+
+@pytest.mark.parametrize("method, argument", [
+    ("to_primitive", "conventional_params"),
+    ("to_conventional", "primitive_params"),
+    ("compute_drift_matrix", "primitive_params"),
+], ids=["to_primitive", "to_conventional", "compute_drift_matrix"])
+@pytest.mark.parametrize("make", list(EMBEDDERS.values()),
+                         ids=list(EMBEDDERS))
+def test_list_input_gives_the_same_result_as_an_array(make, method, argument):
+    emb = make()
+    values = getattr(emb, argument)
+    expected = getattr(emb, method)(values)
+
+    actual = getattr(emb, method)(values.tolist())
+
+    assert_array_equal(actual, expected)

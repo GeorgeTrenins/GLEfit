@@ -20,7 +20,7 @@ Agreed with the maintainer on 2026-11-03/05. `CODING_ASSIGNMENT.md` and `tests/C
 - `numderiv` is reviewed and fixed, from `67412e2`: only `jacobian(f, x, *, order)` is left, tested in `tests/test_utils/test_numderiv.py`.
 - `glefit.merit` is revised, from `bcad8d3`: `BaseScalarProperty` removed, merit functions tested in `tests/test_merit/test_distance.py`, `MemorySpectrum` fixed where A cannot be diagonalized, Ω of gen2x2 log-mapped, and docstrings corrected.
   - On 2026-11-06 the maintainer reversed the 2026-11-05 decision to constrain only γ, after the fit experiment was re-run with the shipped embedder. Log-mapping Ω makes fits independent of the time unit and kept all 60 spectrum fits away from the two bad points described in `ISSUES.md`, but does not remove them. The scripts are `05_notebooks/gen2x2_note_verification/exp_*.py`.
-- `tests/test_embedding/` has 334 tests and runs in about 3 s:
+- `tests/test_embedding/` has 355 tests and runs in about 3 s:
   `PYTHONPATH=src conda run -n tools python -m pytest tests/test_embedding`
 - `tests/test_embedding/conftest.py` provides `SympyReference` (K, Λ and their derivatives from SymPy expressions, evaluated at 30 digits). `tests/conftest.py` provides `DriftMatrixReference` (K, Λ and exact directional derivatives from a numerical drift matrix, via mpmath block matrices [[X, dX], [0, X]]).
 - `legacy_tests/`: 73 pass, 51 fail and 3 files fail to import, all known; the root `CLAUDE.md` lists why.

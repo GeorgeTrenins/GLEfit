@@ -73,6 +73,7 @@ class MultiEmbedder(BaseEmbedder):
     ) -> npt.NDArray[np.floating]:
         """Convert the 'conventional' embedding parameters to the primitive parameter set that removes the embedding degenracy
         """
+        conventional_params = np.asarray(conventional_params, dtype=float)
         if conventional_params.shape != (self.nparam,):
            raise ValueError(f"The conventional parameters must be supplied as a length-{self.nparam} vector, instead got {conventional_params.shape = }")
         return np.concatenate([
@@ -85,6 +86,7 @@ class MultiEmbedder(BaseEmbedder):
     ) -> npt.NDArray[np.floating]:
         """Convert non-degenerate embedding parameters to conventional embedding variables
         """
+        primitive_params = np.asarray(primitive_params, dtype=float)
         if primitive_params.shape != (self.ndof,):
            raise ValueError(f"The non-degenerate parameters must be supplied as a length-{self.ndof} vector, instead got {primitive_params.shape = }")
         return np.concatenate([
