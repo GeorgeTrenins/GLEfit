@@ -38,6 +38,18 @@ Open issues are listed in `ISSUES.md`.
 
 `test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory, so run `legacy_tests` from a scratch directory: `PYTHONPATH=<repo>/src python -m pytest --continue-on-collection-errors <repo>/legacy_tests`.
 
+## Working rules 
+
+- Never commit. Propose one commit per concern: a pure refactor, or a fix that starts with a failing test. Messages are short: `type(module): subject`, at most 3 sentences of rationale, then `Parts of the code generated with <LLM>`.
+- Before a new test file or a fix, send a short plan and wait for approval.
+- In code, comments and test names, keep lines to 80 characters, and do not cite `docs/` or equation numbers.
+- The maintainer edits files between steps. Re-read a file before editing it.
+- Python runs in the `tools` conda env with `PYTHONPATH=src`. `conda run` does not forward stdin, so put scripts in the scratchpad instead of heredocs, and write input to a file instead of piping it: a pipe into `conda run python` reads nothing and fails silently.
+- Run `legacy_tests` from the scratchpad directory, with `--continue-on-collection-errors`.
+- Show that new tests can fail: copy `src/` to the scratchpad, apply one plausible bug at a time, run the suite against the copy (`PYTHONPATH=<copy>/src`) with a timeout per run, and report any bug that is missed and whether it is equivalent. Also run each new test alone, and the suite in random order with a few seeds (`--randomly-seed=N`; `-p no:randomly` turns `pytest-randomly` off). Nothing may be installed.
+- A bug can vanish at a lucky test point. Scan a few values before choosing a test case.
+- Leave `tutorials/` alone for now.
+
 ## Architecture
 
 ### Config-driven pipeline
@@ -65,10 +77,10 @@ Every fitted quantity derives from the (n+1)×(n+1) matrix `Ap = [[0, θᵀ], [-
 
 Conventional and primitive parameters differ only for `TwoAuxEmbedder`, which maps `[θ₁, θ₂, γ, δ, ζ]` to `[r, γ, Ω, φ]` to remove the embedding degeneracy. Every real r, Ω and φ with γ > 0 gives a valid embedding, but Ω is log-mapped as well as γ, which keeps fits away from Ω = 0 and makes them independent of the time unit. It builds the drift matrix in the maximal gauge δ = γ, and `propagation_matrix()` returns the minimal gauge, which is better suited to simulations. The `conventional_params`, `primitive_params` and `x` setters keep the spaces in sync, so always go through them.
 
-### Two independent derivative paths
+### Two independent ways of computing objective function derivatives
 
 - **Derivatives via chain rule w.r.t. drift matrix:** `BaseProperty.grad_wrt_params` contracts the analytic `grad_wrt_A` with `emb.drift_matrix_x_grad`. The Hessian is a 4th-order finite difference of that gradient (`gradhess_wrt_params`), not an analytic expression.
-- **Closed-form path:** `kernel_*` and `spectrum_*` on each embedder, exposed through `kernel()`, `spectrum()` and `spectral_density()`. The optimizers and merit functions never call these.
+- **Closed-form:** `kernel_*` and `spectrum_*` on each embedder, exposed through `kernel()`, `spectrum()` and `spectral_density()`. The optimizers and merit functions never call these.
 
 Fits therefore depend only on `compute_drift_matrix` and `drift_matrix_param_grad`. A bug on one path does not show up on the other.
 
