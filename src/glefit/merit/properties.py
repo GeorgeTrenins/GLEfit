@@ -9,7 +9,7 @@
 
 
 from __future__ import print_function, division, absolute_import
-from ._base import BaseArrayProperty
+from ._base import BaseProperty
 from scipy.linalg import expm_frechet, expm
 from typing import Union
 import numpy as np
@@ -17,7 +17,7 @@ import numpy.typing as npt
 from typing import Optional
 
 
-class MemoryKernel(BaseArrayProperty):
+class MemoryKernel(BaseProperty):
     """Memory friction kernel K(t) = θᵀ exp(-tA) θ
     where θ is the coupling vector and A is the auxiliary variable drift matrix.
     
@@ -129,7 +129,7 @@ class MemoryKernel(BaseArrayProperty):
         return ans
 
 
-class MemorySpectrum(BaseArrayProperty):
+class MemorySpectrum(BaseProperty):
     """Spectrum Λ(ω) = θᵀA(A² + ω²)⁻¹θ, the cosine transform of K(t). The
     spectral density is ω·Λ(ω).
 

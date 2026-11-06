@@ -25,7 +25,7 @@ Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is
 | `spectrum` | `MemorySpectrum` | Λ on a frequency grid | Λ(ω) = Re θᵀ(A + iω)⁻¹θ, one complex solve per ω | The same solves, with A and Aᵀ |
 
 - `properties.py` holds these two classes.
-- `_base.py` holds the base classes: `BaseProperty`, with its child `BaseArrayProperty`, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
+- `_base.py` holds the base classes: `BaseProperty`, which both properties subclass, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
 - `__init__.py` holds `PROPERTY_MAP`, which links each config `type` to its class.
 
 ```python
@@ -51,7 +51,7 @@ merit_function:
 - **The `x` argument:** `x=None` means the embedder's current parameters. Passing `x` evaluates at trial values and leaves the embedder unchanged. `distance` and `value` take no argument, so they always use current parameters.
 - **The name `A`:** the `A` argument of `grad_wrt_A` is the full matrix `Ap`. In local variables, and in `_grad_thetaT_expA_theta`, `A` is the n×n block.
 - **What this module needs from an embedder:** `A`, `x`, `compute_drift_matrix`, `_inverse_map` and `drift_matrix_x_grad`. It never calls the embedder's closed-form `kernel()` or `spectrum()`.
-- **Constructors:** `BaseArrayProperty.__init__` sets `_grid` before calling `super().__init__`, because `_set_weight` needs the grid.
+- **Constructors:** `BaseProperty.__init__` sets `_grid` before calling `_set_weight`, which needs the grid.
 - **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point. `__init_subclass__` adds input checks to subclass methods automatically.
 - **Outside use:** the optimizers call only `all()`. `analysis/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
@@ -68,13 +68,13 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 - **The Hessian's finite-difference step is about 7e-4·max(1, |x|).** It is absolute in unmapped parameters, so their units matter. All rates are log-mapped, so changing the time unit by 1e-3 to 1e2 left the Hessian error of a `gen2x2` fit below 4e-9. r and φ of `gen2x2` have no mapper, but φ is dimensionless and K and Λ are quadratic in r, where the stencil is exact. With Ω unmapped, as before the default mapper changed, the error was O(1) at a time unit of 1e-3, and only 2 or 3 of 10 spectrum fits succeeded, depending on rounding.
 - **`all()` is expensive.** It needs 4p + 2 gradient evaluations. With 44 parameters and 400 grid points, one call took about 1 s for the spectrum and 13 s for the kernel.
 - **Time grids must not be negative.** `MemoryKernel` uses t as given, while the embedders' closed forms use |t|. At t = -1 they gave -0.69 and -0.25.
-- **Direct Python use is checked late.** Constructors do not compare `target` with `grid`. A wrong length fails at the first evaluation, and a target of length 1 is silently applied to every point. Integer `target` arrays fail at `distance`, and integer `grid` arrays fail at the `MemoryKernel` gradient. The config loaders convert to float and check lengths, so config runs are safe.
+- **Direct Python use is checked late.** Constructors ignore extra positional and keyword arguments, and do not compare `target` with `grid`. A wrong length fails at the first evaluation, and a target of length 1 is silently applied to every point. Integer `target` arrays fail at `distance`, and integer `grid` arrays fail at the `MemoryKernel` gradient. The config loaders convert to float and check lengths, so config runs are safe.
 - **Weak config checks.** An unknown `metric` raises `KeyError` instead of `ConfigError`. A scalar dataset passed to `kernel` or `spectrum` fails with an unclear `IndexError`. Unknown keys are ignored, so a misspelled `weight` has no effect. Negative weights are accepted, which gives a negative distance.
 
 ### Missing features
 
 - `squared` is the only metric.
-- There are no combined objectives, such as fitting K and Λ together. Docstrings mention them, but the config accepts one `merit_function`.
+- There are no combined objectives, such as fitting K and Λ together. The config accepts one `merit_function`.
 - Per-point weights cannot be read from a data file, as `TODO.md` notes. They must be listed in the config.
 - There is no analytic Hessian.
 
@@ -88,7 +88,7 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 
 ### A new property on a grid
 
-1. Subclass `BaseArrayProperty` in `properties.py`.
+1. Subclass `BaseProperty` in `properties.py`.
 2. Implement `function(x=None)`. For a trial `x`, build the matrix with `emb.compute_drift_matrix(emb._inverse_map(x))`.
 3. Implement `grad_wrt_A(A=None)`. Differentiate θᵀ in row 0 and θ in the negated column 0 of `Ap` separately, as the existing properties do. The two differ unless A is symmetric.
 4. Import the class in `__init__.py` and add it to `PROPERTY_MAP`. No other registration is needed: the config validator checks only `type` and `parameters`.
@@ -96,7 +96,7 @@ Checked at commit `85e5b71`. Everything under Surprising limits was reproduced b
 ### Other changes
 
 - **New metric:** subclass `BaseDeviation`, implement `__call__`, `gradient` and `hessian` point by point, and add it to `METRICS`.
-- **Combined objective:** add a `BaseProperty` that sums weighted parts. Optimizers need only `all()`, but `ConfigHandler` and `optimize.py` assume a single `merit_function`.
+- **Combined objective:** add a class that sums the distances of weighted `BaseProperty` objects. Optimizers need only `all()`, but `ConfigHandler` and `optimize.py` assume a single `merit_function`.
 - **Weights from a data file:** change `config/data_io.py`, and also `from_dict`, which unpacks each dataset as `(grid, target)`.
 - **Analytic Hessian:** override `gradhess_wrt_params`.
 

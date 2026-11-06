@@ -222,7 +222,8 @@ class BaseProperty(ABC):
     where x are the transformed parameters (with constraints imposed via mappers).
 
     Args:
-        target: Target value(s) for this property
+        grid: Grid points (time or frequency) where the property is evaluated
+        target: Target values at each grid point
         emb: GLE embedding providing the drift matrix A
         metric: Name of deviation metric to use (e.g., "squared")
         weight: Weight of each grid point in the distance: one number for
@@ -235,63 +236,26 @@ class BaseProperty(ABC):
     """
     
     def __init__(
-            self, 
-            target: ScalarArr,
+            self,
+            grid: npt.NDArray[np.floating],
+            target: npt.NDArray[np.floating],
             emb: BaseEmbedder,
             metric: str,
             weight: Optional[ScalarArr] = 1.0,
             *args, **kwargs
     ) -> None:
+        # _set_weight needs the grid
+        self._grid = np.copy(grid)
         self._target = target
         self.emb = emb
         self._set_weight(weight)
         self.deviation_metric: BaseDeviation = METRICS[metric]()
 
-    @classmethod
-    @abstractmethod
-    def from_dict(
-        cls,
-        parameters: dict,
-        data: dict,
-        embedder: BaseEmbedder
-    ) -> "BaseProperty":
-        pass
-
-
-    def _set_weight(self, weight: ScalarArr) -> None:
-        """Set and validate weight factor(s).
-        """
-        raise NotImplementedError
-    
-    @property
-    def target(self) -> ScalarArr:
-        """Target value(s) for this property."""
-        return self._target
-    
-    def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> ScalarArr:
-        """Compute the property value from GLE parameters.
-        
-        Args:
-            x: Transformed parameters. If None, uses current embedding parameters.
-               
-        Returns:
-            Current value of the property
-        """
-        raise NotImplementedError
-    
     @property
     def value(self) -> ScalarArr:
         """Current value of the property."""
         return self.function()
     
-    @property
-    def distance(self) -> float:
-        """Weighted distance of current property value from target.
-        
-        distance = sum(weights * deviation(values, targets))
-        """
-        raise NotImplementedError
-
     @abstractmethod
     def grad_wrt_A(self, A: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
         """Gradient of property w.r.t. drift matrix A: ∂property/∂A.
@@ -331,115 +295,13 @@ class BaseProperty(ABC):
         ans = np.einsum('...ij,pij->p...', grad_h_A, grad_A_params)
         return ans
     
-    def gradient(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Gradient of weighted distance to target w.r.t. transformed parameters.
-        
-        Uses chain rule: ∂(distance)/∂x = (∂distance/∂property) · (∂property/∂x)
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Gradient array of shape (p,), where p = number of parameters
-        """
-        raise NotImplementedError
-    
-    def both(self, x: Optional[npt.NDArray[np.floating]] = None) -> tuple[float, npt.NDArray[np.floating]]:
-        """Distance and gradient in one call (more efficient).
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (distance, gradient) where gradient has shape (p,)
-        """
-        raise NotImplementedError
-    
-    def gradhess_wrt_params(
-            self, 
-            x: Optional[npt.NDArray[np.floating]] = None
-    ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Gradient and Hessian of property w.r.t. transformed parameters.
-        
-        The Hessian is computed numerically via finite differences (4th order) 
-        of the gradient.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (gradient, hessian) with shapes (p, m) and (p, p, m),
-            for p parameters and m grid points.
-        """
-        raise NotImplementedError
-    
-    def hessian(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Hessian of weighted distance to target w.r.t. transformed parameters.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Hessian matrix of shape (p, p), where p = number of parameters
-        """
-        raise NotImplementedError
-
-    def all(
-            self, 
-            x: Optional[npt.NDArray[np.floating]] = None
-    ) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
-        """Distance, gradient, and Hessian in one call.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Tuple of (distance, gradient, hessian) where:
-            - distance: float
-            - gradient: shape (p,)
-            - hessian: shape (p, p)
-        """
-        raise NotImplementedError
-
-
-class BaseArrayProperty(BaseProperty):
-    """Base class for array-valued GLE properties.
-    
-    Array properties evaluate to multiple values over a grid (e.g., memory kernel K(t)
-    at multiple times, or spectrum Λ(ω) at multiple frequencies).
-    
-    Distance is computed as a weighted sum over the deviation at each grid points.
-    
-    Example:
-        A property that fits K(t₁), K(t₂), ..., K(tₙ) to target values.
-    
-    Args:
-        grid: Grid points (time or frequency) where property is evaluated
-        target: Target values at each grid point
-        emb: GLE embedding
-        metric: Deviation metric name
-        weight: Scalar or 1D array of weights for each grid point
-    """
-    
-    def __init__(
-            self, 
-            grid: npt.NDArray[np.floating],
-            target: npt.NDArray[np.floating],
-            emb: BaseEmbedder,
-            metric: str,
-            weight: Optional[ScalarArr] = 1.0,
-            *args, **kwargs):
-        
-        self._grid = np.copy(grid)
-        super().__init__(target, emb, metric, weight, *args, **kwargs)
-
     @classmethod
     def from_dict(
         cls,
         parameters: dict,
         data: dict,
         embedder: BaseEmbedder
-    ) -> "BaseArrayProperty":
+    ) -> "BaseProperty":
         
         try:
             data_reference: str = parameters["data"]
