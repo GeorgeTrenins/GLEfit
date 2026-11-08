@@ -27,7 +27,7 @@ Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is
 | `spectrum` | `MemorySpectrum` | Λ on a frequency grid | Λ(ω) = Re θᵀ(A + iω)⁻¹θ, one complex solve per ω | The same solves, with A and Aᵀ |
 
 - `properties.py` holds these two classes.
-- `_base.py` holds the base classes: `BaseProperty`, which both properties subclass, and `BaseDeviation`, with its child `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
+- `_base.py` holds `BaseProperty`, which both properties subclass, and the deviation `SquaredDeviation`. It also holds `METRICS`, which links each metric name to its class.
 - `__init__.py` holds `PROPERTY_MAP`, which links each config `type` to its class.
 
 ```python
@@ -55,7 +55,7 @@ merit_function:
 - **What this module needs from an embedder:** `A`, `x`, `compute_drift_matrix`, `_inverse_map` and `drift_matrix_x_grad`. It never calls the embedder's closed-form `kernel()` or `spectrum()`.
 - **Constructors:** `BaseProperty.__init__` stores float copies of `grid` and `target`, and raises `ValueError` unless the grid is a non-empty, strictly increasing 1-D array and `target` has its shape. It sets `_grid` before calling `_set_weight`, which needs the grid. `_set_weight` stores a float copy of the weight, and raises `ValueError` unless every entry is finite and non-negative and one at least is positive. `weight=None` gives the default above, which needs `_target` as well as `_grid`, and raises `ValueError` for a target that is zero everywhere. An unknown `metric` also raises `ValueError`.
 - **`from_dict`:** takes only `data`, `metric` and `weight`. It raises `ConfigError` for a missing or unknown entry and for a dataset without a grid, and turns the constructor's `ValueError` into `ConfigError`.
-- **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point.
+- **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point. `BaseProperty` calls `__call__`, `both` and `all`, which `SquaredDeviation` builds from `gradient` and `hessian`.
 - **Outside use:** the optimizers call only `all()`. `analysis/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
@@ -70,7 +70,7 @@ merit_function:
 
 ### Other changes
 
-- **New metric:** subclass `BaseDeviation`, implement `__call__`, `gradient` and `hessian` point by point, and add it to `METRICS`.
+- **New metric:** write a class with the five methods of `SquaredDeviation`, working point by point, and add it to `METRICS`.
 - **Combined objective:** add a class that sums the distances of weighted `BaseProperty` objects. Optimizers need only `all()`, but `ConfigHandler` and `optimize.py` assume a single `merit_function`.
 - **Weights from a data file:** change `config/data_io.py`, and also `from_dict`, which unpacks each dataset as `(grid, target)`.
 - **Analytic Hessian:** override `gradhess_wrt_params`.

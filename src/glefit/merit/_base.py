@@ -23,130 +23,56 @@ from glefit.embedding import BaseEmbedder
 import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
-from typing import Union, TypeVar, Optional
+from typing import Optional
 from glefit.utils.numderiv import jacobian
 from glefit.config.config_handler import ConfigError
 
-# ---- Types ---------------------------------------------------------------
+FloatArray = npt.NDArray[np.floating]
 
-ScalarArr = Union[float, npt.NDArray[np.floating]]  # numpy array of floats
-T = TypeVar("T", bound=ScalarArr)
+# ---- Deviation metrics -----------------------------------------------------
 
-# ---- Base classes ----------------------------------------------------------
-
-class BaseDeviation(ABC):
-    """Abstract base class for deviation metrics.
-    
-    Deviation metrics quantify the discrepancy between a computed value and a target value.
-    They must provide derivatives (gradient, Hessian) for gradient-based optimization.
-    
-    The metric handles both scalar and array inputs, with derivatives computed element-wise.
+class SquaredDeviation:
+    """The squared deviation d = (h - y)² of the property h from the target
+    y, with its first and second derivatives w.r.t. h. Every method works
+    point by point on arrays of shape (m,).
 
     Example:
         >>> metric = SquaredDeviation()
         >>> value = np.array([1.0, 2.0])
         >>> target = np.array([1.5, 1.8])
-        >>> deviation = metric(value, target)  # [0.5**2, 0.2**2], per point
-        >>> grad = metric.gradient(value, target)  # Returns 2*(value - target)
+        >>> deviation = metric(value, target)  # [0.5**2, 0.2**2]
+        >>> grad = metric.gradient(value, target)  # 2*(value - target)
     """
 
-    @abstractmethod
-    def __call__(self, value: ScalarArr, target: ScalarArr, *args, **kwargs) -> ScalarArr:
-        """Deviation between value and target.
-        
-        Args:
-            value: Computed value(s) (float or 1D array)
-            target: Target value(s) (float or 1D array, same shape as value)
-            
-        Returns:
-            Deviation d(value, target), same shape as inputs
-        """
-        raise NotImplementedError
-    
-    @abstractmethod
-    def gradient(self, value: T, target: T) -> T:
-        """Gradient of deviation w.r.t. value: ∂d/∂value.
-        
-        Args:
-            value: Computed value(s) (float or 1D array)
-            target: Target value(s) (float or 1D array)
-            
-        Returns:
-            Gradient array, same shape as inputs
-        """
-        raise NotImplementedError
-
-    def both(self, value: T, target: T) -> tuple[ScalarArr, T]:
-        """Deviation and its gradient in one call (more efficient).
-        
-        Args:
-            value: Computed value(s)
-            target: Target value(s)
-            
-        Returns:
-            Tuple of (deviation, gradient)
-        """
-        return self.__call__(value, target), self.gradient(value, target)
-    
-    @abstractmethod
-    def hessian(self, value: T, target: T) -> T:
-        """Hessian of deviation w.r.t. value: ∂²d/∂value².
-        
-        For array inputs, returns diagonal Hessian (element-wise second derivatives).
-        
-        Args:
-            value: Computed value(s)
-            target: Target value(s)
-            
-        Returns:
-            Hessian array, same shape as inputs
-        """
-        raise NotImplementedError
-    
-    def all(self, value: T, target: T) -> tuple[ScalarArr, T, T]:
-        """Deviation, gradient, and Hessian in one call.
-        
-        Args:
-            value: Computed value(s)
-            target: Target value(s)
-            
-        Returns:
-            Tuple of (deviation, gradient, hessian)
-        """
-        val, grad = self.both(value, target)
-        return val, grad, self.hessian(value, target)
-
-
-class SquaredDeviation(BaseDeviation):
-    """Defined as the squared difference (element-wise for array properties):
-    d = (value - target)².
-    
-    Provides analytical first and second derivatives for efficient optimization.
-    Works element-wise for both scalar and array inputs.
-    """
-
-    def __call__(self, value: T, target: T, *args, **kwargs) -> T:
-        """Compute d = (value - target)²."""
+    def __call__(self, value: FloatArray, target: FloatArray) -> FloatArray:
+        """d = (h - y)²"""
         d = value - target
-        ans = d*d
-        return ans
-        
-    def gradient(self, value: T, target: T) -> T:
-        """Compute ∂d/∂value = 2(value - target)."""
-        d = value - target
-        return 2*d
-    
-    def both(self, value: T, target: T) -> tuple[T, T]:
-        """Compute deviation and gradient simultaneously."""
-        grad = value - target
-        d2 = grad*grad
-        grad *= 2
-        return d2, grad
-    
-    def hessian(self, value: T, target: T) -> T:
-        """Compute the hessian ∂²d/∂value² = 2."""
-        return 2*np.ones_like(value)
-    
+        return d*d
+
+    def gradient(self, value: FloatArray, target: FloatArray) -> FloatArray:
+        """∂d/∂h = 2(h - y)"""
+        return 2*(value - target)
+
+    def hessian(self, value: FloatArray, target: FloatArray) -> FloatArray:
+        """∂²d/∂h² = 2"""
+        return np.full_like(value, 2.0)
+
+    def both(
+            self,
+            value: FloatArray,
+            target: FloatArray
+    ) -> tuple[FloatArray, FloatArray]:
+        """d and ∂d/∂h"""
+        return self(value, target), self.gradient(value, target)
+
+    def all(
+            self,
+            value: FloatArray,
+            target: FloatArray
+    ) -> tuple[FloatArray, FloatArray, FloatArray]:
+        """d, ∂d/∂h and ∂²d/∂h²"""
+        return (*self.both(value, target), self.hessian(value, target))
+
 
 METRICS = {
     "squared" : SquaredDeviation
@@ -184,7 +110,8 @@ class BaseProperty(ABC):
             three are stored as float copies.
 
     Attributes:
-        deviation_metric: Instance of BaseDeviation for measuring errors
+        deviation_metric: The deviation from METRICS, such as
+            SquaredDeviation
         emb: Reference to the embedding
         weight: Weight factor applied to the deviation and its derivatives
     """
@@ -214,14 +141,14 @@ class BaseProperty(ABC):
         self.emb = emb
         self._set_weight(weight)
         try:
-            self.deviation_metric: BaseDeviation = METRICS[metric]()
+            self.deviation_metric: SquaredDeviation = METRICS[metric]()
         except KeyError:
             raise ValueError(
                 f"unknown metric {metric!r}; choose from {list(METRICS)}"
             ) from None
 
     @property
-    def value(self) -> ScalarArr:
+    def value(self) -> FloatArray:
         """Current value of the property."""
         return self.function()
     
@@ -379,7 +306,7 @@ class BaseProperty(ABC):
         raise NotImplementedError(f"{self.__class__.__name__} must implement a property function")
     
     @property
-    def distance(self) -> float:
+    def distance(self) -> np.floating:
         """Weighted sum of element-wise deviations.
         
         Implements: sum(weights * deviation(values, targets))
@@ -396,7 +323,7 @@ class BaseProperty(ABC):
     def both(
             self, 
             x: Optional[npt.NDArray[np.floating]] = None
-        ) -> tuple[float, npt.NDArray[np.floating]]:
+        ) -> tuple[np.floating, npt.NDArray[np.floating]]:
         """Distance and gradient in one call.
         
         Args:
@@ -421,7 +348,7 @@ class BaseProperty(ABC):
     def all(
             self, 
             x: Optional[npt.NDArray[np.floating]] = None
-    ) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
+    ) -> tuple[np.floating, FloatArray, FloatArray]:
         """Distance, gradient, and Hessian in one call.
 
         The Hessian is Σᵢ wᵢ (d''ᵢ ∇hᵢ ∇hᵢᵀ + d'ᵢ ∇²hᵢ), where d'ᵢ and d''ᵢ
