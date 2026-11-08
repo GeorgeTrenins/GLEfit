@@ -266,7 +266,12 @@ class BaseProperty(ABC):
         self._grid, self._target = grid, target
         self.emb = emb
         self._set_weight(weight)
-        self.deviation_metric: BaseDeviation = METRICS[metric]()
+        try:
+            self.deviation_metric: BaseDeviation = METRICS[metric]()
+        except KeyError:
+            raise ValueError(
+                f"unknown metric {metric!r}; choose from {list(METRICS)}"
+            ) from None
 
     @property
     def value(self) -> ScalarArr:
@@ -319,11 +324,30 @@ class BaseProperty(ABC):
         data: dict,
         embedder: BaseEmbedder
     ) -> "BaseProperty":
-        
+        """Instantiate a property from a dictionary.
+
+        Args:
+            parameters (data): the key `data` names a dataset, 
+		`metric` is the name of a valid metric and
+                and `weight` (optional) is a list of weights for every
+		grid point specified by `data`.
+            data: the datasets, as {name: (grid, target)}
+            embedder: the embedder whose drift matrix is fitted
+
+        Raises:
+            ConfigError: for a missing or unknown entry, a dataset without
+                a grid, or any value the constructor rejects
+        """
+        accepted = ("data", "metric", "weight")
+        unexpected = sorted(set(parameters) - set(accepted))
+        if unexpected:
+            raise ConfigError(
+                f"The objective function of type {cls.__name__} got "
+                f"unexpected entries {unexpected}; it takes {list(accepted)}.")
         try:
             data_reference: str = parameters["data"]
         except KeyError:
-            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'data' that should reference the numerical data used to construct the objective.")
+            raise ConfigError(f"The configuration for {cls.__name__} is missing 'data' that references the numerical data used to construct the objective.")
         try:
             grid, target = data[data_reference]
         except KeyError:
@@ -331,9 +355,18 @@ class BaseProperty(ABC):
         try:
             metric: str = parameters["metric"]
         except KeyError:
-            raise ConfigError(f"The configuration for the objective function of type {cls.__name__} is missing the entry 'metric' that determines how to quantify the deviation of the embedder from target.")
+            raise ConfigError(f"The configuration for {cls.__name__} is missing 'metric'.")
+        if grid is None:
+            raise ConfigError(
+                f"The dataset {data_reference} has no grid, which the "
+                f"objective function of type {cls.__name__} needs.")
         weight = parameters.get("weight", 1.0)
-        return cls(grid, target, embedder, metric, weight=weight)
+        try:
+            return cls(grid, target, embedder, metric, weight=weight)
+        except ValueError as e:
+            raise ConfigError(
+                f"The objective function of type {cls.__name__} cannot use "
+                f"the dataset {data_reference}: {e}") from e
 
     def _set_weight(self, weight: Optional[npt.ArrayLike]) -> None:
         """Store a float copy of the weight of each grid point.

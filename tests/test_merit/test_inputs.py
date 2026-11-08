@@ -23,13 +23,27 @@ GRID = np.array([0.0, 0.4, 1.3, 3.0])
 TARGET = np.array([0.3, -0.2, 0.1, 0.05])
 # non-uniform, and a list, as a config file gives it
 WEIGHT = [0.5, 2.0, 1.0, 3.0]
-DATASETS = {"curve": (GRID, TARGET)}
+DATASETS = {
+    "curve": (GRID, TARGET),
+    # the config loader gives a single number without a grid
+    "scalar": (None, 1.0),
+    "unsorted": (np.array([0.0, 1.3, 0.4, 3.0]), TARGET),
+}
 PROPERTIES = {"kernel": MemoryKernel, "spectrum": MemorySpectrum}
 BAD_ENTRIES = {
     "no-data": ({"metric": "squared"}, "'data'"),
     "no-metric": ({"data": "curve"}, "'metric'"),
     "unknown-dataset": ({"data": "nonexistent", "metric": "squared"},
                         "nonexistent"),
+    "unknown-metric": ({"data": "curve", "metric": "absolute"}, "absolute"),
+    "unknown-key": ({"data": "curve", "metric": "squared", "wieght": 2.0},
+                    "wieght"),
+    "dataset-without-grid": ({"data": "scalar", "metric": "squared"},
+                             "no grid"),
+    "negative-weight": ({"data": "curve", "metric": "squared",
+                         "weight": -1.0}, "non-negative"),
+    "unsorted-grid": ({"data": "unsorted", "metric": "squared"},
+                      "strictly increasing"),
 }
 WRONG_SHAPES = {
     "wrong-length": [1.0, 2.0],
@@ -100,6 +114,11 @@ def test_from_dict_default_weight(kind, emb):
 def test_from_dict_bad_entry_raises_config_error(parameters, message, emb):
     with pytest.raises(ConfigError, match=message):
         MemoryKernel.from_dict(parameters, DATASETS, emb)
+
+
+def test_unknown_metric_raises_value_error(emb):
+    with pytest.raises(ValueError, match="absolute"):
+        MemoryKernel(GRID, TARGET, emb, "absolute")
 
 
 def test_scalar_weight_scales_every_deviation(kind, emb):
