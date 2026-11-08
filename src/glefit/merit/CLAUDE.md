@@ -82,7 +82,7 @@ merit_function:
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 ```
 
-`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. Nothing yet tests `from_dict` or the input checks.
+`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. `test_inputs.py` tests that `from_dict` passes on the data and the weights, and the errors for bad entries and badly shaped weights.
 
 A new or changed property or metric should have tests that:
 
