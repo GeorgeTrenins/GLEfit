@@ -246,8 +246,7 @@ class BaseProperty(ABC):
             target: npt.ArrayLike,
             emb: BaseEmbedder,
             metric: str,
-            weight: Optional[ScalarArr] = 1.0,
-            *args, **kwargs
+            weight: Optional[ScalarArr] = 1.0
     ) -> None:
         # copies, so that the caller cannot change them later
         grid = np.array(grid, dtype=float)

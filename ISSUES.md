@@ -52,9 +52,6 @@ Reproduced at `368b598` by running the code.
 
 ### Open
 
-**MER-2 · open · Constructors ignore extra positional and keyword arguments.**
-`BaseProperty.__init__` takes `*args, **kwargs` and never reads them, so a misspelled `wieght=` has no effect.
-
 **MER-3 · open · Weights are not checked.**
 Negative weights give a negative distance, NaN weights a NaN distance, and all-zero weights make the distance and its gradient vanish everywhere. A weight array of length 1 is applied to every point. `weight=None`, which `weight: null` in a config gives, raises an unclear `TypeError`, although the annotation is `Optional`. Agreed fix: raise `ValueError` unless the weight is a number or has one entry per grid point, every entry is finite and non-negative, and at least one is positive.
 
@@ -93,3 +90,4 @@ They must be listed in the config, as `TODO.md` notes.
 ### Resolved
 
 - **MER-1** · `fix(merit): copy and check grid and target in the constructor` · Constructors kept the caller's `target` and checked `grid` and `target` late; they now store float copies, and require a non-empty, strictly increasing 1-D grid and a target of the same shape.
+- **MER-2** · `fix(merit): reject unknown constructor arguments` · `BaseProperty.__init__` ignored extra positional and keyword arguments, such as a misspelled `wieght=`; they now raise `TypeError`.

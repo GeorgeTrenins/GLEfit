@@ -48,6 +48,10 @@ BAD_INPUTS = {
 }
 INT_GRID = np.array([0, 1, 2, 4])
 INT_TARGET = np.array([1, 0, 0, 0])
+EXTRA_ARGUMENTS = {
+    "misspelled-keyword": ((), {"wieght": 2.0}, "wieght"),
+    "extra-positional": ((2.0,), {}, "positional"),
+}
 
 
 @pytest.fixture(params=list(PROPERTIES))
@@ -146,3 +150,11 @@ def test_integer_grid_and_target_are_accepted(kind, emb):
     actual = prop.gradient()
 
     assert_allclose(actual, expected, rtol=RTOL)
+
+
+@pytest.mark.parametrize("args, kwargs, message",
+                         list(EXTRA_ARGUMENTS.values()),
+                         ids=list(EXTRA_ARGUMENTS))
+def test_extra_argument_raises_type_error(args, kwargs, message, emb):
+    with pytest.raises(TypeError, match=message):
+        MemoryKernel(GRID, TARGET, emb, "squared", 1.0, *args, **kwargs)
