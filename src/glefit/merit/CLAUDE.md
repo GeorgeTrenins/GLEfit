@@ -53,7 +53,7 @@ merit_function:
 - **The `x` argument:** `x=None` means the embedder's current parameters. Passing `x` evaluates at trial values and leaves the embedder unchanged. `distance` and `value` take no argument, so they always use current parameters.
 - **The name `A`:** the `A` argument of `grad_wrt_A` is the full matrix `Ap`. In local variables, and in `_grad_thetaT_expA_theta`, `A` is the n×n block.
 - **What this module needs from an embedder:** `A`, `x`, `compute_drift_matrix`, `_inverse_map` and `drift_matrix_x_grad`. It never calls the embedder's closed-form `kernel()` or `spectrum()`.
-- **Constructors:** `BaseProperty.__init__` sets `_grid` before calling `_set_weight`, which needs the grid.
+- **Constructors:** `BaseProperty.__init__` stores float copies of `grid` and `target`, and raises `ValueError` unless the grid is a non-empty, strictly increasing 1-D array and `target` has its shape. It sets `_grid` before calling `_set_weight`, which needs the grid.
 - **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point. `__init_subclass__` adds input checks to subclass methods automatically.
 - **Outside use:** the optimizers call only `all()`. `analysis/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
@@ -82,7 +82,7 @@ merit_function:
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 ```
 
-`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. `test_inputs.py` tests that `from_dict` passes on the data and the weights, and the errors for bad entries and badly shaped weights.
+`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. `test_inputs.py` tests the constructor's checks of `grid` and `target`, that `from_dict` passes on the data and the weights, and the errors for bad entries and badly shaped weights.
 
 A new or changed property or metric should have tests that:
 

@@ -4,7 +4,7 @@
 @File    :   test_inputs.py
 @Time    :   2026/11/08 15:00:00
 @Author  :   George Trenins
-@Desc    :   Test how merit functions are built: from_dict and the weights
+@Desc    :   Test how merit functions are built: inputs, from_dict, weights
 '''
 
 
@@ -36,6 +36,18 @@ WRONG_SHAPES = {
     # broadcasts against the grid, so only the shape check rejects it
     "2-d": np.ones((1, len(GRID))),
 }
+BAD_INPUTS = {
+    "1-point-target-4-point-grid": (GRID, TARGET[:1], "shape of grid"),
+    "target-too-short": (GRID, TARGET[:3], "shape of grid"),
+    "column-target": (GRID, TARGET.reshape(4, 1), "shape of grid"),
+    "2-d": (GRID.reshape(2, 2), TARGET.reshape(2, 2), "non-empty 1-D"),
+    "scalar": (1.0, 0.5, "non-empty 1-D"),
+    "empty": ([], [], "non-empty 1-D"),
+    "unsorted": ([0.0, 1.3, 0.4, 3.0], TARGET, "strictly increasing"),
+    "repeated-point": ([0.0, 0.4, 0.4, 3.0], TARGET, "strictly increasing"),
+}
+INT_GRID = np.array([0, 1, 2, 4])
+INT_TARGET = np.array([1, 0, 0, 0])
 
 
 @pytest.fixture(params=list(PROPERTIES))
@@ -92,3 +104,45 @@ def test_scalar_weight_scales_every_deviation(kind, emb):
 def test_weight_of_wrong_shape_raises_value_error(weight, emb):
     with pytest.raises(ValueError, match="[Ww]eight"):
         MemoryKernel(GRID, TARGET, emb, "squared", weight=weight)
+
+
+# The tests below pass weight=1.0, so that they do not depend on the
+# default weights.
+
+@pytest.mark.parametrize("edited", ["grid", "target"])
+def test_constructor_copies_grid_and_target(edited, emb):
+    inputs = {"grid": GRID.copy(), "target": TARGET.copy()}
+    prop = MemoryKernel(inputs["grid"], inputs["target"], emb, "squared",
+                        weight=1.0)
+    expected = np.sum(squared_deviations(emb, "kernel"))
+
+    inputs[edited][:] = 0.5
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+@pytest.mark.parametrize("grid, target, message", list(BAD_INPUTS.values()),
+                         ids=list(BAD_INPUTS))
+def test_bad_grid_or_target_raises_value_error(grid, target, message, emb):
+    with pytest.raises(ValueError, match=message):
+        MemoryKernel(grid, target, emb, "squared", weight=1.0)
+
+
+def test_one_point_grid_is_accepted(kind, emb):
+    grid, target = GRID[1:2], TARGET[1:2]
+    expected = np.sum((getattr(emb, kind)(grid) - target)**2)
+
+    prop = PROPERTIES[kind](grid, target, emb, "squared", weight=1.0)
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_integer_grid_and_target_are_accepted(kind, emb):
+    f = getattr(emb, kind)
+    h, g = f(INT_GRID), f(INT_GRID, nu=1, mapped=True)
+    expected = 2 * g @ (h - INT_TARGET)
+    prop = PROPERTIES[kind](INT_GRID, INT_TARGET, emb, "squared", weight=1.0)
+
+    actual = prop.gradient()
+
+    assert_allclose(actual, expected, rtol=RTOL)

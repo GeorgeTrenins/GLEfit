@@ -222,13 +222,18 @@ class BaseProperty(ABC):
     where x are the transformed parameters (with constraints imposed via mappers).
 
     Args:
-        grid: Grid points (time or frequency) where the property is evaluated
-        target: Target values at each grid point
+        grid: Grid points (time or frequency) where the property is
+            evaluated, a non-empty and strictly increasing 1-D array
+        target: Target values at each grid point, of the same shape
         emb: GLE embedding providing the drift matrix A
         metric: Name of deviation metric to use (e.g., "squared")
         weight: Weight of each grid point in the distance: one number for
             all points or one per point
-        
+
+    Raises:
+        ValueError: if grid or target breaks the rules above. Both are
+            stored as float copies.
+
     Attributes:
         deviation_metric: Instance of BaseDeviation for measuring errors
         emb: Reference to the embedding
@@ -237,16 +242,27 @@ class BaseProperty(ABC):
     
     def __init__(
             self,
-            grid: npt.NDArray[np.floating],
-            target: npt.NDArray[np.floating],
+            grid: npt.ArrayLike,
+            target: npt.ArrayLike,
             emb: BaseEmbedder,
             metric: str,
             weight: Optional[ScalarArr] = 1.0,
             *args, **kwargs
     ) -> None:
+        # copies, so that the caller cannot change them later
+        grid = np.array(grid, dtype=float)
+        target = np.array(target, dtype=float)
+        if grid.ndim != 1 or grid.size == 0:
+            raise ValueError(
+                f"grid must be a non-empty 1-D array; got shape {grid.shape}")
+        if target.shape != grid.shape:
+            raise ValueError(
+                f"target must have the shape of grid, {grid.shape}; "
+                f"got {target.shape}")
+        if not np.all(np.diff(grid) > 0):
+            raise ValueError("grid must be strictly increasing")
         # _set_weight needs the grid
-        self._grid = np.copy(grid)
-        self._target = target
+        self._grid, self._target = grid, target
         self.emb = emb
         self._set_weight(weight)
         self.deviation_metric: BaseDeviation = METRICS[metric]()

@@ -52,9 +52,6 @@ Reproduced at `368b598` by running the code.
 
 ### Open
 
-**MER-1 · open · Constructors keep the caller's `target` and check `grid` and `target` late.**
-The grid is copied but the target is not, so editing the caller's array afterwards changes the distance (24.3 became 26.6). A target of length 1 is applied to every point, and other wrong lengths fail at the first evaluation. A 2-D frequency grid gives values of the wrong shape without an error. An integer `target` fails at `distance`, and an integer time grid at the `MemoryKernel` gradient. The grid need not be increasing, which the default weights of MER-6 will require. Config runs are safe from the length and dtype problems, because the loaders convert to float and check lengths. Agreed fix: store float copies, and raise `ValueError` unless `grid` and `target` are non-empty, 1-D and of equal length, and the grid is strictly increasing.
-
 **MER-2 · open · Constructors ignore extra positional and keyword arguments.**
 `BaseProperty.__init__` takes `*args, **kwargs` and never reads them, so a misspelled `wieght=` has no effect.
 
@@ -65,7 +62,7 @@ Negative weights give a negative distance, NaN weights a NaN distance, and all-z
 K is even in t, and the embedders' closed forms use |t|. At t = −1, a Prony embedder with θ = 0.8 and γ = 1.3 gave 2.35, against 0.174 from the closed form. `MemorySpectrum` is already even in ω. Agreed fix: evaluate K at |t|.
 
 **MER-5 · open · `from_dict` reports bad entries late or with the wrong error.**
-An unknown `metric` raises `KeyError`. A dataset without a grid fails at the first evaluation with an unclear `IndexError`. Unknown keys are ignored, so a misspelled `weight` has no effect. Weights that the constructor rejects raise `ValueError`. Agreed fix: raise `ConfigError` for each.
+An unknown `metric` raises `KeyError`. A dataset without a grid raises the constructor's `ValueError` about the shape of the grid. Unknown keys are ignored, so a misspelled `weight` has no effect. Weights that the constructor rejects raise `ValueError`. Agreed fix: raise `ConfigError` for each.
 
 **MER-6 · open · Whether a fit converges depends on the grid and the scale of the data.**
 The distance is a plain sum, Σᵢ wᵢ(hᵢ − yᵢ)², and `gtol` is absolute. With the default weight of 1, doubling the number of grid points doubles the distance and its gradient, and targets 1000 times smaller make both 10⁶ times smaller: with `gtol=1e-4`, such a fit stopped at step 0 with 50% error. Dense parts of a non-uniform grid count for more. Agreed fix: by default, wᵢ = Δᵢ/(L·max|y|²), where L is the range of the grid, Δᵢ = (tᵢ₊₁ − tᵢ₋₁)/2 at interior points, and Δᵢ is the full spacing at each endpoint. A uniform grid of m points then gives 1/((m − 1)·max|y|²) at every point. A single point gets 1/max|y|², and a target that is zero everywhere raises `ValueError`. An explicit `weight` replaces the default.
@@ -92,3 +89,7 @@ K and Λ cannot be fitted together, for example: the config accepts one `merit_f
 They must be listed in the config, as `TODO.md` notes.
 
 **MER-13 · deferred · There is no analytic Hessian.**
+
+### Resolved
+
+- **MER-1** · `fix(merit): copy and check grid and target in the constructor` · Constructors kept the caller's `target` and checked `grid` and `target` late; they now store float copies, and require a non-empty, strictly increasing 1-D grid and a target of the same shape.
