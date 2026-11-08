@@ -1,6 +1,6 @@
 # ISSUES.md
 
-Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept.
+Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code, so it waits for an explicit request.
 
 Only `glefit.embedding` keeps its issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
 
@@ -8,8 +8,12 @@ Only `glefit.embedding` keeps its issues here so far. The other modules still li
 
 ### Open
 
-**EMB-18 · open · `from_matrix` exists only for gen2x2.**
-A full Ap cannot be loaded back into an embedder.
+None.
+
+### Deferred features
+
+**EMB-18 · deferred · `from_matrix` exists only for gen2x2.**
+A full Ap cannot be loaded back into an embedder. This is a new feature, not a defect, and is outside the scope of the ongoing refactoring.
 
 
 ### Tracked in other modules
