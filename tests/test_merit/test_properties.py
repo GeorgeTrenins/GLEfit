@@ -23,6 +23,8 @@ ATOL = 1.0e-13
 TIME = np.array([0.0, 0.4, 1.3, 3.0])
 FREQ = np.array([0.0, 0.7, 2.0, 5.0])
 NEGATIVE_TIME = np.array([-3.0, -1.3, -0.4, 0.0])
+# The tests below use zero targets, so they pass weight=1.0: the default
+# weights need a target that is not zero everywhere.
 
 # Ap = [[0, θᵀ], [-θ, A]].
 DRIFT_MATRICES = {
@@ -80,7 +82,8 @@ class FixedDriftMatrix:
 def test_grad_wrt_A_matches_exact_derivative_for_every_entry_of_Ap(
         prop_class, method, grid, Ap, placeholder_emb, drift_matrix_reference):
     Ap = np.array(Ap)
-    prop = prop_class(grid, np.zeros_like(grid), placeholder_emb, "squared")
+    prop = prop_class(grid, np.zeros_like(grid), placeholder_emb, "squared",
+                      weight=1.0)
     _, expected = getattr(drift_matrix_reference, method)(Ap, grid, unit_directions(len(Ap)))
 
     actual = prop.grad_wrt_A(A=Ap)
@@ -120,7 +123,7 @@ def test_function_reads_theta_from_the_left_column(
         prop_class, method, grid, drift_matrix_reference):
     Ap = np.array(DRIFT_MATRICES["row-differs-from-column"])
     emb = FixedDriftMatrix(Ap)
-    prop = prop_class(grid, np.zeros_like(grid), emb, "squared")
+    prop = prop_class(grid, np.zeros_like(grid), emb, "squared", weight=1.0)
     expected, _ = getattr(drift_matrix_reference, method)(Ap, grid)
 
     actual = prop.function()
@@ -135,7 +138,7 @@ def test_function_at_critical_damping_matches_drift_matrix_reference(
     # δ = γ is already the maximal gauge, and ζ = γ gives Ω = γ, so the
     # drift matrix is "gen2x2-critical-damping" above
     emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 1.0)
-    prop = prop_class(grid, np.zeros_like(grid), emb, "squared")
+    prop = prop_class(grid, np.zeros_like(grid), emb, "squared", weight=1.0)
     expected, _ = getattr(drift_matrix_reference, method)(emb.A, grid)
 
     actual = prop.function()
@@ -150,7 +153,8 @@ def test_spectrum_rejects_singular_A_at_zero_frequency(method):
     emb = TwoAuxEmbedder([1.0, 0.8], 1.0, 1.0, 0.0, mappers=[
         IdentityMapper(), LowerBoundMapper(), IdentityMapper(),
         IdentityMapper()])
-    prop = MemorySpectrum(FREQ, np.zeros_like(FREQ), emb, "squared")
+    prop = MemorySpectrum(FREQ, np.zeros_like(FREQ), emb, "squared",
+                          weight=1.0)
 
     with pytest.raises(ValueError, match="singular"):
         getattr(prop, method)()

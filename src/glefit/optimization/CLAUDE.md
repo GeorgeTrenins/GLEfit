@@ -79,7 +79,7 @@ All output paths are relative to the working directory.
 ## Conventions
 
 - **Steps are in `x`:** `max_step` and the EF bound of 1 apply to mapped parameters. With the default log mappers, a step of 1 multiplies a parameter by up to e.
-- **Convergence:** only max\|gᵢ\| < `gtol` is tested. The distance is a plain sum over grid points, so `gtol` depends on the units and size of the data.
+- **Convergence:** only max\|gᵢ\| < `gtol` is tested. With the merit's default weights, the distance is about the mean squared relative deviation over the grid's range, so `gtol` does not depend on the number of grid points or the scale of the data. An explicit `weight` removes that normalisation.
 - **Cost:** each step costs one `merit.all()`, which needs 4p + 2 gradient evaluations for p parameters.
 - **Options:** `gtol` and `max_step` are read with `dict.get`, so a misspelled option is silently ignored. Unknown constructor arguments are also ignored.
 - **State:** `gtol` is set in `run`, so `converged()` raises `AttributeError` before the first `run`.

@@ -28,7 +28,11 @@ DATASETS = {
     # the config loader gives a single number without a grid
     "scalar": (None, 1.0),
     "unsorted": (np.array([0.0, 1.3, 0.4, 3.0]), TARGET),
+    "zeros": (GRID, np.zeros_like(GRID)),
 }
+GRID_SPACING = np.array([0.4, 0.65, 1.3, 1.7])
+UNIFORM_GRID = np.array([0.0, 0.5, 1.0, 1.5])
+UNIFORM_TARGET = np.array([0.3, -0.5, 0.1, 0.05])
 PROPERTIES = {"kernel": MemoryKernel, "spectrum": MemorySpectrum}
 BAD_ENTRIES = {
     "no-data": ({"metric": "squared"}, "'data'"),
@@ -44,6 +48,7 @@ BAD_ENTRIES = {
                          "weight": -1.0}, "non-negative"),
     "unsorted-grid": ({"data": "unsorted", "metric": "squared"},
                       "strictly increasing"),
+    "zero-target": ({"data": "zeros", "metric": "squared"}, "zero"),
 }
 WRONG_SHAPES = {
     "wrong-length": [1.0, 2.0],
@@ -100,7 +105,7 @@ def test_from_dict_passes_grid_target_and_weight(kind, emb):
 
 
 def test_from_dict_default_weight(kind, emb):
-    # from_dict and the constructor each supply a default for weight
+    # from_dict must leave the default weight to the constructor
     parameters = {"data": "curve", "metric": "squared"}
     expected = PROPERTIES[kind](GRID, TARGET, emb, "squared").distance
 
@@ -168,6 +173,41 @@ def test_constructor_copies_the_weight(emb):
     weight[:] = 0.5
 
     assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_default_weight_on_uniform_grid(emb):
+    # every point gets 1/((m - 1)·max|y|²), with m = 4 and max|y| = 0.5
+    deviations = emb.kernel(UNIFORM_GRID) - UNIFORM_TARGET
+    expected = np.sum(deviations**2) / (3 * 0.5**2)
+
+    prop = MemoryKernel(UNIFORM_GRID, UNIFORM_TARGET, emb, "squared")
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_default_weight_on_nonuniform_grid(emb):
+    # wᵢ = Δᵢ/(L·max|y|²), with L = 3 and max|y| = 0.3
+    expected = (np.dot(GRID_SPACING, squared_deviations(emb, "kernel"))
+                / (3 * 0.3**2))
+
+    prop = MemoryKernel(GRID, TARGET, emb, "squared")
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_default_weight_of_one_point(emb):
+    # w = 1/y², so the distance is the squared relative deviation
+    grid, target = GRID[1:2], TARGET[1:2]
+    expected = np.sum(((emb.kernel(grid) - target) / target)**2)
+
+    prop = MemoryKernel(grid, target, emb, "squared")
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_default_weight_needs_nonzero_target(emb):
+    with pytest.raises(ValueError, match="zero"):
+        MemoryKernel(GRID, np.zeros_like(GRID), emb, "squared")
 
 
 # The tests below pass weight=1.0, so that they do not depend on the

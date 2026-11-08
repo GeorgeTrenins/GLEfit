@@ -230,11 +230,14 @@ class BaseProperty(ABC):
         weight: Weight of each grid point in the distance: one number for
             all points or one per point, every entry finite and
             non-negative, and at least one positive. None gives the
-            default, 1 at every point.
+            default, wᵢ = Δᵢ/(L·max|y|²), so that the
+            distance and its gradient depend neither on the number of
+            grid points nor on the scale of the target.
 
     Raises:
-        ValueError: if grid, target or weight breaks the rules above.
-            All three are stored as float copies.
+        ValueError: if grid, target or weight breaks the rules above, or
+            if weight is None and the target is zero everywhere. All
+            three are stored as float copies.
 
     Attributes:
         deviation_metric: Instance of BaseDeviation for measuring errors
@@ -360,7 +363,7 @@ class BaseProperty(ABC):
             raise ConfigError(
                 f"The dataset {data_reference} has no grid, which the "
                 f"objective function of type {cls.__name__} needs.")
-        weight = parameters.get("weight", 1.0)
+        weight = parameters.get("weight")
         try:
             return cls(grid, target, embedder, metric, weight=weight)
         except ValueError as e:
@@ -373,15 +376,28 @@ class BaseProperty(ABC):
 
         Args:
             weight: one number for every point, or one per point.
-                None gives the default, 1 at every point.
+                None gives the default, wᵢ = Δᵢ/(L·M²). M is the largest
+                |yᵢ| of the target, and L the span of the grid. 
+		Δᵢ = (tᵢ₊₁ - tᵢ₋₁)/2 at interior points, and the spacing 
+		to the neighbour at each end. A single point gets w = 1/M².
 
         Raises:
             ValueError: unless weight is a number or has the shape of the
                 grid, every entry is finite and non-negative, and at least
-                one is positive
+                one is positive. Also if weight is None and M = 0.
         """
         if weight is None:
-            weight = 1.0
+            grid = self._grid
+            M = np.max(np.abs(self._target))
+            if M == 0:
+                raise ValueError(
+                    "the default weight needs a target that is not zero "
+                    "everywhere; pass weight explicitly")
+            if grid.size == 1:
+                weight = 1 / M**2
+            else:
+                # central differences inside, one-sided at each end
+                weight = np.gradient(grid) / ((grid[-1] - grid[0]) * M**2)
         weight = np.array(weight, dtype=float)
         if weight.ndim == 0:
             weight = np.full(self._grid.shape, weight)

@@ -15,9 +15,9 @@ Ap = [[ 0, θᵀ],      K(t) = θᵀ exp(-|t|A) θ
 The `optimizer` changes a vector `x` of p parameters that have no limits on their values, and the `embedder` turns `x` into `Ap`. The merit function, called the `distance` in the code, is:
 
 ```text
-distance = Σᵢ wᵢ (hᵢ - yᵢ)²
+distance = Σᵢ wᵢ (hᵢ - yᵢ)²      default wᵢ = Δᵢ / (L·max|y|²)
 ```
-Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is the weight, and (hᵢ - yᵢ)² is the deviation. Derivatives of h with respect to `x` come from the chain rule, ∂h/∂x = ∂h/∂Ap · ∂Ap/∂x. This module supplies ∂h/∂Ap and the `embedder` supplies ∂Ap/∂x. Second derivatives of h are finite differences of ∂h/∂x, not analytic expressions.
+Here hᵢ is the property (K or Λ) at grid point i, yᵢ is the target, wᵢ is the weight, and (hᵢ - yᵢ)² is the deviation. By default, L is the length of the grid, and Δᵢ = (tᵢ₊₁ - tᵢ₋₁)/2 at interior points and the spacing to the neighbour at each end, so a uniform grid of m points gives every wᵢ = 1/((m - 1)·max|y|²). The distance is then about the mean squared relative deviation over the range, and `gtol` does not depend on m or on the scale of the data. An explicit `weight` replaces the default. Derivatives of h with respect to `x` come from the chain rule, ∂h/∂x = ∂h/∂Ap · ∂Ap/∂x. This module supplies ∂h/∂Ap and the `embedder` supplies ∂Ap/∂x. Second derivatives of h are finite differences of ∂h/∂x, not analytic expressions.
 
 ## Contents
 
@@ -43,7 +43,7 @@ merit_function:
   parameters:
     data: spectrum    # name of a dataset under the top-level `data` key
     metric: squared
-    weight: 1.0       # optional: a number, or a list with one number per grid point; null gives the default
+    weight: 1.0       # optional: a number, or a list with one number per grid point; omitted or null gives the default
 ```
 
 ## Conventions
@@ -53,7 +53,7 @@ merit_function:
 - **The `x` argument:** `x=None` means the embedder's current parameters. Passing `x` evaluates at trial values and leaves the embedder unchanged. `distance` and `value` take no argument, so they always use current parameters.
 - **The name `A`:** the `A` argument of `grad_wrt_A` is the full matrix `Ap`. In local variables, and in `_grad_thetaT_expA_theta`, `A` is the n×n block.
 - **What this module needs from an embedder:** `A`, `x`, `compute_drift_matrix`, `_inverse_map` and `drift_matrix_x_grad`. It never calls the embedder's closed-form `kernel()` or `spectrum()`.
-- **Constructors:** `BaseProperty.__init__` stores float copies of `grid` and `target`, and raises `ValueError` unless the grid is a non-empty, strictly increasing 1-D array and `target` has its shape. It sets `_grid` before calling `_set_weight`, which needs the grid. `_set_weight` stores a float copy of the weight, and raises `ValueError` unless every entry is finite and non-negative and one at least is positive. `weight=None` gives the default. An unknown `metric` also raises `ValueError`.
+- **Constructors:** `BaseProperty.__init__` stores float copies of `grid` and `target`, and raises `ValueError` unless the grid is a non-empty, strictly increasing 1-D array and `target` has its shape. It sets `_grid` before calling `_set_weight`, which needs the grid. `_set_weight` stores a float copy of the weight, and raises `ValueError` unless every entry is finite and non-negative and one at least is positive. `weight=None` gives the default above, which needs `_target` as well as `_grid`, and raises `ValueError` for a target that is zero everywhere. An unknown `metric` also raises `ValueError`.
 - **`from_dict`:** takes only `data`, `metric` and `weight`. It raises `ConfigError` for a missing or unknown entry and for a dataset without a grid, and turns the constructor's `ValueError` into `ConfigError`.
 - **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point. `__init_subclass__` adds input checks to subclass methods automatically.
 - **Outside use:** the optimizers call only `all()`. `analysis/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
