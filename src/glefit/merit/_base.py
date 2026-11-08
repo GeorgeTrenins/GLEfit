@@ -23,62 +23,14 @@ from glefit.embedding import BaseEmbedder
 import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
-from typing import Union, TypeVar, Callable, Any, Optional, cast
+from typing import Union, TypeVar, Optional
 from glefit.utils.numderiv import jacobian
-import functools
 from glefit.config.config_handler import ConfigError
 
 # ---- Types ---------------------------------------------------------------
 
 ScalarArr = Union[float, npt.NDArray[np.floating]]  # numpy array of floats
 T = TypeVar("T", bound=ScalarArr)
-F = TypeVar("F", bound=Callable[..., Any])
-
-# ---- Validation helpers --------------------------------------------------
-
-def _validate_scalararr(x: ScalarArr, *, name: str) -> None:
-    """Ensure x is float or 1-D np.ndarray of floating dtype.
-    
-    Args:
-        x: Value to validate (float or 1D array)
-        name: Parameter name for error messages
-        
-    Raises:
-        TypeError: If x is neither float nor ndarray, or has wrong dtype
-        ValueError: If array is not 1-dimensional
-    """
-    if isinstance(x, float):
-        return
-    if isinstance(x, np.ndarray):
-        if not np.issubdtype(x.dtype, np.floating):
-            raise TypeError(f"{name} must have a floating dtype; got {x.dtype!r}")
-        if x.ndim != 1:
-            raise ValueError(f"{name} must be 1-D; got shape {x.shape!r} with ndim={x.ndim}")
-        return
-    # If it's neither float nor ndarray, it's invalid.
-    raise TypeError(f"{name} must be float or a 1-D numpy array of floats; got {type(x).__name__}")
-
-# ---- Decorators -----------------------------------------------------------
-
-def check_value_target(func: F) -> F:
-    """Decorator validating (value, target) argument pairs in deviation metric methods.
-    
-    Automatically wraps deviation metric implementations to check that value
-    and target are each a float or a 1-D floating-point array. Their shapes
-    are not compared.
-    
-    Args:
-        func: Deviation metric method to wrap
-        
-    Returns:
-        Wrapped function with input validation
-    """
-    @functools.wraps(func)
-    def wrapper(self, value: ScalarArr, target: ScalarArr, *args, **kwargs):
-        _validate_scalararr(value, name="value")
-        _validate_scalararr(target, name="target")
-        return func(self, value, target, *args, **kwargs)
-    return cast(F, wrapper)
 
 # ---- Base classes ----------------------------------------------------------
 
@@ -89,8 +41,7 @@ class BaseDeviation(ABC):
     They must provide derivatives (gradient, Hessian) for gradient-based optimization.
     
     The metric handles both scalar and array inputs, with derivatives computed element-wise.
-    Subclass implementations are automatically wrapped with input validation.
-    
+
     Example:
         >>> metric = SquaredDeviation()
         >>> value = np.array([1.0, 2.0])
@@ -98,13 +49,6 @@ class BaseDeviation(ABC):
         >>> deviation = metric(value, target)  # [0.5**2, 0.2**2], per point
         >>> grad = metric.gradient(value, target)  # Returns 2*(value - target)
     """
-
-    # Automatically wrap subclass implementations of __call__ and gradient, etc
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        for name in ("__call__", "gradient", "hessian", "both", "all"):
-            if name in cls.__dict__:               # only wrap methods defined on the subclass
-                setattr(cls, name, check_value_target(cls.__dict__[name]))
 
     @abstractmethod
     def __call__(self, value: ScalarArr, target: ScalarArr, *args, **kwargs) -> ScalarArr:

@@ -11,7 +11,6 @@
 from __future__ import print_function, division, absolute_import
 from ._base import BaseProperty
 from scipy.linalg import expm_frechet, expm
-from typing import Union
 import numpy as np
 import numpy.typing as npt
 from typing import Optional
@@ -56,7 +55,7 @@ class MemoryKernel(BaseProperty):
     def _grad_thetaT_expA_theta(
             A: npt.NDArray[np.floating],
             row: npt.NDArray[np.floating],
-            time: Union[float, npt.NDArray[np.floating]],
+            time: npt.NDArray[np.floating],
             col: Optional[npt.NDArray[np.floating]] = None
             ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """Compute ∇_A(θᵀ exp(-τA) θ) using matrix exponential Fréchet derivative.
@@ -69,30 +68,16 @@ class MemoryKernel(BaseProperty):
         Args:
             A: Drift submatrix of shape (n, n)
             row: θᵀ, from the top row of Ap, shape (n,)
-            time: Scalar or 1D array of time values
+            time: 1-D float array of times, shape (n_times,)
             col: θ, from the negated left column of Ap, shape (n,).
                 None means the same as row.
 
         Returns:
             Tuple of (exp_matrix, frechet_derivative) where:
-            - exp_matrix: exp(-tA^T) with shape (n, n) or (n_times, n, n)
+            - exp_matrix: exp(-tA^T) with shape (n_times, n, n)
             - frechet_derivative: -t * L_exp(-tA^T, θθᵀ) with same shape
-            
-        Raises:
-            TypeError: If time has wrong dtype
-            ValueError: If time array is not 1D
         """
-        if isinstance(time, float):
-            pass
-        elif isinstance(time, np.ndarray):
-            if not np.issubdtype(time.dtype, np.floating):
-                raise TypeError(f"time must have a floating dtype; got {time.dtype!r}")
-            if time.ndim != 1:
-                raise ValueError(f"time must be 1-D; got shape {time.shape!r} with ndim={time.ndim}")
-            time = time[:,None,None]
-        else:
-            raise TypeError(f"time must be float or a 1-D numpy array of floats; got {type(time).__name__}")
-        
+        time = time[:, None, None]
         if col is None:
             col = row
         # Outer product: θ θᵀ
