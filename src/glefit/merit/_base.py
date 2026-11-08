@@ -228,11 +228,13 @@ class BaseProperty(ABC):
         emb: GLE embedding providing the drift matrix A
         metric: Name of deviation metric to use (e.g., "squared")
         weight: Weight of each grid point in the distance: one number for
-            all points or one per point
+            all points or one per point, every entry finite and
+            non-negative, and at least one positive. None gives the
+            default, 1 at every point.
 
     Raises:
-        ValueError: if grid or target breaks the rules above. Both are
-            stored as float copies.
+        ValueError: if grid, target or weight breaks the rules above.
+            All three are stored as float copies.
 
     Attributes:
         deviation_metric: Instance of BaseDeviation for measuring errors
@@ -246,7 +248,7 @@ class BaseProperty(ABC):
             target: npt.ArrayLike,
             emb: BaseEmbedder,
             metric: str,
-            weight: Optional[ScalarArr] = 1.0
+            weight: Optional[npt.ArrayLike] = None
     ) -> None:
         # copies, so that the caller cannot change them later
         grid = np.array(grid, dtype=float)
@@ -333,18 +335,34 @@ class BaseProperty(ABC):
         weight = parameters.get("weight", 1.0)
         return cls(grid, target, embedder, metric, weight=weight)
 
-    def _set_weight(self, weight: ScalarArr) -> None:
-        """Set and validate element-wise weights.
-        
-        Weights can be scalar (applied to all elements) or 1D array
-        (individual weight per grid point).
+    def _set_weight(self, weight: Optional[npt.ArrayLike]) -> None:
+        """Store a float copy of the weight of each grid point.
+
+        Args:
+            weight: one number for every point, or one per point.
+                None gives the default, 1 at every point.
+
+        Raises:
+            ValueError: unless weight is a number or has the shape of the
+                grid, every entry is finite and non-negative, and at least
+                one is positive
         """
-        if np.ndim(weight) not in {0, 1}:
-            raise ValueError(f"Weight should be a scalar or 1D array, instead got ndim = {np.ndim(weight)}")
-        try:
-            self.weight = np.ones_like(self._grid) * weight
-        except ValueError as e:
-            raise ValueError("Weights could not be broadcast correctly") from e
+        if weight is None:
+            weight = 1.0
+        weight = np.array(weight, dtype=float)
+        if weight.ndim == 0:
+            weight = np.full(self._grid.shape, weight)
+        elif weight.shape != self._grid.shape:
+            raise ValueError(
+                f"weight must be a number or have one entry per grid "
+                f"point, shape {self._grid.shape}; got {weight.shape}")
+        if not np.all(np.isfinite(weight)):
+            raise ValueError("weight must be finite")
+        if np.any(weight < 0):
+            raise ValueError("weight must be non-negative")
+        if not np.any(weight > 0):
+            raise ValueError("weight must be positive at one point at least")
+        self.weight = weight
 
     @property
     def grid(self) -> npt.NDArray[np.floating]:

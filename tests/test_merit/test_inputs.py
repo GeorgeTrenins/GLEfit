@@ -35,6 +35,13 @@ WRONG_SHAPES = {
     "wrong-length": [1.0, 2.0],
     # broadcasts against the grid, so only the shape check rejects it
     "2-d": np.ones((1, len(GRID))),
+    "one-entry": [2.0],
+}
+BAD_WEIGHTS = {
+    "negative-entry": ([0.5, -1.0, 1.0, 1.0], "non-negative"),
+    "nan-entry": ([0.5, np.nan, 1.0, 1.0], "finite"),
+    "infinite": (np.inf, "finite"),
+    "all-zero": (0.0, "positive"),
 }
 BAD_INPUTS = {
     "1-point-target-4-point-grid": (GRID, TARGET[:1], "shape of grid"),
@@ -108,6 +115,40 @@ def test_scalar_weight_scales_every_deviation(kind, emb):
 def test_weight_of_wrong_shape_raises_value_error(weight, emb):
     with pytest.raises(ValueError, match="[Ww]eight"):
         MemoryKernel(GRID, TARGET, emb, "squared", weight=weight)
+
+
+@pytest.mark.parametrize("weight, message", list(BAD_WEIGHTS.values()),
+                         ids=list(BAD_WEIGHTS))
+def test_bad_weight_value_raises_value_error(weight, message, emb):
+    with pytest.raises(ValueError, match=message):
+        MemoryKernel(GRID, TARGET, emb, "squared", weight=weight)
+
+
+def test_weight_none_gives_the_default(emb):
+    expected = MemoryKernel(GRID, TARGET, emb, "squared").distance
+
+    prop = MemoryKernel(GRID, TARGET, emb, "squared", weight=None)
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_zero_weight_excludes_a_point(emb):
+    expected = squared_deviations(emb, "kernel")[1]
+
+    prop = MemoryKernel(GRID, TARGET, emb, "squared",
+                        weight=[0.0, 1.0, 0.0, 0.0])
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
+
+
+def test_constructor_copies_the_weight(emb):
+    weight = np.array(WEIGHT)
+    prop = MemoryKernel(GRID, TARGET, emb, "squared", weight=weight)
+    expected = np.dot(WEIGHT, squared_deviations(emb, "kernel"))
+
+    weight[:] = 0.5
+
+    assert_allclose(prop.distance, expected, rtol=RTOL)
 
 
 # The tests below pass weight=1.0, so that they do not depend on the
