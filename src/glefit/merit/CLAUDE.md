@@ -7,7 +7,7 @@ This module defines the merit functions that GLEFit minimizes. Its open issues, 
 This measures how well a Kantorovich-style Markovian embedding reproduces generalized Langevin dynamics (GLD), given target values of the memory kernel K(t) or of its cosine transform, the spectrum Λ(ω). An `embedder` from `glefit.embedding` defines the embedding by the (n+1)×(n+1) drift matrix:
 
 ```text
-Ap = [[ 0, θᵀ],      K(t) = θᵀ exp(-tA) θ
+Ap = [[ 0, θᵀ],      K(t) = θᵀ exp(-|t|A) θ
       [-θ, A ]]      Λ(ω) = θᵀ A (A² + ω²)⁻¹ θ
 ```
 θᵀ is read from row 0 of `Ap` and θ from the negated column 0, as in the dynamics. Every embedder makes the two equal, but `function` and `grad_wrt_A` treat them as independent, so both describe the same function of `Ap`.
@@ -82,7 +82,7 @@ merit_function:
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_merit
 ```
 
-`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, and a left column other than −θ. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. `test_inputs.py` tests the constructor's checks of `grid`, `target` and `weight`, that `from_dict` passes on the data and the weights, and the errors for bad entries.
+`test_properties.py` tests K, Λ and `grad_wrt_A` for single drift matrices, including non-symmetric A with several θ entries, A that cannot be diagonalized, a left column other than −θ, and K at negative times. `test_distance.py` tests the distance and its derivatives for each shipped embedder, with non-uniform weights, at the embedder's parameters and at a trial `x`. `test_inputs.py` tests the constructor's checks of `grid`, `target` and `weight`, that `from_dict` passes on the data and the weights, and the errors for bad entries.
 
 A new or changed property or metric should have tests that:
 

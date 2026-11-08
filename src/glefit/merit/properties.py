@@ -18,7 +18,7 @@ from typing import Optional
 
 
 class MemoryKernel(BaseProperty):
-    """Memory friction kernel K(t) = θᵀ exp(-tA) θ
+    """Memory friction kernel K(t) = θᵀ exp(-|t|A) θ
     where θ is the coupling vector and A is the auxiliary variable drift matrix.
 
     θᵀ is read from the top row of Ap and θ from its negated left column,
@@ -33,7 +33,7 @@ class MemoryKernel(BaseProperty):
     """
 
     def function(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Compute K(t) = θᵀ exp(-tA) θ at all time points.
+        """Compute K(t) = θᵀ exp(-|t|A) θ at all time points.
         
         Args:
             x: Transformed parameters. If None, uses current embedding.
@@ -49,7 +49,7 @@ class MemoryKernel(BaseProperty):
         row, col, A = Ap[0, 1:], -Ap[1:, 0], Ap[1:, 1:]
         return np.einsum(
             'ijk,j,k->i',
-            expm(-self.grid[:,None,None] * A),
+            expm(-np.abs(self.grid)[:,None,None] * A),
             row, col)
 
     @staticmethod
@@ -121,7 +121,7 @@ class MemoryKernel(BaseProperty):
         else:
             Ap = np.copy(A)
         
-        time = self.grid
+        time = np.abs(self.grid)
         ans = np.zeros((len(time),) + Ap.shape)
         row, col, A_aux = Ap[0, 1:], -Ap[1:, 0], Ap[1:, 1:]
 

@@ -22,6 +22,7 @@ RTOL = 1.0e-12
 ATOL = 1.0e-13
 TIME = np.array([0.0, 0.4, 1.3, 3.0])
 FREQ = np.array([0.0, 0.7, 2.0, 5.0])
+NEGATIVE_TIME = np.array([-3.0, -1.3, -0.4, 0.0])
 
 # Ap = [[0, θᵀ], [-θ, A]].
 DRIFT_MATRICES = {
@@ -86,6 +87,31 @@ def test_grad_wrt_A_matches_exact_derivative_for_every_entry_of_Ap(
 
     assert_allclose(np.moveaxis(actual, 0, -1).reshape(expected.shape), expected,
                     rtol=RTOL, atol=ATOL)
+
+
+def test_kernel_is_at_abs_t(drift_matrix_reference):
+    Ap = np.array(DRIFT_MATRICES["general-3-variables"])
+    prop = MemoryKernel(NEGATIVE_TIME, np.zeros_like(NEGATIVE_TIME),
+                        FixedDriftMatrix(Ap), "squared", weight=1.0)
+    expected, _ = drift_matrix_reference.kernel(Ap, np.abs(NEGATIVE_TIME))
+
+    actual = prop.function()
+
+    assert_allclose(actual, expected, rtol=RTOL)
+
+
+def test_kernel_grad_is_at_abs_t(
+        placeholder_emb, drift_matrix_reference):
+    Ap = np.array(DRIFT_MATRICES["general-3-variables"])
+    prop = MemoryKernel(NEGATIVE_TIME, np.zeros_like(NEGATIVE_TIME),
+                        placeholder_emb, "squared", weight=1.0)
+    _, expected = drift_matrix_reference.kernel(
+        Ap, np.abs(NEGATIVE_TIME), unit_directions(len(Ap)))
+
+    actual = prop.grad_wrt_A(A=Ap)
+
+    assert_allclose(np.moveaxis(actual, 0, -1).reshape(expected.shape),
+                    expected, rtol=RTOL, atol=ATOL)
 
 
 @pytest.mark.parametrize("prop_class, method, grid", PROPERTIES,

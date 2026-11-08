@@ -52,9 +52,6 @@ Reproduced at `368b598` by running the code.
 
 ### Open
 
-**MER-4 · open · `MemoryKernel` evaluates negative times as given.**
-K is even in t, and the embedders' closed forms use |t|. At t = −1, a Prony embedder with θ = 0.8 and γ = 1.3 gave 2.35, against 0.174 from the closed form. `MemorySpectrum` is already even in ω. Agreed fix: evaluate K at |t|.
-
 **MER-5 · open · `from_dict` reports bad entries late or with the wrong error.**
 An unknown `metric` raises `KeyError`. A dataset without a grid raises the constructor's `ValueError` about the shape of the grid. Unknown keys are ignored, so a misspelled `weight` has no effect. Weights that the constructor rejects raise `ValueError`. Agreed fix: raise `ConfigError` for each.
 
@@ -89,3 +86,4 @@ They must be listed in the config, as `TODO.md` notes.
 - **MER-1** · `fix(merit): copy and check grid and target in the constructor` · Constructors kept the caller's `target` and checked `grid` and `target` late; they now store float copies, and require a non-empty, strictly increasing 1-D grid and a target of the same shape.
 - **MER-2** · `fix(merit): reject unknown constructor arguments` · `BaseProperty.__init__` ignored extra positional and keyword arguments, such as a misspelled `wieght=`; they now raise `TypeError`.
 - **MER-3** · `fix(merit): reject negative and non-finite weights` · Weights were not checked, and `weight=None` raised an unclear `TypeError`. A weight must now be a number or have one entry per grid point, every entry finite and non-negative and one at least positive, and `None` gives the default.
+- **MER-4** · `fix(merit): evaluate the memory kernel at |t|` · `MemoryKernel` evaluated negative times as given, now K and its gradient are evaluated at |t|, like the closed forms.
