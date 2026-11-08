@@ -48,7 +48,7 @@ merit_function:
 
 ## Conventions
 
-- **Names:** `grad_wrt_A`, `grad_wrt_params` and `gradhess_wrt_params` differentiate the property. `gradient`, `hessian`, `both` and `all` differentiate the distance.
+- **Names:** `grad_wrt_A`, `grad_wrt_params` and `gradhess_wrt_params` differentiate the property. `gradient`, `hessian`, `both` and `all` differentiate the distance. `gradient` and `hessian` return parts of `both` and `all`, which do the work.
 - **Shapes:** m is the number of grid points. `function` returns (m,), `grad_wrt_A` returns (m, n+1, n+1), `grad_wrt_params` returns (p, m), and `gradhess_wrt_params` adds a Hessian of shape (p, p, m). `gradient` returns (p,) and `hessian` returns (p, p).
 - **The `x` argument:** `x=None` means the embedder's current parameters. Passing `x` evaluates at trial values and leaves the embedder unchanged. `distance` and `value` take no argument, so they always use current parameters.
 - **The name `A`:** the `A` argument of `grad_wrt_A` is the full matrix `Ap`. In local variables, and in `_grad_thetaT_expA_theta`, `A` is the n×n block.

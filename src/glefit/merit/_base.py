@@ -442,23 +442,13 @@ class BaseProperty(ABC):
         """
         return np.sum(self.weight * self.deviation_metric(self.value, self.target))
     
-    def gradient(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Gradient of distance sum w.r.t. parameters.
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Gradient vector of shape (p,)
-        """
-        grad_deviation_h: npt.NDArray[np.floating] = self.deviation_metric.gradient(
-            self.function(x=x), self.target)
-        grad_deviation_h *= self.weight
-        grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
-        # Aggregate over array dimension using einsum
-        ans = np.einsum('t,pt->p', grad_deviation_h, grad_h_params)
-        return ans
-    
+    def gradient(
+            self,
+            x: Optional[npt.NDArray[np.floating]] = None
+    ) -> npt.NDArray[np.floating]:
+        """Gradient of the distance w.r.t. x, shape (p,), as from both()."""
+        return self.both(x=x)[1]
+
     def both(
             self, 
             x: Optional[npt.NDArray[np.floating]] = None
@@ -477,35 +467,22 @@ class BaseProperty(ABC):
         grad_h_params: npt.NDArray[np.floating] = self.grad_wrt_params(x=x)
         return np.sum(deviation), np.einsum('t,pt->p', grad_deviation_h, grad_h_params)
 
-    def hessian(self, x: Optional[npt.NDArray[np.floating]] = None) -> npt.NDArray[np.floating]:
-        """Hessian of weighted distance sum w.r.t. parameters.
-        
-        Aggregates Hessian contributions across all grid points:
-            ∂²(sum)/∂x² = sum(∂²d/∂property² · ∇property · ∇propertyᵀ + ∂d/∂property · ∇²property)
-        
-        Args:
-            x: Transformed parameters. If None, uses current values.
-            
-        Returns:
-            Hessian matrix of shape (p, p)
-        """
-        _, grad_deviation_h, hess_deviation_h = self.deviation_metric.all(
-            self.function(x=x), self.target)
-        grad_deviation_h *= self.weight
-        hess_deviation_h *= self.weight
-        
-        grad_h_params, hess_h_params = self.gradhess_wrt_params(x=x)
-        
-        ans = np.einsum('t,at,bt->ab', hess_deviation_h, grad_h_params, grad_h_params)
-        ans += np.einsum('t,abt->ab', grad_deviation_h, hess_h_params)
-        return ans
+    def hessian(
+            self,
+            x: Optional[npt.NDArray[np.floating]] = None
+    ) -> npt.NDArray[np.floating]:
+        """Hessian of the distance w.r.t. x, shape (p, p), as from all()."""
+        return self.all(x=x)[2]
 
     def all(
             self, 
             x: Optional[npt.NDArray[np.floating]] = None
     ) -> tuple[float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """Distance, gradient, and Hessian in one call.
-        
+
+        The Hessian is Σᵢ wᵢ (d''ᵢ ∇hᵢ ∇hᵢᵀ + d'ᵢ ∇²hᵢ), where d'ᵢ and d''ᵢ
+        are the first and second derivatives of the deviation w.r.t. hᵢ.
+
         Args:
             x: Transformed parameters. If None, uses current values.
             
