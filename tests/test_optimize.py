@@ -10,11 +10,26 @@
 
 from __future__ import print_function, division, absolute_import
 import argparse
+import copy
 import json
+import re
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
+from glefit.config.config_handler import ConfigError, ConfigHandler
 from glefit.embedding import TwoAuxEmbedder
-from glefit.optimize import main
+from glefit.optimize import Optimization, main
+
+
+CONFIG = {
+    "data": {"kernel": {"source": "inline", "grid": [0.0, 1.0, 2.0],
+                        "target": [1.0, 0.5, 0.25]}},
+    "merit_function": {"type": "kernel",
+                       "parameters": {"data": "kernel", "metric": "squared"}},
+    "embedder": {"type": "prony", "parameters": {"theta": 1.0, "gamma": 0.7}},
+    "optimization": {"type": "EF", "parameters": {"trajfile": "traj.out"},
+                     "options": {"max_iter": 5, "gtol": 1e-3}},
+}
 
 
 def test_main_writes_the_propagation_matrix_on_convergence(
@@ -52,3 +67,23 @@ def test_main_writes_the_propagation_matrix_on_convergence(
          [-np.sqrt(3.5), 2.25, 0.0],
          [-np.sqrt(0.5), 0.0, 0.25]],
         rtol=1.0e-7, atol=1.0e-7)
+
+
+# each section, with one of its known types, and a type that is unknown
+# or cannot be a registry key at all
+@pytest.mark.parametrize("section, known", [
+    ("embedder", "prony"),
+    ("merit_function", "kernel"),
+    ("optimization", "EF"),
+], ids=["embedder", "merit_function", "optimization"])
+@pytest.mark.parametrize("bad", ["pronny", ["EF"]], ids=["unknown", "list"])
+def test_from_config_rejects_an_unknown_type(
+        section, known, bad, tmp_path, monkeypatch):
+    config = copy.deepcopy(CONFIG)
+    config[section]["type"] = bad
+    handler = ConfigHandler.from_dict(config)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ConfigError, match=re.escape(
+            f"{section}.type {bad!r}") + f".*'{known}'"):
+        Optimization.from_config(handler)

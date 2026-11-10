@@ -11,11 +11,25 @@
 from __future__ import print_function, division, absolute_import
 import argparse
 from pathlib import Path
-from glefit.config.config_handler import ConfigHandler
+from glefit.config.config_handler import ConfigError, ConfigHandler
 from glefit.config.data_io import load_data
 from glefit.embedding import BaseEmbedder, EMBEDDER_MAP
 from glefit.merit import BaseProperty, PROPERTY_MAP
 from glefit.optimization import Optimizer, OPT_MAP
+
+
+def _registered(registry: dict, section: str, name) -> type:
+    """The class that `registry` holds under `name`, the type of a config
+    section.
+
+    Raises:
+        ConfigError: if `name` is not a type in `registry`.
+    """
+    if not isinstance(name, str) or name not in registry:
+        raise ConfigError(
+            f"{section}.type {name!r} is unknown; "
+            f"the known types are {sorted(registry)}")
+    return registry[name]
 
 
 class Optimization:
@@ -37,8 +51,8 @@ class Optimization:
     ) -> "Optimization":
          # Instantiate the embedder
         embedder_config: dict = handler.get_embedder_config()
-        embedder_class: str = embedder_config["type"]
-        EmbedderClass: BaseEmbedder = EMBEDDER_MAP[embedder_class]
+        EmbedderClass: BaseEmbedder = _registered(
+            EMBEDDER_MAP, "embedder", embedder_config["type"])
         embedder: BaseEmbedder = EmbedderClass.from_dict(embedder_config["parameters"])
         
         # Get the data to define the objective function
@@ -46,14 +60,14 @@ class Optimization:
 
         # Instantiate the objective function
         merit_config: dict = handler.get_merit_function_config()
-        merit_class: str = merit_config["type"]
-        PropertyClass: BaseProperty = PROPERTY_MAP[merit_class]
+        PropertyClass: BaseProperty = _registered(
+            PROPERTY_MAP, "merit_function", merit_config["type"])
         merit: BaseProperty = PropertyClass.from_dict(merit_config["parameters"], datasets, embedder)
 
         # Instantiate the optimizer
         opt_config: dict = handler.get_optimization_config()
-        opt_class: str = opt_config["type"]
-        OptClass: Optimizer = OPT_MAP[opt_class]
+        OptClass: Optimizer = _registered(
+            OPT_MAP, "optimization", opt_config["type"])
         opt_parameters = opt_config.get("parameters", {})
         opt: Optimizer = OptClass(embedder, merit, **opt_parameters)
 

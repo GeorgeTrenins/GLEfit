@@ -75,7 +75,8 @@ Keys not listed here are ignored. See `glefit/embedding/CLAUDE.md`, `glefit/meri
 | `ConfigHandler.__init__` | The file exists and parses. It makes `path` absolute for `source: external` datasets, and `restart_file` if restarts are enabled |
 | `validate()` | The four required sections are dicts. `data` is not empty. `type` and `parameters` exist in `merit_function` and `embedder`, and `type`, `parameters` and `options` in `optimization`. `options` is a dict with `max_iter`, a non-negative `int` that is not a `bool`. If restarts are enabled, the file exists |
 | `load_data()` | Each dataset loads: the file exists, the columns exist and differ, values are numbers, and inline grid and target have equal length |
-| Each class's `from_dict` | Everything else, including whether `type` exists and whether the merit function's `data` names a dataset |
+| `Optimization.from_config` in `optimize.py` | Each section's `type` is a key of its registry, or it raises `ConfigError` that lists the known types |
+| Each class's `from_dict` | Everything else, including whether the merit function's `data` names a dataset |
 
 ## Data loading
 
@@ -104,7 +105,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 ### Surprising limits
 
 - **Malformed sections raise Python errors, not `ConfigError`.** Path resolution runs in `__init__`, before `validate()`. `data` given as a list raises `AttributeError`, as do `restart: true` and a top level that is a list.
-- **Missing keys found late.** An unknown `type` raises `KeyError` from its registry (OPT-7). A missing key inside `embedder.parameters` raises `KeyError` from the embedder's `from_dict` (EMB-23).
+- **Missing keys found late.** A missing key inside `embedder.parameters` raises `KeyError` from the embedder's `from_dict` (EMB-23).
 - **`source` defaults to `inline`.** A dataset with `path` but no `source` fails with "'target' required for inline source".
 - **The JSON fallback never runs.** For an unknown suffix, `_load_yaml` turns `yaml.YAMLError` into `ConfigError`, so the `except yaml.YAMLError` around it never catches. This does no harm, because YAML reads JSON.
 
@@ -142,7 +143,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 
 - **New data source or format:** add a branch to `load_data` or `_load_external`, returning float arrays of equal length.
 - **Per-point weights from a file:** return a third column from `load_data`, and update every `from_dict` that unpacks `(grid, target)`.
-- **Clearer errors:** check registry keys in `validate()` by importing the maps, and wrap `_resolve_paths` so that type errors become `ConfigError`.
+- **Clearer errors:** wrap `_resolve_paths` so that type errors become `ConfigError`.
 
 ## Testing
 
