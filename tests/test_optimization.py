@@ -153,6 +153,25 @@ def test_run_returns_whether_the_fit_converged(
     assert converged == expected
 
 
+@pytest.mark.parametrize("cls", [NewtonRaphson, EigenvectorFollowing],
+                         ids=["NR", "EF"])
+def test_constructor_rejects_unknown_arguments(quadratic, cls):
+    emb, merit = quadratic
+
+    with pytest.raises(TypeError, match="trajfle"):
+        cls(emb, merit, trajfile=io.StringIO(), trajfle="traj.out")
+
+
+@pytest.mark.parametrize("cls", [NewtonRaphson, EigenvectorFollowing],
+                         ids=["NR", "EF"])
+def test_run_rejects_unknown_options(quadratic, cls):
+    emb, merit = quadratic
+    opt = cls(emb, merit, trajfile=io.StringIO())
+
+    with pytest.raises(TypeError, match="gtoll"):
+        opt.run(1, {"gtol": 1e-3, "gtoll": 1e-6})
+
+
 def test_ef_fit_recovers_its_target_parameters(prony_fit):
     emb, merit = prony_fit
     opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())

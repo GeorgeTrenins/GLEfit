@@ -59,7 +59,7 @@ Open issues are listed in `ISSUES.md`.
 
 Config behavior that the validator does not make obvious:
 
-- `optimization.parameters` goes to the optimizer constructor (`logfile`, `trajfile`). `optimization.options` goes to `run()` (`gtol`, `max_step`), after the driver pops `max_iter`.
+- `optimization.parameters` goes to the optimizer constructor (`logfile`, `trajfile`). `optimization.options` goes to `run()` (`gtol`, `max_step`), after the driver pops `max_iter`. Any other key in either raises `TypeError`.
 - Input paths resolve against the config file's directory. Output paths resolve against the working directory.
 - `project` is never read. `restart` is validated but ignored, because restarts are not implemented.
 - Mappers cannot be set from a config, so each embedder's defaults apply. This is by design: custom mappers are for debugging only.

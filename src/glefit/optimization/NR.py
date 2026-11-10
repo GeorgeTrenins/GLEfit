@@ -52,9 +52,16 @@ class NewtonRaphson(Optimizer):
 
         Returns:
             bool: True if converged, False if max steps reached.
+
+        Raises:
+            TypeError: for options other than gtol and max_step.
         """
         if options is None:
             options = {}
+        unknown = sorted(set(options) - {"gtol", "max_step"})
+        if unknown:
+            raise TypeError(
+                f"{type(self).__name__}.run got unknown options: {unknown}")
         # Validate and extract options with sensible defaults
         self.gtol = float(options.get("gtol", 0.05))
         max_step_val = options.get("max_step")

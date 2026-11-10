@@ -104,7 +104,6 @@ class Optimizer(IOContext):
             merit_function: BaseProperty,
             logfile: Optional[Union[IO, str, Path]] = None,
             trajfile: Optional[Union[IO, str, Path]] = None,
-            **kwargs
     ):
         """Initialize the optimizer.
 

@@ -123,9 +123,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-3 · open · Unknown constructor arguments and options are ignored.**
-`Optimizer.__init__` swallows `**kwargs`, and `run` reads `gtol` and `max_step` with `dict.get`, so a misspelled `gtoll` leaves `gtol = 0.05` without warning. Agreed fix: raise `TypeError` for both.
-
 **OPT-4 · open · `converged()` raises `AttributeError` before `run`.**
 `gtol` is set only in `run`. Agreed fix: set the defaults `gtol = 0.05` and `max_step = None` at construction, so that `converged()` tests the starting point.
 
@@ -165,3 +162,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 
 - **OPT-1** · `fix(optimization): log the current Hessian eigenvalues in EF` · EF logged the eigenvalues of the previous step's Hessian.
 - **OPT-2** · `fix(optimization): return the convergence flag from run` · `NR.run` and `EF.run` returned `None`; they now return whether the fit converged.
+- **OPT-3** · `fix(optimization): reject unknown arguments and options` · Unknown constructor arguments and `run` options were ignored, so a misspelled `gtoll` left the default; both now raise `TypeError`.
