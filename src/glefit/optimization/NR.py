@@ -34,7 +34,11 @@ class NewtonRaphson(Optimizer):
         max_step (float): Maximum step size. If None, no limit. Default: None
     """
 
-    def run(self, steps: int = MAX_ITERATIONS_DEFAULT, options: Optional[dict] = None) -> None:
+    def run(
+            self,
+            steps: int = MAX_ITERATIONS_DEFAULT,
+            options: Optional[dict] = None
+    ) -> bool:
         """Run the optimizer.
 
         This method will return whenever the gradient of the merit function drops below `gtol` for all optimizable parameters or when the number of steps exceeds `steps`.
@@ -45,6 +49,9 @@ class NewtonRaphson(Optimizer):
         Options:
             gtol (float): upper bound on the maximum norm of the gradient of the merit function w.r.t. optimizable parameters.
             max_step (float): maximum size of update step
+
+        Returns:
+            bool: True if converged, False if max steps reached.
         """
         if options is None:
             options = {}
@@ -59,7 +66,7 @@ class NewtonRaphson(Optimizer):
             raise ValueError(f"max_step must be positive, got {self.max_step}")
         
         self._eigvals = None
-        super().run(steps=steps, options=options)
+        return super().run(steps=steps, options=options)
 
     def initialize(self) -> None:
         self.update()

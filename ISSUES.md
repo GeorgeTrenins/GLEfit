@@ -123,9 +123,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-2 · open · `NR.run` and `EF.run` return `None`.**
-`Optimizer.run` returns whether the fit converged, but `NewtonRaphson.run` drops the result, so `Optimization.run` calls `converged()` again.
-
 **OPT-3 · open · Unknown constructor arguments and options are ignored.**
 `Optimizer.__init__` swallows `**kwargs`, and `run` reads `gtol` and `max_step` with `dict.get`, so a misspelled `gtoll` leaves `gtol = 0.05` without warning. Agreed fix: raise `TypeError` for both.
 
@@ -167,3 +164,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 ### Resolved
 
 - **OPT-1** · `fix(optimization): log the current Hessian eigenvalues in EF` · EF logged the eigenvalues of the previous step's Hessian.
+- **OPT-2** · `fix(optimization): return the convergence flag from run` · `NR.run` and `EF.run` returned `None`; they now return whether the fit converged.

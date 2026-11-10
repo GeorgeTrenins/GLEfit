@@ -133,6 +133,26 @@ def test_run_takes_no_step_if_converged_at_start(quadratic):
     assert_allclose(emb.x, [0.0, 0.0, 0.0], rtol=0, atol=0)
 
 
+# NR reaches the stationary point of the quadratic in one step, while EF
+# goes downhill along the negative mode and never converges
+@pytest.mark.parametrize("cls, gtol, steps, expected", [
+    (NewtonRaphson, 1.0, 5, True),
+    (NewtonRaphson, 1e-12, 1, True),
+    (NewtonRaphson, 1e-12, 0, False),
+    (EigenvectorFollowing, 1.0, 5, True),
+    (EigenvectorFollowing, 1e-12, 1, False),
+], ids=["NR-at-start", "NR-after-a-step", "NR-out-of-steps",
+        "EF-at-start", "EF-out-of-steps"])
+def test_run_returns_whether_the_fit_converged(
+        quadratic, cls, gtol, steps, expected):
+    emb, merit = quadratic
+    opt = cls(emb, merit, trajfile=io.StringIO())
+
+    converged = opt.run(steps, {"gtol": gtol})
+
+    assert converged == expected
+
+
 def test_ef_fit_recovers_its_target_parameters(prony_fit):
     emb, merit = prony_fit
     opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())
