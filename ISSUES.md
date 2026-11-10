@@ -2,7 +2,7 @@
 
 Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code.
 
-Only `glefit.embedding`, `glefit.mappers` and `glefit.merit` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
+Only `glefit.embedding`, `glefit.mappers`, `glefit.merit` and `glefit.optimization` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
 
 ## `glefit.embedding`
 
@@ -116,3 +116,53 @@ They must be listed in the config, as `TODO.md` notes.
 - **MER-4** · `996c53d` · `MemoryKernel` evaluates K and its gradient at |t|, like the closed forms.
 - **MER-5** · `3fcdcbf` · `from_dict` raises `ConfigError` for bad entries; the constructor, `ValueError` for unknown metrics.
 - **MER-6** · `bf8ace7` · Default weights are Δᵢ/(L·max|y|²), with full spacing at the ends; an explicit `weight` overrides.
+
+## `glefit.optimization`
+
+Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by running the code.
+
+### Open
+
+**OPT-1 · open · EF logs the previous step's Hessian eigenvalues.**
+`step()` caches the eigenvalues, and `update()` replaces the Hessian without clearing the cache, so the log at step k shows those of step k − 1. The steps themselves are correct. In one fit, the largest logged eigenvalue was 1.142 while the current one was 0.809.
+
+**OPT-2 · open · `NR.run` and `EF.run` return `None`.**
+`Optimizer.run` returns whether the fit converged, but `NewtonRaphson.run` drops the result, so `Optimization.run` calls `converged()` again.
+
+**OPT-3 · open · Unknown constructor arguments and options are ignored.**
+`Optimizer.__init__` swallows `**kwargs`, and `run` reads `gtol` and `max_step` with `dict.get`, so a misspelled `gtoll` leaves `gtol = 0.05` without warning. Agreed fix: raise `TypeError` for both.
+
+**OPT-4 · open · `converged()` raises `AttributeError` before `run`.**
+`gtol` is set only in `run`. Agreed fix: set the defaults `gtol = 0.05` and `max_step = None` at construction, so that `converged()` tests the starting point.
+
+**OPT-5 · open · The EF step is NaN at a Hessian eigenvalue of exactly 0.**
+The code divides gₖ by bₖ, so bₖ = 0 makes every component of the step NaN. This happens when a parameter has no effect on the distance. Agreed fix: write the same step as hₖ = −2gₖ/(|bₖ| + √(bₖ² + 4gₖ²)), which agrees to 6e-16 for bₖ ≠ 0 and gives −sign(gₖ) at bₖ = 0, and take hₖ = 0 where bₖ = gₖ = 0.
+
+**OPT-6 · open · `validate()` misses required keys.**
+A missing `embedder.parameters` or `optimization.options.max_iter` raises `KeyError` in `optimize.py`. The fix belongs in `glefit.config`.
+
+**OPT-7 · open · An unknown `type` raises `KeyError`.**
+`Optimization.from_config` looks up the embedder, merit function and optimizer types in their registries without a check, instead of raising `ConfigError`.
+
+**OPT-8 · open · The log is appended to.**
+A second run in the same directory appends to the log, but overwrites the trajectory and `optimized_Ap_matrix.json`. Agreed fix: overwrite the log as well.
+
+**OPT-9 · open · Outdated text in the code.**
+`NewtonRaphson` is called "quasi-Newton", although it uses the full finite-difference Hessian. The `run` docstrings refer to `DEFAULT_MAX_STEPS`, but the constant is `MAX_ITERATIONS_DEFAULT`. `optimize.py` imports `load_data` without using it.
+
+**OPT-10 · open · Final parameters are kept only to 7 significant digits.**
+They are written only to the trajectory, and cannot be loaded back into an embedder. Agreed fix: embedders get a `to_dict()` that returns `{"type", "parameters"}`, like a config's `embedder` section, and `optimize.py` always pickles it at the end of a run, converged or not.
+
+### Deferred features
+
+**OPT-11 · deferred · Restarts are not implemented.**
+`run` keeps a step count for them, and `restart` in the config is validated but ignored.
+
+**OPT-12 · deferred · There is no line search or trust region.**
+Only `max_step` limits a step.
+
+**OPT-13 · deferred · Convergence is tested only on the gradient.**
+It cannot be tested on the step size or the change in distance.
+
+**OPT-14 · deferred · There is no quasi-Newton optimizer.**
+Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (MER-9).

@@ -1,154 +1,37 @@
 # CLAUDE.md: `glefit.optimization`
 
-This module defines the optimizers that fit embedding parameters. `src/glefit/optimize.py`, the command-line driver that runs them, is described here too.
+Optimizers fit the parameters of an embedder by minimizing a merit function. This file also covers `src/glefit/optimize.py`, the command-line driver that runs them. It lists conventions and pitfalls. Open issues are in `ISSUES.md` at the repository root, as `OPT-n`.
 
-## Background
+## Model
 
-GLEFit fits a Markovian embedding of a generalized Langevin equation to target data. An `embedder` from `glefit.embedding` holds the parameters, and a merit function from `glefit.merit` measures the misfit. The optimizer changes the embedder's mapped parameters `x`, which have no limits on their values. `merit.all()` returns the distance f, its gradient g and its Hessian H with respect to `x`. The Hessian is a finite difference of the analytic gradient.
-
-Both optimizers take second-order steps:
+An optimizer moves the embedder's mapped parameters `x`, which have no limits. `merit.all()` returns the distance f, its gradient g and its Hessian H with respect to `x`, where H is a finite difference of the analytic gradient. In the eigenbasis of H, with eigenvalues bₖ and gradient components gₖ, the steps are:
 
 ```text
-NR:  h = −H⁻¹ g
-EF:  in the eigenbasis of H (eigenvalues bₖ, gradient components gₖ),
-     hₖ = −2gₖ / (|bₖ| (1 + √(1 + 4gₖ²/bₖ²)))
+NR:  hₖ = −gₖ / bₖ                 (computed as h = −H⁻¹g)
+EF:  hₖ = −gₖ / (|bₖ| − λₖ)       with the shift λₖ = (|bₖ| − √(bₖ² + 4gₖ²))/2 ≤ 0
 ```
 
-The EF step goes downhill along every mode, including modes with negative curvature, where NR goes uphill. For small gradients it equals the NR step along modes with positive curvature. Every component hₖ is smaller than 1 in magnitude.
+NR is Newton's method. It converges to the nearest stationary point and goes uphill along modes with negative curvature, so it can stop at a saddle point. EF (eigenvector following) goes downhill along every mode, so it moves away from saddle points. For small gradients it equals NR along modes with positive curvature, and |hₖ| ≤ 1 always. Use EF unless the start is known to be near a minimum. Steps are in `x`: with the default log mappers, a step of 1 multiplies a parameter by up to e.
 
-## Contents
+`NR.py` holds `NewtonRaphson` (config `type` `NR`) and `EigenvectorFollowing` (`EF`), which subclasses it and changes only `step` and the caching of eigenvalues. `_base.py` holds `Optimizer`, modelled on ASE's optimizer, and `IOContext`, which opens and closes the output files. `__init__.py` holds `OPT_MAP`.
 
-| Config `type` | Class | File | Step |
-| --- | --- | --- | --- |
-| `NR` | `NewtonRaphson` | `NR.py` | Newton step. Converges to any stationary point, including saddle points |
-| `EF` | `EigenvectorFollowing` | `NR.py` | Eigenvector-following step. Moves away from saddle points |
+## Running a fit
 
-- `_base.py` holds `Optimizer`, modelled on ASE's optimizer, and `IOContext`, which opens and closes the output files.
-- `__init__.py` holds `OPT_MAP`, which links each config `type` to its class.
+`Optimizer.__init__` opens the files and calls `initialize()`, which for NR and EF calls `merit.all()`. `run(steps, options)` logs the starting point, returns at once if `converged()`, and otherwise repeats `iteration()` until `converged()` or `steps` iterations, logging each. `iteration()` calls `step()`, sets `emb.x = emb.x + h`, and calls `update()`, which calls `merit.all()` again. The options are `gtol` (default 0.05; converged when max|gᵢ| < `gtol`) and `max_step` (default none; `rescale_step` scales the whole step so that its largest component equals `max_step`, which keeps its direction).
 
-```python
-from glefit.optimization import EigenvectorFollowing
-opt = EigenvectorFollowing(emb, merit, logfile="-", trajfile="traj.out")  # calls merit.all() once
-opt.run(steps=100, options={"gtol": 1e-2, "max_step": 0.2})
-opt.converged()     # NR.run and EF.run return None, so check this
-emb.A               # the fitted drift matrix
-```
-
-```yaml
-optimization:
-  type: EF
-  parameters:           # passed to the constructor
-    trajfile: traj.out  # default traj.out; "-" means stdout
-    logfile: log.out    # appended to; "-" means stdout; omitted means no log
-  options:              # passed to run(), after optimize.py pops max_iter
-    max_iter: 100
-    gtol: 0.01          # default 0.05
-    max_step: 0.2       # default: no limit
-```
-
-## The optimization loop
-
-`Optimizer.__init__` opens the files and calls `initialize()`, which for NR and EF calls `merit.all()`. `run(steps, options)` then:
-
-1. writes the starting point to the log and trajectory,
-2. returns at once if `converged()`,
-3. otherwise repeats `iteration()` until `converged()` or `steps` iterations. Each iteration calls `step()`, sets `emb.x = emb.x + h`, calls `update()` (one more `merit.all()`), and logs.
-
-| Method | `Optimizer` | `NewtonRaphson` | `EigenvectorFollowing` |
-| --- | --- | --- | --- |
-| `run` | The loop, returns a bool | Reads `gtol` and `max_step`, returns `None` | Inherited |
-| `initialize`, `update` | Do nothing | Call `merit.all()` | Inherited |
-| `step` | Returns `None` | Newton step, then `rescale_step` | EF step, then `rescale_step` |
-| `converged` | Raises `NotImplementedError` | max\|gᵢ\| < `gtol` | Inherited |
-| `log` | Writes the trajectory | Also writes the log | Inherited, with cached eigenvalues |
-
-`rescale_step` scales the whole step down so that its largest component equals `max_step`, which keeps its direction.
-
-## Output
-
-- **Trajectory** (`trajfile`, opened with `"w"`): a header `<Class> | Step   N, Time hh:mm:ss`, then the conventional parameters as `% .6e` (7 significant digits), then a blank line. `analysis/plot_objective.py` parses this format.
-- **Log** (`logfile`, opened with `"a"`): at every step, the distance, max\|gᵢ\|, the gradient and the Hessian eigenvalues.
-- **`optimize.py`:** writes `optimized_Ap_matrix.json` to the working directory, but only when the fit converges, and prints `YAY!`. A run that does not converge prints nothing and exits with status 0.
-
-All output paths are relative to the working directory.
-
-## The driver, `optimize.py`
-
-`optimize.py CONFIG` (also `bin/optimize.py` after `source env.sh`) runs `ConfigHandler(CONFIG)`, `validate()`, then `Optimization.from_config`. That builds the embedder, loads the data, builds the merit function, and builds the optimizer with `optimization.parameters`. It then pops `max_iter` from `optimization.options` and passes the rest to `run()`. `Optimization.run` returns `opt.converged()`.
+`optimize.py CONFIG` (also `bin/optimize.py` after `source env.sh`) builds the embedder, data, merit function and optimizer with `Optimization.from_config`, and passes `optimization.parameters` to the optimizer's constructor. It pops `max_iter` from `optimization.options` and passes the rest to `run()`. On convergence, it prints `YAY!` and writes `propagation_matrix()` to `optimized_Ap_matrix.json`. Otherwise it prints nothing and exits with status 0.
 
 ## Conventions
 
-- **Steps are in `x`:** `max_step` and the EF bound of 1 apply to mapped parameters. With the default log mappers, a step of 1 multiplies a parameter by up to e.
-- **Convergence:** only max\|gᵢ\| < `gtol` is tested. With the merit's default weights, the distance is about the mean squared relative deviation over the grid's range, so `gtol` does not depend on the number of grid points or the scale of the data. An explicit `weight` removes that normalisation.
-- **Cost:** each step costs one `merit.all()`, which needs 4p + 2 gradient evaluations for p parameters.
-- **Options:** `gtol` and `max_step` are read with `dict.get`, so a misspelled option is silently ignored. Unknown constructor arguments are also ignored.
-- **State:** `gtol` is set in `run`, so `converged()` raises `AttributeError` before the first `run`.
-- **Files:** `IOContext` closes files it opened when the optimizer is closed or garbage-collected. Open file objects passed in are left to the caller.
+- **Output:** paths are relative to the working directory, and `"-"` means stdout. The trajectory (`trajfile`, default `traj.out`) is overwritten. Each step has a header `<Class> | Step   N, Time hh:mm:ss`, the conventional parameters as `% .6e`, and a blank line, which `analysis/plot_objective.py` parses. The log (`logfile`, default none) is appended to, and holds the distance, max|gᵢ|, the gradient and the Hessian eigenvalues at each step. `IOContext` closes the files it opened when the optimizer is closed or garbage-collected, and leaves file objects passed in to the caller.
+- **Convergence:** with the merit's default weights, the distance is about the mean squared relative deviation, so `gtol` does not depend on the number of grid points or the scale of the data. An explicit `weight` removes that normalisation.
+- **Cost:** each step costs one `merit.all()`, which needs 4p + 2 gradient evaluations for p parameters (MER-9).
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
-## Known gaps
+## New optimizer
 
-Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limits was reproduced by running the code.
-
-### Wrong results
-
-- **EF logs the previous step's Hessian eigenvalues.** `step()` caches the eigenvalues, and `update()` replaces the Hessian without clearing the cache, so the log at step k shows the eigenvalues from step k−1. In one run the logged lowest eigenvalue was −12.6 while the current one was −4.4. The steps themselves are correct. Fix: set `self._eigvals = None` in `update()`.
-- **`NR.run` and `EF.run` return `None`.** `Optimizer.run` documents a bool, but `NewtonRaphson.run` drops it. Fix: `return super().run(...)`.
-
-### Surprising limits
-
-- **NR goes uphill along negative curvature.** With H = diag(1, −2) and g = (1, 1), the step was (−1, +0.5). Use EF unless the start is known to be near a minimum.
-- **EF fails at an eigenvalue of exactly 0.** The step is NaN in every component. This happens only when a parameter has no effect on the distance.
-- **`optimization.options.max_iter` is required** by `optimize.py`, but `validate()` does not check it, so a missing value raises `KeyError`.
-- **Unknown `type` values raise `KeyError`** from `OPT_MAP` instead of `ConfigError`.
-- **Runs overwrite and append.** A second run in the same directory overwrites the trajectory and the JSON file, and appends to the log.
-
-### Missing features
-
-- Restarts are not implemented, although `run` keeps a step count for them.
-- There is no line search or trust region. Only `max_step` limits a step.
-- Convergence cannot be tested on the step size or the change in distance.
-- There is no quasi-Newton optimizer that avoids the finite-difference Hessian.
-- Final parameters are written only to the trajectory, with 7 significant digits.
-
-### Test gaps
-
-- `tests/test_optimize/test_optimize.py` runs `optimize.main` on three configs and checks only that no error is raised. It does not check convergence, and the `pronycos_embedder.yaml` fixture does not converge.
-- Nothing tests `step`, `rescale_step`, `converged` or the log files directly.
-- Running these tests from the repository root writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` there.
-
-### Outdated text in the code
-
-- `NewtonRaphson` is called "quasi-Newton". It uses the full finite-difference Hessian.
-- The `run` docstrings refer to `DEFAULT_MAX_STEPS`. The constant is `MAX_ITERATIONS_DEFAULT`.
-- `optimize.py` imports `load_data`, which it does not use.
-
-## Adding features
-
-### A new optimizer
-
-1. Subclass `Optimizer`, or `NewtonRaphson` if it uses the same quantities, as `EigenvectorFollowing` does.
-2. Implement `step()` (return h for `x_new = x + h`) and `converged()`. Compute what they need in `initialize()` and `update()`.
-3. If it needs options, read them in an overridden `run(steps, options)` and then call `super().run`. Return its result.
-4. Extend `log()` if needed, and call `super().log(T=T)` so that the trajectory is still written.
-5. Add the class to `OPT_MAP` in `__init__.py`. No other registration is needed: the config validator checks only that `type` is present.
-
-### Other changes
-
-- **Restarts:** read the last trajectory entry, or a checkpoint, into `emb.conventional_params` before `run`, and set `nsteps`. `restart` in the config is already validated. `ConfigHandler` has commented-out checkpoint methods.
-- **New stopping rules:** override `converged()`. `self._value`, `self._grad` and `self._hess` hold the current values.
+Subclass `Optimizer`, or `NewtonRaphson` if it uses the same quantities, as EF does. Implement `step()`, which returns h for `x + h`, and `converged()`, and compute what they need in `initialize()` and `update()`. Read options in an overridden `run(steps, options)` and return `super().run(...)`. If `log()` is extended, call `super().log(T=T)`, which writes the trajectory. Add the class to `OPT_MAP`: the config validator checks only that `type` is present.
 
 ## Testing
 
-`glefit` is not installed. The tests write output files to the working directory, so run them from a scratch directory. Start from the repository root:
-
-```bash
-REPO=$(pwd); cd "$(mktemp -d)" && PYTHONPATH=$REPO/src conda run -n tools python -m pytest $REPO/tests/test_optimize
-```
-
-A new or changed optimizer should have tests that:
-
-- check single steps against hand-computed values for a diagonal Hessian, including negative and near-zero eigenvalues
-- check that `max_step` limits the largest component and keeps the direction
-- fit a target made by a known embedding, such as `Debye(η, ωc)` from `glefit.spectral`, and check that the fit converges to the known parameters
-- check the trajectory format with `analysis/plot_objective.py::parse_trajectory_file`
+Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_optimize.py` from the repository root. It checks only that a gen2x2 fit that converges at once writes the right `optimized_Ap_matrix.json`. Nothing yet tests `step`, `rescale_step`, `converged` or the log and trajectory. The driver writes to the working directory, so tests should `monkeypatch.chdir` into `tmp_path`. A new or changed optimizer should have tests that check single steps against hand-computed values on a quadratic objective, including negative and zero eigenvalues, that `max_step` limits the largest component and keeps the direction, that a fit to a target made by a known embedding converges to its parameters, and that `parse_trajectory_file` reads the trajectory back.
