@@ -16,6 +16,9 @@ import numpy as np
 import numpy.typing as npt
 import time
 
+DEFAULT_GTOL = 0.05
+
+
 class NewtonRaphson(Optimizer):
     """Newton-Raphson (quasi-Newton) optimizer for merit function minimization.
     
@@ -63,7 +66,7 @@ class NewtonRaphson(Optimizer):
             raise TypeError(
                 f"{type(self).__name__}.run got unknown options: {unknown}")
         # Validate and extract options with sensible defaults
-        self.gtol = float(options.get("gtol", 0.05))
+        self.gtol = float(options.get("gtol", DEFAULT_GTOL))
         max_step_val = options.get("max_step")
         self.max_step = float(max_step_val) if max_step_val is not None else None
         
@@ -76,6 +79,8 @@ class NewtonRaphson(Optimizer):
         return super().run(steps=steps, options=options)
 
     def initialize(self) -> None:
+        self.gtol = DEFAULT_GTOL
+        self.max_step = None
         self.update()
         
     def update(self) -> None:

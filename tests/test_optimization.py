@@ -172,6 +172,57 @@ def test_run_rejects_unknown_options(quadratic, cls):
         opt.run(1, {"gtol": 1e-3, "gtoll": 1e-6})
 
 
+def quadratic_with_max_grad(max_grad):
+    """A quadratic objective whose gradient at the start has max|g| equal
+    to max_grad.
+    """
+    emb = PronyCosineEmbedder(1.0, 1.0, 1.0)
+    grad = np.array([0.0, -max_grad, 0.0])
+    return emb, QuadraticObjective(emb, grad, HESS)
+
+
+# the default gtol is 0.05
+NEAR_DEFAULT_GTOL = pytest.mark.parametrize(
+    "max_grad, expected", [(0.049, True), (0.051, False)],
+    ids=["below-default-gtol", "above-default-gtol"])
+
+
+@NEAR_DEFAULT_GTOL
+@pytest.mark.parametrize("cls", [NewtonRaphson, EigenvectorFollowing],
+                         ids=["NR", "EF"])
+def test_converged_before_run_uses_default_gtol(cls, max_grad, expected):
+    emb, merit = quadratic_with_max_grad(max_grad)
+    opt = cls(emb, merit, trajfile=io.StringIO())
+
+    converged = opt.converged()
+
+    assert converged == expected
+
+
+@NEAR_DEFAULT_GTOL
+def test_run_without_gtol_resets_it_to_default(max_grad, expected):
+    emb, merit = quadratic_with_max_grad(max_grad)
+    opt = NewtonRaphson(emb, merit, trajfile=io.StringIO())
+    opt.run(0, {"gtol": 1.0})
+
+    converged = opt.run(0, {})
+
+    assert converged == expected
+
+
+@pytest.mark.parametrize("cls, expected", [
+    (NewtonRaphson, NR_STEP),
+    (EigenvectorFollowing, EF_STEP),
+], ids=["NR", "EF"])
+def test_step_before_run_has_no_max_step(quadratic, cls, expected):
+    emb, merit = quadratic
+    opt = cls(emb, merit, trajfile=io.StringIO())
+
+    step = opt.step()
+
+    assert_allclose(step, expected, rtol=RTOL, atol=0)
+
+
 def test_ef_fit_recovers_its_target_parameters(prony_fit):
     emb, merit = prony_fit
     opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())

@@ -123,9 +123,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-4 · open · `converged()` raises `AttributeError` before `run`.**
-`gtol` is set only in `run`. Agreed fix: set the defaults `gtol = 0.05` and `max_step = None` at construction, so that `converged()` tests the starting point.
-
 **OPT-5 · open · The EF step is NaN at a Hessian eigenvalue of exactly 0.**
 The code divides gₖ by bₖ, so bₖ = 0 makes every component of the step NaN. This happens when a parameter has no effect on the distance. Agreed fix: write the same step as hₖ = −2gₖ/(|bₖ| + √(bₖ² + 4gₖ²)), which agrees to 6e-16 for bₖ ≠ 0 and gives −sign(gₖ) at bₖ = 0, and take hₖ = 0 where bₖ = gₖ = 0.
 
@@ -163,3 +160,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-1** · `fix(optimization): log the current Hessian eigenvalues in EF` · EF logged the eigenvalues of the previous step's Hessian.
 - **OPT-2** · `fix(optimization): return the convergence flag from run` · `NR.run` and `EF.run` returned `None`; they now return whether the fit converged.
 - **OPT-3** · `fix(optimization): reject unknown arguments and options` · Unknown constructor arguments and `run` options were ignored, so a misspelled `gtoll` left the default; both now raise `TypeError`.
+- **OPT-4** · `fix(optimization): set default options at construction` · `converged()` and `step()` raised `AttributeError` before `run`; they now use the defaults `gtol = 0.05` and no `max_step`.
