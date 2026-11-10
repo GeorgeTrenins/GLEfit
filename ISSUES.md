@@ -57,7 +57,7 @@ None.
 ### Accepted
 
 **MAP-5 · accepted · Bounds hold only up to rounding.**
-`inverse` returns p exactly on a nonzero bound once the bound absorbs the increment: `LowerBoundMapper(a).inverse(x)` returns a once eˣ < |a|·ε/2, that is, for x < ln|a| − 36.7, and `IntervalMapper().inverse(x)` returns 1 for x > 36.7. With a = 0, as in every default mapper, this needs x < −745. `LowerBoundMapper` and `UpperBoundMapper` overflow to ±∞ for x > 709, whatever the bound. No double lies between a bound and the next double, so no rewrite of `inverse` avoids this. Clamping p inside the bound would make `inverse` many-to-one and hide that a fit has reached the bound. A p on the bound fails only when it is passed back to `forward`, which raises (EMB-10).
+`inverse` returns p exactly on a nonzero bound once the bound absorbs the increment: `LowerBoundMapper(a).inverse(x)` returns a once eˣ < |a|·ε/2, that is, for x < ln|a| − 36.7, and `IntervalMapper().inverse(x)` returns 1 for x > 36.7. With a = 0, as in every default mapper, this needs x < −745. `LowerBoundMapper` and `UpperBoundMapper` overflow to ±∞ for x > 709, whatever the bound. No double lies between a bound and the next double, so no rewrite of `inverse` avoids this.
 
 **MAP-6 · accepted · Gradients vanish near bounds.**
 dp/dx falls like e^(−|x|), to about 5e-5 at |x| = 10 and 2e-9 at |x| = 20, so a parameter pushed against its bound barely moves. This is how the exponential maps behave, and changing them would change every fit.
@@ -65,20 +65,13 @@ dp/dx falls like e^(−|x|), to about 5e-5 at |x| = 10 and 2e-9 at |x| = 20, so 
 **MAP-7 · accepted · Mappers cannot be set from a config.**
 This is by design: custom mappers are for debugging only, so fits always use each embedder's defaults. There is no registry and no `from_dict`.
 
-### Deferred features
-
-**MAP-8 · deferred · Mappers act on one parameter each.**
-They cannot limit a combination of parameters. Such limits, like γ ≥ |δ| for gen2x2, must be built into the primitive parameters.
-
-**MAP-9 · deferred · Mappers are not vectorized.**
-`BaseEmbedder` calls them one parameter at a time, in Python.
 
 ### Resolved
 
-- **MAP-1** · `fix(mappers): reject NaN and infinite p in forward` · `forward` accepted NaN and infinite p, so `PronyEmbedder(nan, 1.0)` was accepted.
-- **MAP-2** · `fix(mappers): accept any real bound and reject bad ones` · Bounds had to be Python `int` or `float`, and `None` or a string raised `ValueError`; they now accept any real number and raise `TypeError` otherwise.
-- **MAP-3** · `fix(mappers): accept any real bound and reject bad ones` · NaN and infinite bounds were accepted, and `IntervalMapper` accepted a = b and sorted reversed bounds; these now raise `ValueError`.
-- **MAP-4** · `refactor(mappers): remove leftovers` · The `_base.py` header called p the conventional parameter, and `intervals.py` ended with an unused `__main__` block.
+- **MAP-1** · `c9bbf2d` · `forward` accepted NaN and infinite p; it now raises `ValueError`.
+- **MAP-2** · `53e3bd8` · Bounds had to be Python `int` or `float`; they now accept any real number and raise `TypeError` otherwise.
+- **MAP-3** · `53e3bd8` · Bounds must be finite, and `IntervalMapper` requires a < b instead of sorting its bounds.
+- **MAP-4** · `068110c` · The `_base.py` header called p conventional, and `intervals.py` had an unused `__main__` block.
 
 ## `glefit.merit`
 
