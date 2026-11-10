@@ -17,6 +17,14 @@ import numpy.typing as npt
 import time
 
 DEFAULT_GTOL = 0.05
+# EF takes no step along a mode with eigenvalue |b| <= TAU·max|b| and 
+# |g| < gtol/√p, for p parameters. The finite-difference Hessian resolves |b| 
+# only to about 1e-12·max|b|: below that, b and g are rounding errors, and the
+# EF step, set by their ratio, is random. Such steps moved parameters without
+# effect by up to 1 per iteration, and under max_step shrank every other
+# step. The bound on g keeps steps along a real slope, so that frozen modes 
+# cannot keep max|g| above gtol.
+TAU = 1e-10
 
 
 class NewtonRaphson(Optimizer):
@@ -222,6 +230,10 @@ class EigenvectorFollowing(NewtonRaphson):
         den = np.abs(self._eigvals) + np.hypot(self._eigvals, 2 * nm_grad)
         nm_step = np.divide(-2 * nm_grad, den,
                             out=np.zeros_like(nm_grad), where=den != 0)
+        b = np.abs(self._eigvals)
+        flat = ((b <= TAU * b.max())
+                & (np.abs(nm_grad) < self.gtol / np.sqrt(nm_grad.size)))
+        nm_step[flat] = 0.0
         h = self._eigvecs @ nm_step
         h = self.rescale_step(h)
         return h

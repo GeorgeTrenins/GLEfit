@@ -246,32 +246,57 @@ def test_step_before_run_has_no_max_step(quadratic, cls, expected):
     assert_allclose(step, expected, rtol=RTOL, atol=0)
 
 
-# The first two parameters have curvatures 2 and 1/2 along U and W, and
-# gradient components -3/4 and 1/3 along them, so EF steps by 1/3 and
-# -1/2 along them, which is (3/5, -1/30). The last parameter has no
-# curvature: its zero row and column make eigh return a zero eigenvalue
-# exactly, and EF steps by -sign(g) along it.
+# The first two parameters have curvatures -2 and 1/2 along U and W, and
+# gradient components -3/4 and 1/3 along them, so EF, which uses |b|, steps
+# by 1/3 and -1/2 along them, which is (3/5, -1/30). The last parameter
+# has its own curvature c and gradient g. With max|b| = 2 and p = 3, EF
+# takes no step along it where c <= TAU·2 = 2e-10 and |g| < gtol/√3, which
+# is 0.0289 for gtol = 0.05, and -2g/(c + √(c² + 4g²)) ≈ -sign(g)
+# otherwise.
 U = np.array([0.6, 0.8, 0.0])
 W = np.array([-0.8, 0.6, 0.0])
 
 
-@pytest.mark.parametrize("curvature, grad, expected", [
-    (0.0, 0.3, -1.0),
-    (0.0, -0.3, 1.0),
-    (0.0, 0.0, 0.0),
-    (1e-200, 0.3, -1.0),
-], ids=["positive-gradient", "negative-gradient", "no-gradient",
-        "tiny-curvature"])
-def test_ef_step_along_a_mode_without_curvature(curvature, grad, expected):
+@pytest.mark.parametrize("curvature, grad, gtol, expected", [
+    (0.0, 1e-3, 0.05, 0.0),
+    (1e-200, 1e-3, 0.05, 0.0),
+    (1.9e-10, 1e-3, 0.05, 0.0),
+    (2.1e-10, 1e-3, 0.05, -1.0),
+    (0.0, 0.0285, 0.05, 0.0),
+    (0.0, 0.0292, 0.05, -1.0),
+    (0.0, 1e-3, 1e-3, -1.0),
+], ids=["zero", "tiny", "below-tau", "above-tau", "gradient-below-bound",
+        "gradient-above-bound", "bound-from-gtol"])
+def test_ef_cuts_flat_modes_with_small_gradients(
+        curvature, grad, gtol, expected):
     emb = PronyCosineEmbedder(1.0, 1.0, 1.0)
-    hess = (2 * np.outer(U, U) + 0.5 * np.outer(W, W)
+    hess = (-2 * np.outer(U, U) + 0.5 * np.outer(W, W)
             + np.diag([0.0, 0.0, curvature]))
     merit = QuadraticObjective(emb, -0.75 * U + W / 3 + [0, 0, grad], hess)
     opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())
+    opt.run(0, {"gtol": gtol})
 
     step = opt.step()
 
-    assert_allclose(step, [0.6, -1 / 30, expected], rtol=RTOL, atol=0)
+    # above TAU, the step differs from -1 by c/(2g) = 1.05e-7
+    assert_allclose(step, [0.6, -1 / 30, expected], rtol=1e-6, atol=0)
+
+
+def test_ef_with_a_dead_term_converges_under_max_step():
+    # θ₂² underflows to 0, so the second term has no effect, and its
+    # modes have no curvature. EF stepped along them at random, and
+    # max_step scaled down every step to fit: the fit took 89 steps.
+    grid = np.linspace(0.0, 20.0, 41)
+    target = PronyEmbedder(1.0, 1.0).spectrum(grid)
+    emb = MultiEmbedder([PronyEmbedder(0.7, 0.6), PronyEmbedder(1e-200, 3.0)])
+    dead = emb.x[2:]
+    merit = MemorySpectrum(grid, target, emb, "squared")
+    opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())
+
+    converged = opt.run(10, {"gtol": 1e-10, "max_step": 0.2})
+
+    assert converged
+    assert_allclose(emb.x[2:], dead, rtol=0, atol=1e-12)
 
 
 def test_ef_fit_recovers_its_target_parameters(prony_fit):
