@@ -204,9 +204,12 @@ class EigenvectorFollowing(NewtonRaphson):
     def step(self) -> npt.NDArray[np.floating]:
         self._eigvals, self._eigvecs = np.linalg.eigh(self._hess)
         nm_grad = self._grad @ self._eigvecs
-        nm_step = -2 * nm_grad / (np.abs(self._eigvals) * (1 + np.sqrt(
-            1 + 4 * (nm_grad / self._eigvals)**2
-        )))
+        # -2g / (|b| + √(b² + 4g²)) along each mode, written without
+        # dividing by the eigenvalue b, so that it is -sign(g) at b = 0.
+        # A mode with b = g = 0 gets no step; NaN still propagates.
+        den = np.abs(self._eigvals) + np.hypot(self._eigvals, 2 * nm_grad)
+        nm_step = np.divide(-2 * nm_grad, den,
+                            out=np.zeros_like(nm_grad), where=den != 0)
         h = self._eigvecs @ nm_step
         h = self.rescale_step(h)
         return h

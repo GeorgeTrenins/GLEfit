@@ -123,9 +123,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-5 · open · The EF step is NaN at a Hessian eigenvalue of exactly 0.**
-The code divides gₖ by bₖ, so bₖ = 0 makes every component of the step NaN. This happens when a parameter has no effect on the distance. Agreed fix: write the same step as hₖ = −2gₖ/(|bₖ| + √(bₖ² + 4gₖ²)), which agrees to 6e-16 for bₖ ≠ 0 and gives −sign(gₖ) at bₖ = 0, and take hₖ = 0 where bₖ = gₖ = 0.
-
 **OPT-6 · open · `validate()` misses required keys.**
 A missing `embedder.parameters` or `optimization.options.max_iter` raises `KeyError` in `optimize.py`. The fix belongs in `glefit.config`.
 
@@ -140,6 +137,9 @@ A second run in the same directory appends to the log, but overwrites the trajec
 
 **OPT-10 · open · Final parameters are kept only to 7 significant digits.**
 They are written only to the trajectory, and cannot be loaded back into an embedder. Agreed fix: embedders get a `to_dict()` that returns `{"type", "parameters"}`, like a config's `embedder` section, and `optimize.py` always pickles it at the end of a run, converged or not.
+
+**OPT-15 · open · EF steps at random along a mode whose curvature is a rounding error.**
+A parameter that has no effect gives H a zero row and column. Unless it is the first or last parameter, `eigh` usually returns its eigenvalue as about ±1e-16 rather than 0: in 200 random 4×4 Hessians with the second parameter flat, never exactly 0. EF's step along a mode depends only on r = gₖ/bₖ, as |hₖ| = 2|r|/(1 + √(1 + 4r²)), so two rounding errors give a step anywhere between 0 and 1 in x, with a random sign, at every iteration: a median of 0.66 in those 200 Hessians, with the gradient along the parameter exactly 0. The distance and the convergence test are not affected, but the parameter ends at an arbitrary value. A threshold on gₖ cannot catch this: `eigh` computes each eigenvector only to an angle of about ε·max|b| divided by the gap to the nearest eigenvalue, so next to a mode of curvature 1e-8, gₖ reached 2e7·ε‖g‖. Eigenvalues are accurate to ε·max|b| whatever the gap, so a possible fix is hₖ = 0 where |bₖ| ≤ τ·max|b|. For least squares, a direction with a real gradient has positive curvature near a fit, so this should not block progress. τ must match the noise of the finite-difference Hessian, which is far above ε and not yet measured. Plan: investigate thoroughly after the other optimization fixes, and fix before the final refactor of the module.
 
 ### Deferred features
 
@@ -161,3 +161,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-2** · `fix(optimization): return the convergence flag from run` · `NR.run` and `EF.run` returned `None`; they now return whether the fit converged.
 - **OPT-3** · `fix(optimization): reject unknown arguments and options` · Unknown constructor arguments and `run` options were ignored, so a misspelled `gtoll` left the default; both now raise `TypeError`.
 - **OPT-4** · `fix(optimization): set default options at construction` · `converged()` and `step()` raised `AttributeError` before `run`; they now use the defaults `gtol = 0.05` and no `max_step`.
+- **OPT-5** · `fix(optimization): EF step at a zero Hessian eigenvalue` · The EF step was NaN where `eigh` returned an eigenvalue of exactly 0, as for a first or last parameter without effect, and 0 instead of ±1 where |gₖ/bₖ| exceeded about 1e154.

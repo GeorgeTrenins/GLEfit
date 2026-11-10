@@ -223,6 +223,34 @@ def test_step_before_run_has_no_max_step(quadratic, cls, expected):
     assert_allclose(step, expected, rtol=RTOL, atol=0)
 
 
+# The first two parameters have curvatures 2 and 1/2 along U and W, and
+# gradient components -3/4 and 1/3 along them, so EF steps by 1/3 and
+# -1/2 along them, which is (3/5, -1/30). The last parameter has no
+# curvature: its zero row and column make eigh return a zero eigenvalue
+# exactly, and EF steps by -sign(g) along it.
+U = np.array([0.6, 0.8, 0.0])
+W = np.array([-0.8, 0.6, 0.0])
+
+
+@pytest.mark.parametrize("curvature, grad, expected", [
+    (0.0, 0.3, -1.0),
+    (0.0, -0.3, 1.0),
+    (0.0, 0.0, 0.0),
+    (1e-200, 0.3, -1.0),
+], ids=["positive-gradient", "negative-gradient", "no-gradient",
+        "tiny-curvature"])
+def test_ef_step_along_a_mode_without_curvature(curvature, grad, expected):
+    emb = PronyCosineEmbedder(1.0, 1.0, 1.0)
+    hess = (2 * np.outer(U, U) + 0.5 * np.outer(W, W)
+            + np.diag([0.0, 0.0, curvature]))
+    merit = QuadraticObjective(emb, -0.75 * U + W / 3 + [0, 0, grad], hess)
+    opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())
+
+    step = opt.step()
+
+    assert_allclose(step, [0.6, -1 / 30, expected], rtol=RTOL, atol=0)
+
+
 def test_ef_fit_recovers_its_target_parameters(prony_fit):
     emb, merit = prony_fit
     opt = EigenvectorFollowing(emb, merit, trajfile=io.StringIO())
