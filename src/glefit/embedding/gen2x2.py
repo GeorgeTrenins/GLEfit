@@ -180,6 +180,13 @@ class TwoAuxEmbedder(BaseEmbedder):
         zeta = param_copy.pop("zeta")
         return cls(theta, gamma, delta, zeta, **param_copy)
 
+    def _config_parameters(self) -> dict:
+        # the maximal gauge, which from_dict reads back as r ≥ 0 and
+        # 0 ≤ φ ≤ π/2, with the same kernel
+        theta1, theta2, gamma, delta, zeta = self.conventional_params.tolist()
+        return {"theta": [theta1, theta2], "gamma": gamma, "delta": delta,
+                "zeta": zeta}
+
     @staticmethod
     def _reject_removed_keys(parameters: dict) -> None:
         """Raise TypeError for a key of an earlier version of the embedder.

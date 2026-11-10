@@ -13,8 +13,9 @@ from __future__ import print_function, division, absolute_import
 import numpy as np
 import pytest
 import sympy as sp
+import yaml
 from numpy.testing import assert_allclose, assert_array_equal
-from glefit.embedding import (MultiEmbedder, PronyCosineEmbedder,
+from glefit.embedding import (EMBEDDER_MAP, MultiEmbedder, PronyCosineEmbedder,
                               PronyEmbedder, TwoAuxEmbedder)
 from glefit.mappers import IdentityMapper, LowerBoundMapper
 
@@ -298,3 +299,44 @@ def test_numpy_scalar_params_are_stored_as_double(cls, args, _expected):
     dtypes = (emb.primitive_params.dtype, emb.x.dtype)
 
     assert dtypes == (np.float64, np.float64)
+
+
+def gen2x2_at(primitive):
+    """A gen2x2 embedder at the given [r, γ, Ω, φ]."""
+    emb = TwoAuxEmbedder([1.0, 1.0], 1.0, 0.5, 0.5)
+    emb.primitive_params = primitive
+    return emb
+
+
+# from_dict returns gen2x2 with r ≥ 0 and 0 ≤ φ ≤ π/2, the same kernel as
+# a fit with r < 0 or φ outside that range, so those states are included
+TO_DICT = {
+    **EMBEDDERS,
+    "gen2x2-negative-r": lambda: gen2x2_at([-1.3, 0.8, 1.7, 2.6]),
+    "gen2x2-negative-phi": lambda: gen2x2_at([1.3, 0.8, 1.7, -0.9]),
+    "multi-with-negative-r": lambda: MultiEmbedder([
+        PronyEmbedder(0.5, 2.0), gen2x2_at([-1.3, 0.8, 1.7, 2.6])]),
+}
+
+
+@pytest.mark.parametrize("make", list(TO_DICT.values()), ids=list(TO_DICT))
+def test_to_dict_rebuilds_the_same_kernel_and_spectrum(make):
+    emb = make()
+    config = emb.to_dict()
+
+    rebuilt = EMBEDDER_MAP[config["type"]].from_dict(config["parameters"])
+
+    assert type(rebuilt) is type(emb)
+    assert_allclose(rebuilt.kernel(TIME), emb.kernel(TIME), rtol=RTOL)
+    assert_allclose(rebuilt.spectrum(FREQ), emb.spectrum(FREQ), rtol=RTOL)
+
+
+@pytest.mark.parametrize("make", list(EMBEDDERS.values()),
+                         ids=list(EMBEDDERS))
+def test_to_dict_can_be_written_to_a_config_file(make):
+    config = make().to_dict()
+
+    # safe_dump takes only built-in types, which a config file holds
+    text = yaml.safe_dump(config)
+
+    assert yaml.safe_load(text) == config

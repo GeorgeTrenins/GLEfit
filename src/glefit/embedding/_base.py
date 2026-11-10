@@ -65,6 +65,32 @@ class BaseEmbedder(ABC):
     ) -> "BaseEmbedder":
         pass
 
+    def to_dict(self) -> dict:
+        """Return the config entry that rebuilds this embedder.
+
+        It has the form of the `embedder` section of a config file, with
+        built-in Python types only, so that
+        `EMBEDDER_MAP[d["type"]].from_dict(d["parameters"])` builds an
+        embedder with the same kernel and spectrum. Mappers are left out,
+        so that embedder has the default mappers.
+
+        Returns
+        -------
+        dict
+            `type`, the name of the class in EMBEDDER_MAP, and
+            `parameters`, the conventional parameters as from_dict takes
+            them
+        """
+        from glefit.embedding import EMBEDDER_MAP
+        names = {cls: name for name, cls in EMBEDDER_MAP.items()}
+        return {"type": names[type(self)],
+                "parameters": self._config_parameters()}
+
+    @abstractmethod
+    def _config_parameters(self) -> dict:
+        """The keys of from_dict, as built-in Python types."""
+        pass
+
     @classmethod
     def _check_config_keys(
         cls,

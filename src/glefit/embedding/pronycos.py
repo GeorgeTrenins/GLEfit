@@ -78,6 +78,10 @@ class PronyCosineEmbedder(BaseEmbedder):
         gamma = param_copy.pop("gamma")
         omega = param_copy.pop("omega")
         return cls(theta, gamma, omega, **param_copy)
+
+    def _config_parameters(self) -> dict:
+        theta, gamma, omega = self.conventional_params.tolist()
+        return {"theta": theta, "gamma": gamma, "omega": omega}
     
     @staticmethod
     def from_harmonic(

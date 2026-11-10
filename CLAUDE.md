@@ -87,7 +87,7 @@ Fits therefore depend only on `compute_drift_matrix` and `drift_matrix_param_gra
 
 ### Embedders
 
-Subclass `BaseEmbedder` and implement `from_dict`, `__len__`, the `nparam` property, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`, and set `_primitive_names` for error messages. If primitive parameters differ from conventional ones, also override the `ndof` property, `to_primitive` and `to_conventional`.
+Subclass `BaseEmbedder` and implement `from_dict` and its inverse `_config_parameters`, `__len__`, the `nparam` property, `compute_drift_matrix`, `drift_matrix_param_grad`, and the `func`, `grad` and `hess` variants of `kernel_*` and `spectrum_*`, and set `_primitive_names` for error messages. If primitive parameters differ from conventional ones, also override the `ndof` property, `to_primitive` and `to_conventional`.
 
 `BaseEmbedder.__init__` reads `ndof`, so set anything it needs before calling `super().__init__`. Set default mappers with `kwargs.setdefault("mappers", [...])`.
 

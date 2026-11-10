@@ -74,6 +74,10 @@ class PronyEmbedder(BaseEmbedder):
         gamma = param_copy.pop("gamma")
         return cls(theta, gamma, **param_copy)
 
+    def _config_parameters(self) -> dict:
+        theta, gamma = self.conventional_params.tolist()
+        return {"theta": theta, "gamma": gamma}
+
     def compute_drift_matrix(
         self, 
         primitive_params: npt.ArrayLike

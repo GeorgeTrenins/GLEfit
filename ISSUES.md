@@ -18,6 +18,9 @@ A full Ap cannot be loaded back into an embedder.
 **EMB-23 · deferred · `from_dict` does not check that required keys are present.**
 `_check_config_keys` rejects unknown keys (EMB-11), but uses the required keys only to decide which keys are allowed. A missing one fails at the first `pop` in `from_dict` with a bare `KeyError`, such as `KeyError: 'theta'`, which names neither the class nor the config section. `MultiEmbedder.from_dict` behaves the same for a missing `embedders`, and for a component without `type` or `parameters`. A fix would raise `TypeError` for missing required keys in `_check_config_keys`, as for unexpected ones, and check each component in `MultiEmbedder.from_dict`. Deferred indefinitely.
 
+**EMB-24 · deferred · An unknown component type of `multi` raises a bare `KeyError`.**
+`Optimization.from_config` checks only the top-level `embedder.type` (OPT-7). `MultiEmbedder.from_dict` looks up each component's `type` as `EMBEDDER_MAP[d["type"]]` without a check, so a misspelled component type, such as `pronny`, raises `KeyError: 'pronny'`. A fix would check each component's type against `EMBEDDER_MAP`, as `from_config` does. Deferred indefinitely.
+
 
 ### Tracked in other modules
 

@@ -62,6 +62,9 @@ class MultiEmbedder(BaseEmbedder):
             embedders.append(embedder)
         return cls(embedders)
 
+    def _config_parameters(self) -> dict:
+        return {"embedders": [emb.to_dict() for emb in self._embs]}
+
     def __len__(self) -> int:
         return self._naux
 
