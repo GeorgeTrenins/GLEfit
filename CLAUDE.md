@@ -17,8 +17,9 @@ Use the `tools` conda environment, not the `glefit` environment defined in `envi
 - `trajfile` (default `traj.out`): conventional parameters at each step.
 - `logfile`: overwritten, `-` means stdout, and leaving it unset discards the log.
 - `optimized_Ap_matrix.json`: the full drift matrix from `propagation_matrix()`, which is the minimal gauge for `gen2x2`, written only on convergence.
+- `embedder_parameters.pkl`: the pickled `emb.to_dict()` at full precision, with `success` (`True` if the fit converged), written after every run, also one that raises. `EMBEDDER_MAP[d["type"]].from_dict(d["parameters"])` rebuilds the embedder.
 
-A run that does not converge prints nothing and exits 0, so check for the JSON file.
+A run that does not converge prints nothing and exits 0, so check `success` in the pickle.
 
 `tutorials/spectrum_optimization.ipynb` creates its workspace under `tutorials/spectrum_optimization/`.
 
@@ -26,7 +27,7 @@ A run that does not converge prints nothing and exits 0, so check for the JSON f
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives, input checks, `from_dict` and the weights), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 386 passing tests, `tests/test_merit` has 166, `tests/test_utils` has 28, `tests/test_optimization.py` checks the optimizers' steps, convergence test and trajectory, and one fit, `tests/test_optimize.py` checks the file that `optimize.py` writes and that it rejects unknown types, `tests/test_config.py` checks that `validate()` requires every key that `optimize.py` reads, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject bad parameters and bounds. Its references are SymPy and mpmath.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives, input checks, `from_dict` and the weights), `sinc` in `glefit.utils.special` and `jacobian` in `glefit.utils.numderiv`: `tests/test_embedding` has 386 passing tests, `tests/test_merit` has 166, `tests/test_utils` has 28, `tests/test_optimization.py` checks the optimizers' steps, convergence test and trajectory, and one fit, `tests/test_optimize.py` checks the files that `optimize.py` writes and that it rejects unknown types, `tests/test_config.py` checks that `validate()` requires every key that `optimize.py` reads, and `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject bad parameters and bounds. Its references are SymPy and mpmath.
 
 `legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py`, `test_utils/test_numderiv.py` and `test_mappers/test_intervals.py` cannot be imported. 72 tests pass, 52 fail and those three files fail to import. The failures are known, caused by tests lagging the code:
 
@@ -37,7 +38,7 @@ Open issues are listed in `ISSUES.md`.
 - `test_embedding/test_gen2x2.py::test_matrix_rotation` (1): calls `TwoAuxEmbedder.rotate_matrix`, which was removed when `from_matrix` switched to rotation invariants (EMB-22).
 - `test_merit/test_properties.py::TestKernel::test_memory_kernel_distance_gradient` (1): compares `gradient()` with a finite difference of the unweighted sum of squared deviations, but the default weights are normalised since MER-6. Its spectrum counterpart in `TestSpectrum` already fails on `sigma`.
 
-`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out` and `optimized_Ap_matrix.json` into the working directory, so run `legacy_tests` from a scratch directory: `PYTHONPATH=<repo>/src python -m pytest --continue-on-collection-errors <repo>/legacy_tests`.
+`test_optimize.py` only checks that runs finish without raising. It does not assert convergence, and the `pronycos_embedder.yaml` fixture does not converge. It writes `log.out`, `trajectory.out`, `optimized_Ap_matrix.json` and `embedder_parameters.pkl` into the working directory, so run `legacy_tests` from a scratch directory: `PYTHONPATH=<repo>/src python -m pytest --continue-on-collection-errors <repo>/legacy_tests`.
 
 ## Working rules 
 

@@ -10,12 +10,28 @@
 
 from __future__ import print_function, division, absolute_import
 import argparse
+import pickle
 from pathlib import Path
 from glefit.config.config_handler import ConfigError, ConfigHandler
 from glefit.config.data_io import load_data
 from glefit.embedding import BaseEmbedder, EMBEDDER_MAP
 from glefit.merit import BaseProperty, PROPERTY_MAP
 from glefit.optimization import Optimizer, OPT_MAP
+
+EMBEDDER_FILE = "embedder_parameters.pkl"
+
+
+def write_embedder(emb: BaseEmbedder, success: bool) -> None:
+    """Pickle emb.to_dict(), with `success`, to EMBEDDER_FILE in the
+    working directory.
+
+    `EMBEDDER_MAP[d["type"]].from_dict(d["parameters"])` rebuilds the
+    embedder from the dictionary d that the file holds.
+    """
+    record = emb.to_dict()
+    record["success"] = bool(success)
+    with open(EMBEDDER_FILE, "wb") as f:
+        pickle.dump(record, f)
 
 
 def _registered(registry: dict, section: str, name) -> type:
@@ -91,7 +107,13 @@ def main(args: argparse.Namespace):
     opt_config: dict = handler.get_optimization_config()
     optimization_options = opt_config["options"]
     max_iter = optimization_options.pop("max_iter")
-    success = optimization.run(steps=max_iter, options=optimization_options)
+    success = False
+    try:
+        success = optimization.run(
+            steps=max_iter, options=optimization_options)
+    finally:
+        # also if the run fails, to keep the parameters it stopped at
+        write_embedder(optimization.emb, success)
     if success:
         print("YAY!")
         # the form best suited to simulations, with the fitted kernel
