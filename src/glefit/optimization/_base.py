@@ -7,17 +7,14 @@
 @Desc    :   Base class for auxiliary variable parameter optimization - based on ASE's Optimizer
 '''
 
-#TODO: implement restart method (abstract)
-
 from __future__ import print_function, division, absolute_import
 from glefit.embedding import BaseEmbedder
 from glefit.merit import BaseProperty
 from pathlib import Path
 from typing import Optional, Union, IO
 from contextlib import ExitStack
-import functools
 import os
-import sys 
+import sys
 import numpy as np
 import numpy.typing as npt
 import time
@@ -26,46 +23,25 @@ MAX_ITERATIONS_DEFAULT = 1_000_000
 DEFAULT_TRAJ_FILE = "traj.out"
 
 
+def _format(values: npt.ArrayLike) -> str:
+    """Format an array for the log and the trajectory: every entry, with 7
+    significant digits, in lines of at most 70 characters."""
+    return np.array2string(
+        np.asarray(values),
+        max_line_width=70,
+        separator=", ",
+        suppress_small=False,
+        threshold=1_000_000,
+        formatter={'float_kind': lambda x: f"{x: .6e}"})
+
+
 class _DelExitStack(ExitStack):
-    """A private helper class to hold the finalizer. When _DelExitStack is garbage-collected, __del__ calls .close(), which closes all registered resources."""
+    """An ExitStack that also closes its files when garbage-collected."""
     def __del__(self):
         self.close()
 
 
-class IOContext(object):
-
-    @functools.cached_property
-    def _exitstack(self):
-        """Lazily creates the _DelExitStack the first time it's needed, then caches it."""
-        return _DelExitStack()
-    
-    def __enter__(self):
-        return self 
-    
-    def __exit__(self, *args): 
-        self.close()
-
-    def closelater(self, fd):
-        """Enter a given context manager and registers its __exit__ to run on close."""
-        return self._exitstack.enter_context(fd)
-
-    def close(self):
-        self._exitstack.close()
-
-    def openfile(self, file, mode='w'):
-        if hasattr(file, 'close'):
-            # treated as user-managed and returned as-is. 
-            # IOContext deliberately does not take responsibility for closing it.
-            return file
-        encoding = None if mode.endswith('b') else 'utf-8'
-        if file is None:
-            return self.closelater(open(os.devnull, mode=mode, encoding=encoding))
-        if file == '-':
-            return sys.stdout
-        return self.closelater(open(file, mode=mode, encoding=encoding))
-
-
-class Optimizer(IOContext):
+class Optimizer:
     """Base class for all GLE auxiliary variable optimizers.
     
     Optimization Loop:
@@ -125,13 +101,41 @@ class Optimizer(IOContext):
             raise ValueError("Optimizer requires a BaseEmbedder instance.")
         self.emb = emb
         self.merit = merit_function
-        self.logfile = self.openfile(file=logfile, mode='w')
+        self._exitstack = _DelExitStack()
+        self.logfile = self.openfile(file=logfile)
         if trajfile is None:
             trajfile = DEFAULT_TRAJ_FILE
         self.trajectory = self.openfile(file=trajfile)
         self.nsteps = 0
-        self.max_iter = 0 # set by run
         self.initialize()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self) -> None:
+        """Close the files that the optimizer opened."""
+        self._exitstack.close()
+
+    def openfile(
+            self,
+            file: Optional[Union[IO, str, Path]],
+            mode: str = 'w'
+    ) -> IO:
+        """Return `file` itself if it is a file object, which its caller
+        closes; stdout for '-'; or the file at that path, os.devnull for
+        None, which the optimizer closes when closed or garbage-collected.
+        """
+        if hasattr(file, 'close'):
+            return file
+        if file == '-':
+            return sys.stdout
+        if file is None:
+            file = os.devnull
+        return self._exitstack.enter_context(
+            open(file, mode=mode, encoding='utf-8'))
 
     def run(self, steps: int = MAX_ITERATIONS_DEFAULT, options: Optional[dict] = None) -> bool:
         """Run the optimizer.
@@ -148,9 +152,9 @@ class Optimizer(IOContext):
         Returns:
             bool: True if converged, False if max steps reached.
         """
-        # update the maximum number of steps 
-        # TODO: this will become relevant if we implement restarts
-        self.max_iter = self.nsteps + steps
+        # a later call continues the count of steps, and does not log the
+        # start again
+        max_iter = self.nsteps + steps
         if self.nsteps == 0:
             self.log()
         # check if we are already converged
@@ -159,7 +163,7 @@ class Optimizer(IOContext):
             # Already converged!
             return True
         # start the actual optimization
-        while not is_converged and self.nsteps < self.max_iter:
+        while not is_converged and self.nsteps < max_iter:
             self.iteration()
             is_converged = self.converged()
             self.log()
@@ -209,20 +213,11 @@ class Optimizer(IOContext):
         if T is None:
             T = time.localtime()
         name = self.__class__.__name__
-        params = self.emb.conventional_params
-        if self.trajectory is not None:
-            args = (name, self.nsteps, T[3], T[4], T[5])
-            msg = "%s | Step %3d, Time %02d:%02d:%02d\n" % args
-            self.trajectory.write(msg)
-            self.trajectory.write(np.array2string(
-                params,
-                max_line_width=70,    # wrap lines to 70 chars
-                separator=", ",       # separator
-                suppress_small=False, # do not represent small numbers with 0
-                threshold=1_000_000,  # basically, always print full array
-                formatter={'float_kind':lambda x: f"{x: .6e}"}
-            ))
-            self.trajectory.write("\n\n")
-            self.trajectory.flush()
+        args = (name, self.nsteps, T[3], T[4], T[5])
+        msg = "%s | Step %3d, Time %02d:%02d:%02d\n" % args
+        self.trajectory.write(msg)
+        self.trajectory.write(_format(self.emb.conventional_params))
+        self.trajectory.write("\n\n")
+        self.trajectory.flush()
 
 

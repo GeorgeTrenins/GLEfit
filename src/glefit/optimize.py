@@ -11,13 +11,24 @@
 from __future__ import print_function, division, absolute_import
 import argparse
 import pickle
-from pathlib import Path
 from glefit.config.config_handler import ConfigError, ConfigHandler
 from glefit.embedding import BaseEmbedder, EMBEDDER_MAP
 from glefit.merit import BaseProperty, PROPERTY_MAP
 from glefit.optimization import Optimizer, OPT_MAP
 
 EMBEDDER_FILE = "embedder_parameters.pkl"
+AP_FILE = "optimized_Ap_matrix.json"
+
+
+def write_propagation_matrix(emb: BaseEmbedder) -> None:
+    """Write emb.propagation_matrix(), the form of Ap best suited to
+    simulations, to AP_FILE in the working directory, with 8 significant
+    digits."""
+    rows = ",\n".join(
+        "          [" + ",".join(f"{x:14.7e}" for x in row) + "]"
+        for row in emb.propagation_matrix().tolist())
+    with open(AP_FILE, 'w') as f:
+        f.write('{\n"Ap": [\n' + rows + '\n      ]\n}\n')
 
 
 def write_embedder(emb: BaseEmbedder, success: bool) -> None:
@@ -64,7 +75,7 @@ class Optimization:
         cls,
         handler: ConfigHandler
     ) -> "Optimization":
-         # Instantiate the embedder
+        # Instantiate the embedder
         embedder_config: dict = handler.get_embedder_config()
         EmbedderClass: BaseEmbedder = _registered(
             EMBEDDER_MAP, "embedder", embedder_config["type"])
@@ -83,20 +94,18 @@ class Optimization:
         opt_config: dict = handler.get_optimization_config()
         OptClass: Optimizer = _registered(
             OPT_MAP, "optimization", opt_config["type"])
-        opt_parameters = opt_config.get("parameters", {})
-        opt: Optimizer = OptClass(embedder, merit, **opt_parameters)
+        # validate() requires optimization.parameters
+        opt: Optimizer = OptClass(embedder, merit, **opt_config["parameters"])
 
         return cls(embedder, merit, opt)
-
-        
 
     def run(
         self,
         steps: int,
         options: dict
     ) -> bool:
-        self.opt.run(steps=steps, options=options)
-        return self.opt.converged()
+        """Run the optimizer, and return whether the fit converged."""
+        return self.opt.run(steps=steps, options=options)
 
 
 def main(args: argparse.Namespace):
@@ -115,21 +124,9 @@ def main(args: argparse.Namespace):
         write_embedder(optimization.emb, success)
     if success:
         print("YAY!")
-        # the form best suited to simulations, with the fitted kernel
-        Ap = optimization.emb.propagation_matrix()
-        output_path: Path = Path("optimized_Ap_matrix.json")
-        with open(output_path, 'w') as f:
-            f.write('{\n')
-            f.write('"Ap": [\n')
-            for i, row in enumerate(Ap.tolist()):
-                formatted_row = [f"{x:14.7e}" for x in row]
-                f.write('          [' + ','.join(formatted_row)+']')
-                if i < len(Ap) - 1:
-                    f.write(',')
-                f.write('\n')
-            f.write('      ]\n')
-            f.write('}\n')
-        
+        write_propagation_matrix(optimization.emb)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GLE parameter optimization driver.")
     parser.add_argument('config', type=str, help="Path to config file (YAML/JSON)")

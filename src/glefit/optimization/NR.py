@@ -9,7 +9,7 @@
 
 
 from __future__ import print_function, division, absolute_import
-from ._base import Optimizer, MAX_ITERATIONS_DEFAULT
+from ._base import Optimizer, MAX_ITERATIONS_DEFAULT, _format
 from typing import Optional
 from glefit.utils.linalg import mat_inv_vec
 import numpy as np
@@ -84,8 +84,7 @@ class NewtonRaphson(Optimizer):
             raise ValueError(f"gtol must be positive, got {self.gtol}")
         if self.max_step is not None and self.max_step <= 0:
             raise ValueError(f"max_step must be positive, got {self.max_step}")
-        
-        self._eigvals = None
+
         return super().run(steps=steps, options=options)
 
     def initialize(self) -> None:
@@ -165,38 +164,22 @@ class NewtonRaphson(Optimizer):
         distance = self._value
         grad = self._grad
         gmax = np.linalg.norm(grad, ord=np.inf)
-        if self.logfile is not None:
-            args = (" " * len(name), "Step", "Time", "Value", "Gmax")
-            msg = "{:s}  {:4s} {:8s} {:14s} {:14s}\n".format(*args)
-            self.logfile.write(msg)
-            args = (name, self.nsteps, T[3], T[4], T[5], distance, gmax)
-            msg = "{:s}:  {: 3d} {:02d}:{:02d}:{:02d} {: 14.7e} {: 14.7e}\n".format(*args)
-            self.logfile.write(msg)
-            self.logfile.write("=== Gradient ===\n")
-            self.logfile.write(np.array2string(
-                grad,
-                max_line_width=70,    
-                separator=", ",       
-                suppress_small=False, 
-                threshold=1_000_000,  
-                formatter={'float_kind':lambda x: f"{x: .6e}"}
-            ))
-            self.logfile.write("\n")
-            self.logfile.write("===  End of gradient ===\n")
-            self.logfile.write("=== Hessian eigenvalues ===\n")
-            eigvals = self.get_eigvals()
-            self.logfile.write(np.array2string(
-                eigvals,
-                max_line_width=70,    
-                separator=", ",       
-                suppress_small=False, 
-                threshold=1_000_000,  
-                formatter={'float_kind':lambda x: f"{x: .6e}"}
-            ))
-            self.logfile.write("\n")
-            self.logfile.write("===  End of hessian eigenvalues ===\n")
-            self.logfile.write("\n")
-            self.logfile.flush()
+        args = (" " * len(name), "Step", "Time", "Value", "Gmax")
+        msg = "{:s}  {:4s} {:8s} {:14s} {:14s}\n".format(*args)
+        self.logfile.write(msg)
+        args = (name, self.nsteps, T[3], T[4], T[5], distance, gmax)
+        msg = "{:s}:  {: 3d} {:02d}:{:02d}:{:02d} {: 14.7e} {: 14.7e}\n".format(*args)
+        self.logfile.write(msg)
+        self.logfile.write("=== Gradient ===\n")
+        self.logfile.write(_format(grad))
+        self.logfile.write("\n")
+        self.logfile.write("===  End of gradient ===\n")
+        self.logfile.write("=== Hessian eigenvalues ===\n")
+        self.logfile.write(_format(self.get_eigvals()))
+        self.logfile.write("\n")
+        self.logfile.write("===  End of hessian eigenvalues ===\n")
+        self.logfile.write("\n")
+        self.logfile.flush()
         # log the current conventional parametrization of the embedder
         super().log(T=T)
 
@@ -213,29 +196,19 @@ class EigenvectorFollowing(NewtonRaphson):
         - Baker et al. J. Chem. Phys. 1996, 105, 8969-8976
     """
 
-    def update(self) -> None:
-        super().update()
-        # the cached eigenvalues belong to the previous Hessian
-        self._eigvals = None
-
-    def get_eigvals(self) -> npt.NDArray[np.floating]:
-        if self._eigvals is None:
-            self._eigvals = np.linalg.eigvalsh(self._hess)
-        return np.copy(self._eigvals)
-
     def step(self) -> npt.NDArray[np.floating]:
-        self._eigvals, self._eigvecs = np.linalg.eigh(self._hess)
-        nm_grad = self._grad @ self._eigvecs
+        eigvals, eigvecs = np.linalg.eigh(self._hess)
+        nm_grad = self._grad @ eigvecs
         # -2g / (|b| + √(b² + 4g²)) along each mode, written without
         # dividing by the eigenvalue b, so that it is -sign(g) at b = 0.
         # A mode with b = g = 0 gets no step; NaN still propagates.
-        den = np.abs(self._eigvals) + np.hypot(self._eigvals, 2 * nm_grad)
+        den = np.abs(eigvals) + np.hypot(eigvals, 2 * nm_grad)
         nm_step = np.divide(-2 * nm_grad, den,
                             out=np.zeros_like(nm_grad), where=den != 0)
-        b = np.abs(self._eigvals)
+        b = np.abs(eigvals)
         flat = ((b <= TAU * b.max())
                 & (np.abs(nm_grad) < self.gtol / np.sqrt(nm_grad.size)))
         nm_step[flat] = 0.0
-        h = self._eigvecs @ nm_step
+        h = eigvecs @ nm_step
         h = self.rescale_step(h)
         return h
