@@ -2,7 +2,7 @@
 
 Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code.
 
-Only `glefit.embedding` and `glefit.merit` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
+Only `glefit.embedding`, `glefit.mappers` and `glefit.merit` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
 
 ## `glefit.embedding`
 
@@ -45,6 +45,43 @@ These affect embedders, but the fix belongs elsewhere:
 - **EMB-19** · `c05dee4` and `77263e5` · Every embedder method that takes parameters accepts lists, and is annotated `npt.ArrayLike`.
 - **EMB-20** · `3985b1b`..`4f7c107` · gen2x2 fits (r, γ, Ω, φ) in the maximal gauge, and `optimized_Ap_matrix.json` holds the minimal gauge.
 - **EMB-22** · `9291892` · gen2x2 `from_matrix` rejected some semi-definite A through rounding.
+
+## `glefit.mappers`
+
+Reproduced at `19ee5e5` by running the code.
+
+### Open
+
+**MAP-1 · open · `forward` accepts NaN and infinite p.**
+`nan <= 0` and `inf <= 0` are both False, so they pass the check `diff <= 0`: NaN gives x = NaN, and `LowerBoundMapper().forward(inf)` gives x = ∞. `PronyEmbedder(nan, 1.0)` is therefore accepted, with `x = [nan, 0]`.
+
+**MAP-2 · open · Bounds must be Python `int` or `float`.**
+`np.float32` and `np.int64` bounds are rejected, unlike embedder parameters since EMB-15, and `None` or a string raises `ValueError` instead of `TypeError`. The bounds are annotated `Optional[float]`, but `None` is rejected.
+
+**MAP-3 · open · Bad bound values are accepted.**
+A NaN bound makes `forward` return NaN, and a bound of −∞ makes `LowerBoundMapper.inverse` return −∞. `IntervalMapper(a, a)` is accepted, although its `forward` raises for every p and its `inverse` returns a with zero gradient. `IntervalMapper(1, 0)` silently becomes `IntervalMapper(0, 1)`.
+
+**MAP-4 · open · Leftovers in the code.**
+The `_base.py` header calls p the conventional parameter, but it is the primitive parameter. `intervals.py` ends with a `__main__` block that builds an unused `IntervalMapper`.
+
+### Accepted
+
+**MAP-5 · accepted · Bounds hold only up to rounding.**
+`inverse` returns p exactly on a nonzero bound once the bound absorbs the increment: `LowerBoundMapper(a).inverse(x)` returns a once eˣ < |a|·ε/2, that is, for x < ln|a| − 36.7, and `IntervalMapper().inverse(x)` returns 1 for x > 36.7. With a = 0, as in every default mapper, this needs x < −745. `LowerBoundMapper` and `UpperBoundMapper` overflow to ±∞ for x > 709, whatever the bound. No double lies between a bound and the next double, so no rewrite of `inverse` avoids this. Clamping p inside the bound would make `inverse` many-to-one and hide that a fit has reached the bound. A p on the bound fails only when it is passed back to `forward`, which raises (EMB-10).
+
+**MAP-6 · accepted · Gradients vanish near bounds.**
+dp/dx falls like e^(−|x|), to about 5e-5 at |x| = 10 and 2e-9 at |x| = 20, so a parameter pushed against its bound barely moves. This is how the exponential maps behave, and changing them would change every fit.
+
+**MAP-7 · accepted · Mappers cannot be set from a config.**
+This is by design: custom mappers are for debugging only, so fits always use each embedder's defaults. There is no registry and no `from_dict`.
+
+### Deferred features
+
+**MAP-8 · deferred · Mappers act on one parameter each.**
+They cannot limit a combination of parameters. Such limits, like γ ≥ |δ| for gen2x2, must be built into the primitive parameters.
+
+**MAP-9 · deferred · Mappers are not vectorized.**
+`BaseEmbedder` calls them one parameter at a time, in Python.
 
 ## `glefit.merit`
 
