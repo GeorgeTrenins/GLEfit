@@ -46,7 +46,7 @@ merit_function:              # required
 
 embedder:                    # required
   type: multi                # an EMBEDDER_MAP key
-  parameters:                # required by optimize.py, not by validate()
+  parameters:                # required
     embedders:
       - {type: prony, parameters: {theta: 1.0, gamma: 0.5}}
 
@@ -56,7 +56,7 @@ optimization:                # required
     trajfile: traj.out       # relative to the working directory
     logfile: "-"
   options:                   # required, passed to run()
-    max_iter: 100            # required by optimize.py, not by validate()
+    max_iter: 100            # required: an integer ≥ 0; 0 only evaluates the start
     gtol: 0.01
     max_step: 0.2
 
@@ -73,7 +73,7 @@ Keys not listed here are ignored. See `glefit/embedding/CLAUDE.md`, `glefit/meri
 | Stage | Checks |
 | --- | --- |
 | `ConfigHandler.__init__` | The file exists and parses. It makes `path` absolute for `source: external` datasets, and `restart_file` if restarts are enabled |
-| `validate()` | The four required sections are dicts. `data` is not empty. `type` and `parameters` exist in `merit_function`, `type` in `embedder`, and `type`, `parameters` and `options` in `optimization`. If restarts are enabled, the file exists |
+| `validate()` | The four required sections are dicts. `data` is not empty. `type` and `parameters` exist in `merit_function` and `embedder`, and `type`, `parameters` and `options` in `optimization`. `options` is a dict with `max_iter`, a non-negative `int` that is not a `bool`. If restarts are enabled, the file exists |
 | `load_data()` | Each dataset loads: the file exists, the columns exist and differ, values are numbers, and inline grid and target have equal length |
 | Each class's `from_dict` | Everything else, including whether `type` exists and whether the merit function's `data` names a dataset |
 
@@ -104,7 +104,7 @@ Checked at commit `ffd03fd`. Everything under Wrong results and Surprising limit
 ### Surprising limits
 
 - **Malformed sections raise Python errors, not `ConfigError`.** Path resolution runs in `__init__`, before `validate()`. `data` given as a list raises `AttributeError`, as do `restart: true` and a top level that is a list.
-- **Missing keys found late.** A missing `embedder.parameters` or `optimization.options.max_iter` raises `KeyError` in `optimize.py`. An unknown `type` raises `KeyError` from its registry.
+- **Missing keys found late.** An unknown `type` raises `KeyError` from its registry (OPT-7). A missing key inside `embedder.parameters` raises `KeyError` from the embedder's `from_dict` (EMB-23).
 - **`source` defaults to `inline`.** A dataset with `path` but no `source` fails with "'target' required for inline source".
 - **The JSON fallback never runs.** For an unknown suffix, `_load_yaml` turns `yaml.YAMLError` into `ConfigError`, so the `except yaml.YAMLError` around it never catches. This does no harm, because YAML reads JSON.
 

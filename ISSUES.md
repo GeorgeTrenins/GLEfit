@@ -15,6 +15,9 @@ None.
 **EMB-18 · deferred · `from_matrix` exists only for gen2x2.**
 A full Ap cannot be loaded back into an embedder.
 
+**EMB-23 · deferred · `from_dict` does not check that required keys are present.**
+`_check_config_keys` rejects unknown keys (EMB-11), but uses the required keys only to decide which keys are allowed. A missing one fails at the first `pop` in `from_dict` with a bare `KeyError`, such as `KeyError: 'theta'`, which names neither the class nor the config section. `MultiEmbedder.from_dict` behaves the same for a missing `embedders`, and for a component without `type` or `parameters`. A fix would raise `TypeError` for missing required keys in `_check_config_keys`, as for unexpected ones, and check each component in `MultiEmbedder.from_dict`. Deferred indefinitely.
+
 
 ### Tracked in other modules
 
@@ -123,9 +126,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-6 · open · `validate()` misses required keys.**
-A missing `embedder.parameters` or `optimization.options.max_iter` raises `KeyError` in `optimize.py`. The fix belongs in `glefit.config`.
-
 **OPT-7 · open · An unknown `type` raises `KeyError`.**
 `Optimization.from_config` looks up the embedder, merit function and optimizer types in their registries without a check, instead of raising `ConfigError`.
 
@@ -163,3 +163,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-4** · `fix(optimization): set default options at construction` · `converged()` and `step()` raised `AttributeError` before `run`; they now use the defaults `gtol = 0.05` and no `max_step`.
 - **OPT-5** · `fix(optimization): EF step at a zero Hessian eigenvalue` · The EF step was NaN where `eigh` returned an eigenvalue of exactly 0, as for a first or last parameter without effect, and 0 instead of ±1 where |gₖ/bₖ| exceeded about 1e154.
 - **OPT-16** · `fix(optimization): stop at a non-finite merit` · A NaN or ∞ from `merit.all()` turned every parameter into NaN, and the fit failed a step or two later with an unrelated message; it now raises `ValueError` at once, naming the quantity and the step.
+- **OPT-6** · `fix(config): check required keys in validate` · A missing `embedder.parameters` or `optimization.options.max_iter` raised `KeyError` in `optimize.py`, and a `max_iter` of 2.5, −1 or `true` was used as given; `validate()` now requires both, with `max_iter` a non-negative integer, and `options` a dictionary.

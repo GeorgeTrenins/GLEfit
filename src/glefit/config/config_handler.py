@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, Union
 import logging
 import json
 import copy
+import numbers
 import yaml
 import numpy as np
 from .data_io import load_data, DataLoadError
@@ -170,7 +171,9 @@ class ConfigHandler:
             raise ConfigError("'embedder' must be a dictionary")
         if 'type' not in self.config['embedder']:
             raise ConfigError("'embedder.type' is required")
-        
+        if 'parameters' not in self.config['embedder']:
+            raise ConfigError("'embedder.parameters' is required")
+
         # Validate optimization
         if not isinstance(self.config.get('optimization'), dict):
             raise ConfigError("'optimization' must be a dictionary")
@@ -180,7 +183,20 @@ class ConfigHandler:
             raise ConfigError("'optimization.parameters' is required")
         if 'options' not in self.config['optimization']:
             raise ConfigError("'optimization.options' is required")
-        
+        options = self.config['optimization']['options']
+        if not isinstance(options, dict):
+            raise ConfigError("'optimization.options' must be a dictionary")
+        if 'max_iter' not in options:
+            raise ConfigError("'optimization.options.max_iter' is required")
+        max_iter = options['max_iter']
+        # bool is an Integral, but true is no number of steps
+        if (isinstance(max_iter, bool)
+                or not isinstance(max_iter, numbers.Integral)
+                or max_iter < 0):
+            raise ConfigError(
+                "'optimization.options.max_iter' must be a non-negative "
+                f"integer, got {max_iter!r}")
+
         # Validate restart section if present
         if 'restart' in self.config:
             restart = self.config['restart']
