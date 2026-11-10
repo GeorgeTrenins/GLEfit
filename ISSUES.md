@@ -123,9 +123,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-1 · open · EF logs the previous step's Hessian eigenvalues.**
-`step()` caches the eigenvalues, and `update()` replaces the Hessian without clearing the cache, so the log at step k shows those of step k − 1. The steps themselves are correct. In one fit, the largest logged eigenvalue was 1.142 while the current one was 0.809.
-
 **OPT-2 · open · `NR.run` and `EF.run` return `None`.**
 `Optimizer.run` returns whether the fit converged, but `NewtonRaphson.run` drops the result, so `Optimization.run` calls `converged()` again.
 
@@ -166,3 +163,7 @@ It cannot be tested on the step size or the change in distance.
 
 **OPT-14 · deferred · There is no quasi-Newton optimizer.**
 Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (MER-9).
+
+### Resolved
+
+- **OPT-1** · `fix(optimization): log the current Hessian eigenvalues in EF` · EF logged the eigenvalues of the previous step's Hessian.

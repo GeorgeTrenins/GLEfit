@@ -172,6 +172,11 @@ class EigenvectorFollowing(NewtonRaphson):
         - Baker et al. J. Chem. Phys. 1996, 105, 8969-8976
     """
 
+    def update(self) -> None:
+        super().update()
+        # the cached eigenvalues belong to the previous Hessian
+        self._eigvals = None
+
     def get_eigvals(self) -> npt.NDArray[np.floating]:
         if self._eigvals is None:
             self._eigvals = np.linalg.eigvalsh(self._hess)

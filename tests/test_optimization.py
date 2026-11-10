@@ -55,6 +55,13 @@ class QuadraticObjective:
                 self.hess)
 
 
+def logged_eigenvalues(log):
+    """The Hessian eigenvalues in each entry of an optimizer's log."""
+    blocks = log.split("=== Hessian eigenvalues ===\n")[1:]
+    return [np.array(b.split("]")[0].strip(" [\n").split(","), dtype=float)
+            for b in blocks]
+
+
 @pytest.fixture
 def quadratic():
     # three log-mapped parameters, all 1, so the start is x0 = 0
@@ -149,3 +156,18 @@ def test_trajectory_holds_parameters_at_each_step(prony_fit, tmp_path):
     assert steps == [0, 1, 2, 3]
     assert_allclose(params[0], [1.3, 0.6, 0.4, 4.0], rtol=1e-6)
     assert_allclose(params[-1], emb.conventional_params, rtol=1e-6)
+
+
+@pytest.mark.parametrize("cls", [NewtonRaphson, EigenvectorFollowing],
+                         ids=["NR", "EF"])
+def test_log_holds_current_hessian_eigenvalues(prony_fit, cls):
+    emb, merit = prony_fit
+    log = io.StringIO()
+    opt = cls(emb, merit, logfile=log, trajfile=io.StringIO())
+
+    opt.run(1, {"gtol": 1e-9})
+
+    # the Hessian after the step; the log keeps 7 significant digits
+    _, _, hess = merit.all()
+    assert_allclose(logged_eigenvalues(log.getvalue())[-1],
+                    np.linalg.eigvalsh(hess), rtol=1e-6)
