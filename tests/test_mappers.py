@@ -10,6 +10,7 @@
 
 from __future__ import print_function, division, absolute_import
 import pytest
+import numpy as np
 import sympy as sp
 from numpy.testing import assert_allclose
 from glefit.mappers import LowerBoundMapper, UpperBoundMapper, IntervalMapper
@@ -59,3 +60,46 @@ def test_forward_rejects_p_on_its_bound(mapper, p, match):
 def test_forward_rejects_non_finite_p(mapper, p):
     with pytest.raises(ValueError, match="must be finite"):
         mapper.forward(p)
+
+
+# each builds a mapper with `bound` in one place and valid other bounds
+BUILDERS = pytest.mark.parametrize("build", [
+    lambda bound: LowerBoundMapper(bound),
+    lambda bound: UpperBoundMapper(bound),
+    lambda bound: IntervalMapper(bound, 10.0),
+    lambda bound: IntervalMapper(-10.0, bound),
+], ids=["lower-bound", "upper-bound", "interval-a", "interval-b"])
+
+
+@pytest.mark.parametrize("cls, bounds, expected", [
+    (LowerBoundMapper, (np.int64(-2),), -1.0),
+    (UpperBoundMapper, (np.float32(3.5),), 2.5),
+    (IntervalMapper, (np.float32(-1.0), np.int64(4)), 1.5),
+], ids=["lower-bound", "upper-bound", "interval"])
+def test_bounds_accept_numpy_scalars(cls, bounds, expected):
+    p = cls(*bounds).inverse(0.0)
+
+    assert_allclose(p, expected, rtol=RTOL, atol=0)
+
+
+@BUILDERS
+@pytest.mark.parametrize("bound", [None, "1.0", 1j],
+                         ids=["none", "str", "complex"])
+def test_bounds_reject_non_numbers(build, bound):
+    with pytest.raises(TypeError, match="must be a real number"):
+        build(bound)
+
+
+@BUILDERS
+@pytest.mark.parametrize("bound", [float("nan"), float("inf"), float("-inf")],
+                         ids=["nan", "inf", "-inf"])
+def test_bounds_reject_non_finite_values(build, bound):
+    with pytest.raises(ValueError, match="must be finite"):
+        build(bound)
+
+
+@pytest.mark.parametrize("a, b", [(1.0, 1.0), (1.0, 0.0)],
+                         ids=["equal", "reversed"])
+def test_interval_rejects_bounds_out_of_order(a, b):
+    with pytest.raises(ValueError, match="a < b"):
+        IntervalMapper(a, b)

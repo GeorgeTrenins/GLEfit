@@ -10,7 +10,7 @@ a < p, p < b, and a < p < b
 
 from __future__ import print_function, division, absolute_import
 from ._base import BaseMapper
-from typing import Optional
+import numbers
 import numpy as np
 
 
@@ -22,17 +22,30 @@ def _check_finite(p: float) -> None:
             f"Invalid parameter value p = {float(p)}, must be finite")
 
 
+def _checked_bound(value: float, name: str) -> float:
+    """Return the bound `name` as a float.
+
+    Raises TypeError unless it is a real number and ValueError if it is NaN or infinite.
+    """
+    if not isinstance(value, numbers.Real):
+        raise TypeError(
+            f"`{name}` must be a real number, got {type(value).__name__}")
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"`{name}` must be finite, got {value}")
+    return value
+
+
 class LowerBoundMapper(BaseMapper):
 
-    def __init__(self, a: Optional[float] = 0.0) -> None:
+    def __init__(self, a: float = 0.0) -> None:
         """Enforce a < p by mapping p = exp(x) + a
 
         Args:
-            a (float, optional): Lower bound on optimizable parameter. Defaults to 0.0.
+            a (float, optional): Lower bound on optimizable parameter.
+                Defaults to 0.0. Must be a finite real number.
         """
-        if not isinstance(a, (int, float)):
-            raise ValueError(f"Expecting a float value for `a`, instead got {type(a).__name__}")
-        self.a = float(a)
+        self.a = _checked_bound(a, "a")
 
     def forward(self, p: float) -> float:
         _check_finite(p)
@@ -54,15 +67,14 @@ class LowerBoundMapper(BaseMapper):
 
 class UpperBoundMapper(BaseMapper):
 
-    def __init__(self, b: Optional[float] = 0.0) -> None:
+    def __init__(self, b: float = 0.0) -> None:
         """Enforce p < b by mapping p = b - exp(x)
 
         Args:
-            b (float, optional): Upper bound on optimizable parameter. Defaults to 0.0.
+            b (float, optional): Upper bound on optimizable parameter.
+                Defaults to 0.0. Must be a finite real number.
         """
-        if not isinstance(b, (int, float)):
-            raise ValueError(f"Expecting a float value for `b`, instead got {type(b).__name__}")
-        self.b = float(b)
+        self.b = _checked_bound(b, "b")
 
     def forward(self, p: float) -> float:
         _check_finite(p)
@@ -84,21 +96,18 @@ class UpperBoundMapper(BaseMapper):
 
 class IntervalMapper(BaseMapper):
 
-    def __init__(
-            self, 
-            a: Optional[float] = 0.0, 
-            b: Optional[float] = 1.0
-    ) -> None:
+    def __init__(self, a: float = 0.0, b: float = 1.0) -> None:
         """Enforce a < p < b by mapping p = a + (b-a)/(1+exp(-x))
 
         Args:
             a (float, optional): lower bound. Defaults to 0.0.
             b (float, optional): upper bound. Defaults to 1.0.
+                Both must be finite real numbers, with a < b.
         """
-        for var, label in zip([a, b], 'ab'):
-            if not isinstance(var, (int, float)):
-                raise ValueError(f"Expecting a float value for `{label}`, instead got {type(var).__name__}")
-        self.a, self.b = sorted([float(a), float(b)])
+        a, b = _checked_bound(a, "a"), _checked_bound(b, "b")
+        if not a < b:
+            raise ValueError(f"Bounds must satisfy a < b, got a = {a}, b = {b}")
+        self.a, self.b = a, b
         self.diff = self.b - self.a
         
     def forward(self, p: float) -> float:

@@ -52,12 +52,6 @@ Reproduced at `19ee5e5` by running the code.
 
 ### Open
 
-**MAP-2 · open · Bounds must be Python `int` or `float`.**
-`np.float32` and `np.int64` bounds are rejected, unlike embedder parameters since EMB-15, and `None` or a string raises `ValueError` instead of `TypeError`. The bounds are annotated `Optional[float]`, but `None` is rejected.
-
-**MAP-3 · open · Bad bound values are accepted.**
-A NaN bound makes `forward` return NaN, and a bound of −∞ makes `LowerBoundMapper.inverse` return −∞. `IntervalMapper(a, a)` is accepted, although its `forward` raises for every p and its `inverse` returns a with zero gradient. `IntervalMapper(1, 0)` silently becomes `IntervalMapper(0, 1)`.
-
 **MAP-4 · open · Leftovers in the code.**
 The `_base.py` header calls p the conventional parameter, but it is the primitive parameter. `intervals.py` ends with a `__main__` block that builds an unused `IntervalMapper`.
 
@@ -83,6 +77,8 @@ They cannot limit a combination of parameters. Such limits, like γ ≥ |δ| for
 ### Resolved
 
 - **MAP-1** · `fix(mappers): reject NaN and infinite p in forward` · `forward` accepted NaN and infinite p, so `PronyEmbedder(nan, 1.0)` was accepted.
+- **MAP-2** · `fix(mappers): accept any real bound and reject bad ones` · Bounds had to be Python `int` or `float`, and `None` or a string raised `ValueError`; they now accept any real number and raise `TypeError` otherwise.
+- **MAP-3** · `fix(mappers): accept any real bound and reject bad ones` · NaN and infinite bounds were accepted, and `IntervalMapper` accepted a = b and sorted reversed bounds; these now raise `ValueError`.
 
 ## `glefit.merit`
 
