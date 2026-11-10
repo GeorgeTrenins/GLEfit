@@ -52,8 +52,7 @@ Reproduced at `19ee5e5` by running the code.
 
 ### Open
 
-**MAP-4 · open · Leftovers in the code.**
-The `_base.py` header calls p the conventional parameter, but it is the primitive parameter. `intervals.py` ends with a `__main__` block that builds an unused `IntervalMapper`.
+None.
 
 ### Accepted
 
@@ -79,6 +78,7 @@ They cannot limit a combination of parameters. Such limits, like γ ≥ |δ| for
 - **MAP-1** · `fix(mappers): reject NaN and infinite p in forward` · `forward` accepted NaN and infinite p, so `PronyEmbedder(nan, 1.0)` was accepted.
 - **MAP-2** · `fix(mappers): accept any real bound and reject bad ones` · Bounds had to be Python `int` or `float`, and `None` or a string raised `ValueError`; they now accept any real number and raise `TypeError` otherwise.
 - **MAP-3** · `fix(mappers): accept any real bound and reject bad ones` · NaN and infinite bounds were accepted, and `IntervalMapper` accepted a = b and sorted reversed bounds; these now raise `ValueError`.
+- **MAP-4** · `refactor(mappers): remove leftovers` · The `_base.py` header called p the conventional parameter, and `intervals.py` ended with an unused `__main__` block.
 
 ## `glefit.merit`
 

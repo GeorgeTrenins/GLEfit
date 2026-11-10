@@ -4,7 +4,9 @@
 @File    :   _base.py
 @Time    :   2025/10/09 09:35:47
 @Author  :   George Trenins
-@Desc    :   Variable transformations to impose constraints on the optimizable parameters. Here, `p` denotes the conventional parameter and `x` is the reparametrized variable
+@Desc    :   Variable transformations to impose constraints on the
+optimizable parameters. Here, `p` denotes the primitive parameter and `x`
+is the reparametrized variable
 '''
 
 

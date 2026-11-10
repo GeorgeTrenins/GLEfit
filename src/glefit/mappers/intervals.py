@@ -131,6 +131,3 @@ class IntervalMapper(BaseMapper):
     def hess(self, x: float) -> float:
         x2 = x/2
         return -self.diff * np.tanh(x2) / (2 * np.cosh(x2))**2
-    
-if __name__ == "__main__":
-    m = IntervalMapper()
