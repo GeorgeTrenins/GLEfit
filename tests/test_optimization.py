@@ -55,6 +55,29 @@ class QuadraticObjective:
                 self.hess)
 
 
+class CorruptedObjective(QuadraticObjective):
+    """The quadratic objective with GRAD and HESS, whose distance,
+    gradient or Hessian (`which`) has `bad` in its last entry from the
+    n-th call of all() on, counting from 0.
+    """
+
+    def __init__(self, emb, which, bad, n):
+        super().__init__(emb, GRAD, HESS)
+        self.which = which
+        self.bad = bad
+        self.n = n
+        self.calls = 0
+
+    def all(self):
+        f, g, h = super().all()
+        out = {"distance": np.array(f), "gradient": g.copy(),
+               "Hessian": h.copy()}
+        if self.calls >= self.n:
+            out[self.which].flat[-1] = self.bad
+        self.calls += 1
+        return float(out["distance"]), out["gradient"], out["Hessian"]
+
+
 def logged_eigenvalues(log):
     """The Hessian eigenvalues in each entry of an optimizer's log."""
     blocks = log.split("=== Hessian eigenvalues ===\n")[1:]
@@ -289,3 +312,33 @@ def test_log_holds_current_hessian_eigenvalues(prony_fit, cls):
     _, _, hess = merit.all()
     assert_allclose(logged_eigenvalues(log.getvalue())[-1],
                     np.linalg.eigvalsh(hess), rtol=1e-6)
+
+
+WHICH = pytest.mark.parametrize("which", ["distance", "gradient", "Hessian"])
+BAD = pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf],
+                              ids=["nan", "inf", "-inf"])
+OPTIMIZERS = pytest.mark.parametrize(
+    "cls", [NewtonRaphson, EigenvectorFollowing], ids=["NR", "EF"])
+
+
+@WHICH
+@BAD
+@OPTIMIZERS
+def test_constructor_rejects_non_finite_merit(cls, which, bad):
+    emb = PronyCosineEmbedder(1.0, 1.0, 1.0)
+    merit = CorruptedObjective(emb, which, bad, n=0)
+
+    with pytest.raises(ValueError, match=f"non-finite {which} at step 0"):
+        cls(emb, merit, trajfile=io.StringIO())
+
+
+@WHICH
+@BAD
+@OPTIMIZERS
+def test_run_stops_at_the_first_non_finite_merit(cls, which, bad):
+    emb = PronyCosineEmbedder(1.0, 1.0, 1.0)
+    merit = CorruptedObjective(emb, which, bad, n=1)
+    opt = cls(emb, merit, trajfile=io.StringIO())
+
+    with pytest.raises(ValueError, match=f"non-finite {which} at step 1"):
+        opt.run(5, {"gtol": 1e-12})

@@ -161,7 +161,6 @@ class Optimizer(IOContext):
         while not is_converged and self.nsteps < self.max_iter:
             self.iteration()
             is_converged = self.converged()
-            self.nsteps += 1
             self.log()
         return is_converged
     
@@ -187,11 +186,13 @@ class Optimizer(IOContext):
         Steps:
         1. Compute step direction via step()
         2. Update embedder parameters
-        3. Refresh cached quantities via update()
+        3. Count the step, so that update() knows its number
+        4. Refresh cached quantities via update()
         """
         h = self.step()
         x = self.emb.x
-        self.emb.x = x+h 
+        self.emb.x = x+h
+        self.nsteps += 1
         self.update()
 
     def step(self) -> npt.NDArray[np.floating]:

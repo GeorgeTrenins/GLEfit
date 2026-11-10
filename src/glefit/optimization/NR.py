@@ -84,8 +84,20 @@ class NewtonRaphson(Optimizer):
         self.update()
         
     def update(self) -> None:
-        # compute distance value, gradient and hessian
+        """Compute the distance, its gradient and its Hessian.
+
+        Raises:
+            ValueError: if any of them is not finite.
+        """
         self._value, self._grad, self._hess = self.merit.all()
+        bad = [name for name, value in [("distance", self._value),
+                                        ("gradient", self._grad),
+                                        ("Hessian", self._hess)]
+               if not np.all(np.isfinite(value))]
+        if bad:
+            raise ValueError(
+                f"{type(self).__name__}: merit.all() returned a non-finite "
+                f"{' and '.join(bad)} at step {self.nsteps}")
 
     def step(self) -> npt.NDArray[np.floating]:
         """Compute Newton-Raphson step: h = -H⁻¹∇f.
