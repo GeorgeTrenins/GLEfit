@@ -126,9 +126,6 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-8 · open · The log is appended to.**
-A second run in the same directory appends to the log, but overwrites the trajectory and `optimized_Ap_matrix.json`. Agreed fix: overwrite the log as well.
-
 **OPT-9 · open · Outdated text in the code.**
 `NewtonRaphson` is called "quasi-Newton", although it uses the full finite-difference Hessian. The `run` docstrings refer to `DEFAULT_MAX_STEPS`, but the constant is `MAX_ITERATIONS_DEFAULT`. `optimize.py` imports `load_data` without using it.
 
@@ -162,3 +159,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-16** · `fix(optimization): stop at a non-finite merit` · A NaN or ∞ from `merit.all()` turned every parameter into NaN, and the fit failed a step or two later with an unrelated message; it now raises `ValueError` at once, naming the quantity and the step.
 - **OPT-6** · `fix(config): check required keys in validate` · A missing `embedder.parameters` or `optimization.options.max_iter` raised `KeyError` in `optimize.py`, and a `max_iter` of 2.5, −1 or `true` was used as given; `validate()` now requires both, with `max_iter` a non-negative integer, and `options` a dictionary.
 - **OPT-7** · `fix(optimize): reject unknown types with ConfigError` · An unknown embedder, merit function or optimizer `type` raised `KeyError`, or `TypeError` if it was not a string; `Optimization.from_config` now raises `ConfigError` that lists the known types.
+- **OPT-8** · `fix(optimization): overwrite the log` · A second run in the same directory appended to the log, while it overwrote the trajectory and `optimized_Ap_matrix.json`; the log is now overwritten too.

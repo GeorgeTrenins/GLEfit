@@ -314,6 +314,21 @@ def test_log_holds_current_hessian_eigenvalues(prony_fit, cls):
                     np.linalg.eigvalsh(hess), rtol=1e-6)
 
 
+def test_log_is_overwritten_by_a_new_optimizer(quadratic, tmp_path):
+    emb, merit = quadratic
+    path = tmp_path / "log.out"
+    with NewtonRaphson(emb, merit, logfile=path,
+                       trajfile=io.StringIO()) as opt:
+        opt.run(0, {"gtol": 1e-12})
+
+    with NewtonRaphson(emb, merit, logfile=path,
+                       trajfile=io.StringIO()) as opt:
+        opt.run(0, {"gtol": 1e-12})
+
+    # only the entry for the start of the second run
+    assert len(logged_eigenvalues(path.read_text())) == 1
+
+
 WHICH = pytest.mark.parametrize("which", ["distance", "gradient", "Hessian"])
 BAD = pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf],
                               ids=["nan", "inf", "-inf"])

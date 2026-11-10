@@ -114,8 +114,8 @@ class Optimizer(IOContext):
         merit_function: BaseProperty
             Target function to minimize
         logfile : file-like object, str, or pathlib.Path, optional
-            File to log optimization progress. If None, logging is disabled.
-            (default: None)
+            File to log optimization progress. If None, logging is disabled. 
+            If '-', write to stdout. (default: None)
         trajfile: file-like object, str, or pathlib.Path, optional
             File to write optimizable parameter values over the course of the 
             optimization. If 'None', write to default location 'traj.out'.
@@ -125,7 +125,7 @@ class Optimizer(IOContext):
             raise ValueError("Optimizer requires a BaseEmbedder instance.")
         self.emb = emb
         self.merit = merit_function
-        self.logfile = self.openfile(file=logfile, mode='a')
+        self.logfile = self.openfile(file=logfile, mode='w')
         if trajfile is None:
             trajfile = DEFAULT_TRAJ_FILE
         self.trajectory = self.openfile(file=trajfile)

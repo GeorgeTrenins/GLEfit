@@ -15,7 +15,7 @@ Use the `tools` conda environment, not the `glefit` environment defined in `envi
 `optimize.py` writes these files to the working directory, and none of them are gitignored:
 
 - `trajfile` (default `traj.out`): conventional parameters at each step.
-- `logfile`: appended to. `-` means stdout, and leaving it unset discards the log.
+- `logfile`: overwritten, `-` means stdout, and leaving it unset discards the log.
 - `optimized_Ap_matrix.json`: the full drift matrix from `propagation_matrix()`, which is the minimal gauge for `gen2x2`, written only on convergence.
 
 A run that does not converge prints nothing and exits 0, so check for the JSON file.
