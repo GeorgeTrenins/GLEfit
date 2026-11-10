@@ -49,3 +49,13 @@ def test_forward_rejects_p_on_its_bound(mapper, p, match):
     # the bound itself would map to x = ±inf
     with pytest.raises(ValueError, match=match):
         mapper.forward(p)
+
+
+@pytest.mark.parametrize("mapper", [
+    LowerBoundMapper(-2.5), UpperBoundMapper(3.0), IntervalMapper(-1.0, 4.0),
+], ids=["lower-bound", "upper-bound", "interval"])
+@pytest.mark.parametrize("p", [float("nan"), float("inf"), float("-inf")],
+                         ids=["nan", "inf", "-inf"])
+def test_forward_rejects_non_finite_p(mapper, p):
+    with pytest.raises(ValueError, match="must be finite"):
+        mapper.forward(p)

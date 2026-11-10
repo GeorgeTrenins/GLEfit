@@ -20,7 +20,7 @@ Each embedder holds one mapper per primitive parameter, so `ndof` in all (for ge
 ## Conventions
 
 - **Direction:** `forward` goes from p to x, and `inverse` from x to p. Docstrings define each map by its inverse, as in "p = exp(x) + a". `grad` and `hess` take x, not p.
-- **Errors:** limits are checked only in `forward`, which raises `ValueError` for p outside the open range. A p on a bound would give x = ±∞. Embedders put the class and parameter name in front of the message, as in "TwoAuxEmbedder parameter Ω: …", and `MultiEmbedder` adds the component, as in "MultiEmbedder.embedders[1]: …".
+- **Errors:** limits are checked only in `forward`, which raises `ValueError` for p that is NaN, infinite or outside the open range. A p on a bound would give x = ±∞. The bound checks alone miss NaN, since every comparison with it is False, so `_check_finite` runs first. Embedders put the class and parameter name in front of the message, as in "TwoAuxEmbedder parameter Ω: …", and `MultiEmbedder` adds the component, as in "MultiEmbedder.embedders[1]: …".
 - **One parameter each:** a limit that couples parameters, such as γ ≥ |δ| for gen2x2, must be built into the primitive parameters.
 - **Scalars only:** each method takes and returns one number, and the bounded mappers' `forward` raises on arrays. `IdentityMapper.forward` and `inverse` return 0-dimensional arrays, and its `grad` returns `1.0` whatever x is.
 - **No state:** a mapper stores only its bounds, so one instance can serve several parameters, as in `pronycos`.
@@ -30,8 +30,8 @@ Each embedder holds one mapper per primitive parameter, so `ndof` in all (for ge
 
 ## New mapper
 
-Subclass `BaseMapper` and implement `forward`, `inverse`, `grad` and `hess` for single numbers, and store only constants on the instance. `forward` must raise `ValueError` for any p outside the open range, including NaN. Export the class from `__init__.py`. To make it a default, change the embedder's `kwargs.setdefault("mappers", [...])`, with exactly `ndof` mappers in primitive-parameter order.
+Subclass `BaseMapper` and implement `forward`, `inverse`, `grad` and `hess` for single numbers, and store only constants on the instance. `forward` must call `_check_finite(p)`, then raise `ValueError` for p outside the open range. Export the class from `__init__.py`. To make it a default, change the embedder's `kwargs.setdefault("mappers", [...])`, with exactly `ndof` mappers in primitive-parameter order.
 
 ## Testing
 
-Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_mappers.py` from the repository root. It compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy at bounds other than the defaults, and checks that `forward` rejects p on a bound. Add a new mapper to `MAPS`, with its p(x) in SymPy. Nothing yet tests round trips, NaN, reversed bounds or `IdentityMapper`. `legacy_tests/test_mappers/test_intervals.py` fails to import, and `tests/test_mappers.py` replaces it.
+Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_mappers.py` from the repository root. It compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy at bounds other than the defaults, and checks that `forward` rejects p on a bound, NaN and ±∞. Add a new mapper to `MAPS`, with its p(x) in SymPy. Nothing yet tests round trips, reversed bounds or `IdentityMapper`. `legacy_tests/test_mappers/test_intervals.py` fails to import, and `tests/test_mappers.py` replaces it.

@@ -14,6 +14,14 @@ from typing import Optional
 import numpy as np
 
 
+def _check_finite(p: float) -> None:
+    """Raise ValueError for NaN or infinite p.
+    """
+    if not np.isfinite(p):
+        raise ValueError(
+            f"Invalid parameter value p = {float(p)}, must be finite")
+
+
 class LowerBoundMapper(BaseMapper):
 
     def __init__(self, a: Optional[float] = 0.0) -> None:
@@ -27,6 +35,7 @@ class LowerBoundMapper(BaseMapper):
         self.a = float(a)
 
     def forward(self, p: float) -> float:
+        _check_finite(p)
         diff = p - self.a
         if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")
@@ -56,6 +65,7 @@ class UpperBoundMapper(BaseMapper):
         self.b = float(b)
 
     def forward(self, p: float) -> float:
+        _check_finite(p)
         diff = self.b - p
         if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be smaller than  b = {self.b}")
@@ -92,6 +102,7 @@ class IntervalMapper(BaseMapper):
         self.diff = self.b - self.a
         
     def forward(self, p: float) -> float:
+        _check_finite(p)
         diff = p - self.a
         if diff <= 0:
             raise ValueError(f"Invalid parameter value p = {float(p)}, must be greater than  a = {self.a}")

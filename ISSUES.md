@@ -52,9 +52,6 @@ Reproduced at `19ee5e5` by running the code.
 
 ### Open
 
-**MAP-1 · open · `forward` accepts NaN and infinite p.**
-`nan <= 0` and `inf <= 0` are both False, so they pass the check `diff <= 0`: NaN gives x = NaN, and `LowerBoundMapper().forward(inf)` gives x = ∞. `PronyEmbedder(nan, 1.0)` is therefore accepted, with `x = [nan, 0]`.
-
 **MAP-2 · open · Bounds must be Python `int` or `float`.**
 `np.float32` and `np.int64` bounds are rejected, unlike embedder parameters since EMB-15, and `None` or a string raises `ValueError` instead of `TypeError`. The bounds are annotated `Optional[float]`, but `None` is rejected.
 
@@ -82,6 +79,10 @@ They cannot limit a combination of parameters. Such limits, like γ ≥ |δ| for
 
 **MAP-9 · deferred · Mappers are not vectorized.**
 `BaseEmbedder` calls them one parameter at a time, in Python.
+
+### Resolved
+
+- **MAP-1** · `fix(mappers): reject NaN and infinite p in forward` · `forward` accepted NaN and infinite p, so `PronyEmbedder(nan, 1.0)` was accepted.
 
 ## `glefit.merit`
 
