@@ -140,7 +140,8 @@ class Optimizer(IOContext):
         or when the number of steps exceeds `steps`.
 
         Args:
-            steps (int, optional): Maximum number of steps to take. Defaults to DEFAULT_MAX_STEPS.
+            steps (int, optional): Maximum number of steps to take.
+                Defaults to MAX_ITERATIONS_DEFAULT.
             options (dict, optional): Optimizer-specific options for controlling convergence 
                 (e.g., tolerance thresholds). Defaults to None.
         

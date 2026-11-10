@@ -28,7 +28,8 @@ TAU = 1e-10
 
 
 class NewtonRaphson(Optimizer):
-    """Newton-Raphson (quasi-Newton) optimizer for merit function minimization.
+    """Newton-Raphson optimizer for merit function minimization, with the
+    full finite-difference Hessian.
     
     Computes the step direction as:
         h = -H⁻¹ ∇f
@@ -55,7 +56,8 @@ class NewtonRaphson(Optimizer):
         This method will return whenever the gradient of the merit function drops below `gtol` for all optimizable parameters or when the number of steps exceeds `steps`.
 
         Args:
-            steps (int, optional): Maximum number of steps to take. Defaults to DEFAULT_MAX_STEPS.
+            steps (int, optional): Maximum number of steps to take.
+                Defaults to MAX_ITERATIONS_DEFAULT.
         
         Options:
             gtol (float): upper bound on the maximum norm of the gradient of the merit function w.r.t. optimizable parameters.

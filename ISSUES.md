@@ -129,8 +129,7 @@ Covers the optimizers and the driver `optimize.py`. Reproduced at `a6bcabb` by r
 
 ### Open
 
-**OPT-9 · open · Outdated text in the code.**
-`NewtonRaphson` is called "quasi-Newton", although it uses the full finite-difference Hessian. The `run` docstrings refer to `DEFAULT_MAX_STEPS`, but the constant is `MAX_ITERATIONS_DEFAULT`. `optimize.py` imports `load_data` without using it.
+None.
 
 ### Deferred features
 
@@ -159,3 +158,4 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-8** · `fix(optimization): overwrite the log` · A second run in the same directory appended to the log, while it overwrote the trajectory and `optimized_Ap_matrix.json`; the log is now overwritten too.
 - **OPT-10** · `0e87107` and `feat(optimize): pickle the fitted embedder` · `optimize.py` now additionally pickles `emb.to_dict()` with `success` to `embedder_parameters.pkl` after every run, also one that raises.
 - **OPT-15** · `fix(optimization): no EF step along modes too flat to resolve` · Along a mode whose curvature and gradient were rounding errors, as for a term with θ ≈ 0, EF stepped at random by up to 1, and under `max_step` that slowed fits up to 18-fold; EF now takes no step where |bₖ| ≤ `TAU`·max|b|, with `TAU` = 1e-10, and |gₖ| < `gtol`/√p.
+- **OPT-9** · `refactor(optimization): correct outdated text`

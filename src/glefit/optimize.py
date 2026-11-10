@@ -13,7 +13,6 @@ import argparse
 import pickle
 from pathlib import Path
 from glefit.config.config_handler import ConfigError, ConfigHandler
-from glefit.config.data_io import load_data
 from glefit.embedding import BaseEmbedder, EMBEDDER_MAP
 from glefit.merit import BaseProperty, PROPERTY_MAP
 from glefit.optimization import Optimizer, OPT_MAP
