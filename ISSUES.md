@@ -10,9 +10,6 @@ Reproduced at `d5c95ac` by running the code.
 
 ### Open
 
-**CFG-1 · A CSV file with one column is read as one row.**
-`np.loadtxt` returns shape (n,) for a single column, which `_load_external` reshapes to one row of n columns. Values 0, 1, 2, 3 with `columns: [0, 1]` gave grid [0.0] and target [1.0], without error. A file with a single value gives a 0-dimensional array and raises `IndexError`. A fix would pass `ndmin=2` to `np.loadtxt` and drop the reshape.
-
 **CFG-2 · Boolean column indices and targets are accepted.**
 `bool` is a subclass of `int`, so `columns: [false, true]`, which YAML 1.1 also reads from `[no, yes]`, passes the checks and indexes the data as a mask: it gave a grid of shape (2, 0, 2) without error. An inline `target: true` with no grid loads as 1.0. A fix would reject `bool`, as `validate()` does for `max_iter`.
 
@@ -40,6 +37,7 @@ A model spectral density from `glefit.spectral`, for example, cannot be a target
 
 ### Resolved
 
+- **CFG-1** · `fix(config): read a CSV file with one column as a column` 
 - **CFG-3** · `fix(config): report malformed entries with ConfigError` · Data paths are still made absolute when the file is read, as `legacy_tests` expects.
 - **CFG-8** · `fix(config): stop reading the restart section` · `restart` had to be a dictionary with a boolean `enabled` and, if enabled, an existing `restart_file`, although restarts are not implemented; it is now never read, like `project`.
 

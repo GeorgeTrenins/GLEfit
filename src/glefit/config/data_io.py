@@ -118,10 +118,10 @@ def _load_external(
         # We handle empty data with explicit error checking below
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*loadtxt: input contained no data.*")
-            data = np.loadtxt(path, delimiter=delimiter, dtype=float)
-        # Handle case where file has only one row (returns 1D array)
-        if data.ndim == 1:
-            data = data.reshape(1, -1)
+            # ndmin=2 keeps one row and one column apart, as shape
+            # (1, n) and (n, 1)
+            data = np.loadtxt(path, delimiter=delimiter, dtype=float,
+                              ndmin=2)
         # Validate column indices
         if data.shape[1] <= max(grid_col, target_col):
             raise DataLoadError(

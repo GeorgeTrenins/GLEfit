@@ -232,7 +232,7 @@ def test_handler_rejects_a_config_that_is_not_a_dict(text, tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text(text)
 
-    with pytest.raises(ConfigError, match="mapping"):
+    with pytest.raises(ConfigError, match="dictionary"):
         ConfigHandler(path)
 
 
@@ -370,6 +370,8 @@ def test_load_data_reads_a_csv_with_one_row(tmp_path):
                  id="one index"),
     pytest.param(CSV_TEXT, {"columns": [0, 2]}, "out of bounds",
                  id="index too large"),
+    pytest.param("0.0\n0.5\n1.0\n", {}, "out of bounds", id="one column"),
+    pytest.param("0.5\n", {}, "out of bounds", id="one value"),
     pytest.param("0.0,abc\n", {}, "non-numeric", id="text value"),
     pytest.param("t,K\n" + CSV_TEXT, {}, "non-numeric", id="header line"),
     pytest.param("0.0,1.0\n0.5\n", {}, "non-numeric", id="ragged rows"),
