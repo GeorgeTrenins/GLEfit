@@ -362,6 +362,10 @@ def test_load_data_reads_a_csv_with_one_row(tmp_path):
                  id="no columns"),
     pytest.param(CSV_TEXT, {"columns": [0.5, 1]}, "integers",
                  id="float index"),
+    pytest.param(CSV_TEXT, {"columns": [False, True]}, "integers",
+                 id="boolean indices"),
+    pytest.param(CSV_TEXT, {"columns": [0, True]}, "integers",
+                 id="one boolean index"),
     pytest.param(CSV_TEXT, {"columns": [-1, 1]}, "non-negative",
                  id="negative index"),
     pytest.param(CSV_TEXT, {"columns": [1, 1]}, "different",
@@ -427,6 +431,8 @@ def test_load_data_reads_inline_scalar_without_grid():
     pytest.param({"grid": ["a", "b"], "target": TARGET}, "convert",
                  id="text"),
     pytest.param({"target": "abc"}, "convert", id="text without grid"),
+    pytest.param({"target": True}, "must be a number",
+                 id="boolean without grid"),
 ])
 def test_load_data_rejects_bad_inline_data(entries, message):
     dataset = {"source": "inline", **entries}

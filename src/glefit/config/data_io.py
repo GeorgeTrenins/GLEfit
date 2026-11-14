@@ -94,7 +94,9 @@ def _load_external(
     
     try:
         grid_col, target_col = columns
-        if not isinstance(grid_col, int) or not isinstance(target_col, int):
+        # bool is an int, but numpy reads it as a mask, not an index
+        if not all(isinstance(c, int) and not isinstance(c, bool)
+                   for c in (grid_col, target_col)):
             raise ValueError("Column indices must be integers")
         if grid_col < 0 or target_col < 0:
             raise ValueError("Column indices must be non-negative")
@@ -168,6 +170,11 @@ def _load_inline(
         # No grid for scalar quantites
         if not np.isscalar(target):
             raise DataLoadError(f"Data '{data_name}': 'grid' required for inline source unless the target is a scalar")
+        # float() reads true and false as 1 and 0
+        if isinstance(target, bool):
+            raise DataLoadError(
+                f"Data '{data_name}': the target must be a number, got "
+                f"{target!r}")
         try:
             return None, float(target)
         except (TypeError, ValueError) as e:

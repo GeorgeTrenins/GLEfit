@@ -10,9 +10,6 @@ Reproduced at `d5c95ac` by running the code.
 
 ### Open
 
-**CFG-2 · Boolean column indices and targets are accepted.**
-`bool` is a subclass of `int`, so `columns: [false, true]`, which YAML 1.1 also reads from `[no, yes]`, passes the checks and indexes the data as a mask: it gave a grid of shape (2, 0, 2) without error. An inline `target: true` with no grid loads as 1.0. A fix would reject `bool`, as `validate()` does for `max_iter`.
-
 **CFG-4 · `source` defaults to `inline`.**
 A dataset with `path` but no `source` fails with "'target' required for inline source", which does not name the missing key. `legacy_tests/test_config/test_data_io.py::test_missing_source` expects an error for a missing `source`, and every config in the repository sets it. A fix would require `source`.
 
@@ -38,6 +35,7 @@ A model spectral density from `glefit.spectral`, for example, cannot be a target
 ### Resolved
 
 - **CFG-1** · `fix(config): read a CSV file with one column as a column` 
+- **CFG-2** · `fix(config): reject booleans as column indices and targets`
 - **CFG-3** · `fix(config): report malformed entries with ConfigError` · Data paths are still made absolute when the file is read, as `legacy_tests` expects.
 - **CFG-8** · `fix(config): stop reading the restart section` · `restart` had to be a dictionary with a boolean `enabled` and, if enabled, an existing `restart_file`, although restarts are not implemented; it is now never read, like `project`.
 
