@@ -55,6 +55,25 @@ def replaced(section, value):
     return config
 
 
+def changed(keys, value):
+    """A copy of CONFIG with the given value at the nested keys."""
+    config = copy.deepcopy(CONFIG)
+    *parents, key = keys
+    section = config
+    for parent in parents:
+        section = section[parent]
+    section[key] = value
+    return config
+
+
+def checked(path):
+    """The datasets of the config file at path, read and checked as
+    optimize.py does."""
+    handler = ConfigHandler(path)
+    handler.validate()
+    return handler.load_data()
+
+
 # a CSV file, and the grid and target that columns [0, 1] hold
 CSV_TEXT = "0.0,1.0\n0.5,0.25\n"
 GRID = [0.0, 0.5]
@@ -207,6 +226,42 @@ def test_handler_rejects_a_missing_file(tmp_path):
         ConfigHandler(path)
 
 
+@pytest.mark.parametrize("text", ["- data\n", "data\n", "3\n"],
+                         ids=["list", "string", "number"])
+def test_handler_rejects_a_config_that_is_not_a_dict(text, tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text(text)
+
+    with pytest.raises(ConfigError, match="mapping"):
+        ConfigHandler(path)
+
+
+# entries of the wrong type, and the text that the error names them by
+EXTERNAL = {"source": "external", "path": 3, "columns": [0, 1]}
+MALFORMED = [
+    (("data",), None, "data"),
+    (("data",), ["kernel"], "data"),
+    (("data", "kernel"), EXTERNAL, "kernel"),
+    (("merit_function", "parameters"), None, "merit_function.parameters"),
+    (("embedder", "parameters"), None, "embedder.parameters"),
+    (("optimization", "parameters"), None, "optimization.parameters"),
+    (("optimization", "parameters"), ["trajfile"],
+     "optimization.parameters"),
+]
+
+
+@pytest.mark.parametrize("keys, value, name", MALFORMED, ids=[
+    "data null", "data list", "path not text", "merit parameters null",
+    "embedder parameters null", "optimization parameters null",
+    "optimization parameters list"])
+def test_handler_reports_a_malformed_entry(keys, value, name, tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(changed(keys, value)))
+
+    with pytest.raises(ConfigError, match=re.escape(name)):
+        checked(path)
+
+
 def test_relative_path_is_read_from_config_dir(tmp_path, monkeypatch):
     folder = tmp_path / "fit"
     folder.mkdir()
@@ -321,6 +376,13 @@ def test_load_data_reads_a_csv_with_one_row(tmp_path):
     pytest.param("", {}, None, id="empty file"),
     pytest.param("# t, K\n", {}, None, id="comments only"),
     pytest.param(CSV_TEXT, {"format": "hdf5"}, "Only CSV", id="hdf5"),
+    pytest.param(CSV_TEXT, {"path": 3}, "'path' must be",
+                 id="path not text"),
+    pytest.param(CSV_TEXT, {"format": 1}, "Only CSV", id="format not text"),
+    pytest.param(CSV_TEXT, {"delimiter": 1}, "'delimiter'",
+                 id="delimiter not text"),
+    pytest.param(CSV_TEXT, {"delimiter": ",,"}, "'delimiter'",
+                 id="two-character delimiter"),
 ])
 def test_load_data_rejects_a_bad_csv(text, entries, message, tmp_path):
     dataset = csv_dataset(tmp_path / "target.csv", text, **entries)
@@ -362,6 +424,7 @@ def test_load_data_reads_inline_scalar_without_grid():
     pytest.param({"grid": [GRID], "target": TARGET}, "1D", id="2-D grid"),
     pytest.param({"grid": ["a", "b"], "target": TARGET}, "convert",
                  id="text"),
+    pytest.param({"target": "abc"}, "convert", id="text without grid"),
 ])
 def test_load_data_rejects_bad_inline_data(entries, message):
     dataset = {"source": "inline", **entries}

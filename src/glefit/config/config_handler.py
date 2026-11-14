@@ -67,7 +67,11 @@ class ConfigHandler:
         
         if self.config is None:
             raise ConfigError("Configuration file is empty")
-        
+        if not isinstance(self.config, dict):
+            raise ConfigError(
+                "The configuration must be a dictionary; got "
+                f"{type(self.config).__name__}")
+
         # Resolve all relative paths to absolute paths
         self._resolve_paths()
         
@@ -95,17 +99,22 @@ class ConfigHandler:
 
     def _resolve_paths(self) -> None:
         """Make the relative path of each external dataset absolute,
-        against the config file's directory, in place."""
+        against the config file's directory, in place.
+
+        This runs before validate(), so it skips entries of the wrong type
+        and leaves them for validate() and load_data() to report.
+        """
         config_dir: Path = self.config_path.parent
-        
-        # Resolve data file paths
-        if 'data' in self.config:
-            for _, data_config in self.config['data'].items():
-                if isinstance(data_config, dict) and data_config.get('source') == 'external':
-                    if 'path' in data_config:
-                        path: Path = Path(data_config['path'])
-                        if not path.is_absolute():
-                            data_config['path'] = str((config_dir / path).resolve())
+        data = self.config.get('data')
+        if not isinstance(data, dict):
+            return
+        for data_config in data.values():
+            if (isinstance(data_config, dict)
+                    and data_config.get('source') == 'external'
+                    and isinstance(data_config.get('path'), str)):
+                path = Path(data_config['path'])
+                if not path.is_absolute():
+                    data_config['path'] = str((config_dir / path).resolve())
 
     @staticmethod
     def _validate_config_structure(config: Dict[str, Any]) -> None:
@@ -154,6 +163,9 @@ class ConfigHandler:
             raise ConfigError("'merit_function.type' is required")
         if 'parameters' not in merit:
             raise ConfigError("'merit_function.parameters' is required")
+        if not isinstance(merit['parameters'], dict):
+            raise ConfigError(
+                "'merit_function.parameters' must be a dictionary")
         
         # Validate embedder
         if not isinstance(self.config.get('embedder'), dict):
@@ -162,6 +174,8 @@ class ConfigHandler:
             raise ConfigError("'embedder.type' is required")
         if 'parameters' not in self.config['embedder']:
             raise ConfigError("'embedder.parameters' is required")
+        if not isinstance(self.config['embedder']['parameters'], dict):
+            raise ConfigError("'embedder.parameters' must be a dictionary")
 
         # Validate optimization
         if not isinstance(self.config.get('optimization'), dict):
@@ -170,6 +184,9 @@ class ConfigHandler:
             raise ConfigError("'optimization.optimizer' is required")
         if 'parameters' not in self.config['optimization']:
             raise ConfigError("'optimization.parameters' is required")
+        if not isinstance(self.config['optimization']['parameters'], dict):
+            raise ConfigError(
+                "'optimization.parameters' must be a dictionary")
         if 'options' not in self.config['optimization']:
             raise ConfigError("'optimization.options' is required")
         options = self.config['optimization']['options']

@@ -16,9 +16,6 @@ Reproduced at `d5c95ac` by running the code.
 **CFG-2 · Boolean column indices and targets are accepted.**
 `bool` is a subclass of `int`, so `columns: [false, true]`, which YAML 1.1 also reads from `[no, yes]`, passes the checks and indexes the data as a mask: it gave a grid of shape (2, 0, 2) without error. An inline `target: true` with no grid loads as 1.0. A fix would reject `bool`, as `validate()` does for `max_iter`.
 
-**CFG-3 · Malformed sections raise Python errors, not `ConfigError`.**
-`__init__` makes data paths absolute before `validate()` has checked any types, and `data_io` does not check types. In `__init__`, `data` that is null or a list raises `AttributeError`, and a top level that is a list, string or number raises `TypeError`, as does a `path` that is not a string. In `load_data`, a `format` that is not a string raises `AttributeError`, and an inline `target` that is a non-numeric string raises `ValueError`. A fix would check in `__init__` that the top level is a mapping, make data paths absolute in `load_data`, after `validate()`, and turn type errors in `data_io` into `DataLoadError`.
-
 **CFG-4 · `source` defaults to `inline`.**
 A dataset with `path` but no `source` fails with "'target' required for inline source", which does not name the missing key. `legacy_tests/test_config/test_data_io.py::test_missing_source` expects an error for a missing `source`, and every config in the repository sets it. A fix would require `source`.
 
@@ -43,6 +40,7 @@ A model spectral density from `glefit.spectral`, for example, cannot be a target
 
 ### Resolved
 
+- **CFG-3** · `fix(config): report malformed entries with ConfigError` · Data paths are still made absolute when the file is read, as `legacy_tests` expects.
 - **CFG-8** · `fix(config): stop reading the restart section` · `restart` had to be a dictionary with a boolean `enabled` and, if enabled, an existing `restart_file`, although restarts are not implemented; it is now never read, like `project`.
 
 ## `glefit.embedding`

@@ -13,6 +13,7 @@ Uses numpy.loadtxt for robust CSV parsing with configurable delimiters and colum
 '''
 
 from __future__ import print_function, division, absolute_import
+import os
 from pathlib import Path
 from typing import Dict, Tuple
 import logging
@@ -75,13 +76,16 @@ def _load_external(
     path = config_dict.get('path')
     if not path:
         raise DataLoadError(f"Data '{data_name}': 'path' required for external source")
-    
+    if not isinstance(path, (str, os.PathLike)):
+        raise DataLoadError(
+            f"Data '{data_name}': 'path' must be a string, got {path!r}")
+
     path = Path(path)
     if not path.exists():
         raise DataLoadError(f"Data '{data_name}': File not found at {path}")
-    
-    fmt = config_dict.get('format', 'csv').lower()
-    if fmt != 'csv':
+
+    fmt = config_dict.get('format', 'csv')
+    if not isinstance(fmt, str) or fmt.lower() != 'csv':
         raise DataLoadError(f"Data '{data_name}': Only CSV format supported, got {fmt}")
     
     columns = config_dict.get('columns')
@@ -102,7 +106,13 @@ def _load_external(
         )
     
     delimiter = config_dict.get('delimiter', ',')
-    
+    # np.loadtxt takes one character, or None for any whitespace
+    if delimiter is not None and (
+            not isinstance(delimiter, str) or len(delimiter) != 1):
+        raise DataLoadError(
+            f"Data '{data_name}': 'delimiter' must be one character or "
+            f"null, got {delimiter!r}")
+
     try:
         # Suppress the "input contained no data" warning from numpy.loadtxt
         # We handle empty data with explicit error checking below
@@ -158,7 +168,11 @@ def _load_inline(
         # No grid for scalar quantites
         if not np.isscalar(target):
             raise DataLoadError(f"Data '{data_name}': 'grid' required for inline source unless the target is a scalar")
-        return None, float(target)
+        try:
+            return None, float(target)
+        except (TypeError, ValueError) as e:
+            raise DataLoadError(
+                f"Data '{data_name}': Failed to convert the target: {e}")
     
     # Both grid and target have been specified, treat as arrays
     try:

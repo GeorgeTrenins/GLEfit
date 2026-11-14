@@ -34,8 +34,8 @@ project: {}                # optional, never read
 
 ## Checks
 
-- **`__init__`:** the file exists, parses and is not empty. It makes `path` absolute for `source: external` datasets, before `validate()` has checked any types (CFG-3).
-- **`validate()`:** the four required sections are dictionaries, `data` is a non-empty dictionary of dictionaries, and `merit_function`, `embedder` and `optimization` each have `type` and `parameters`. `optimization.options` is a dictionary with `max_iter`, a non-negative `int` that is not a `bool`. Other sections are never read.
+- **`__init__`:** the file exists, parses, is not empty and holds a mapping. It makes a string `path` absolute for `source: external` datasets, and skips entries of the wrong type, which `validate()` and `load_data()` report.
+- **`validate()`:** the four required sections are dictionaries, `data` is a non-empty dictionary of dictionaries, and `merit_function`, `embedder` and `optimization` each have `type` and a dictionary `parameters`. `optimization.options` is a dictionary with `max_iter`, a non-negative `int` that is not a `bool`. Other sections are never read.
 - **`load_data()`:** every dataset loads, used or not. `DataLoadError` becomes `ConfigError`, naming the dataset.
 - **Elsewhere:** `Optimization.from_config` checks each `type` against its registry (OPT-7). Each class's `from_dict` checks its `parameters`, including whether `data` names a dataset.
 
@@ -51,8 +51,8 @@ project: {}                # optional, never read
 
 ## New section or key
 
-Check its structure in `validate()`, raising `ConfigError`, and add a `get_<section>_config` method that returns a deep copy. Make an input path absolute against the config file's directory. Read the section in `optimize.py`, and in `analysis/plot_objective.py` if plotting needs it.
+Check its structure in `validate()`, raising `ConfigError`, and add a `get_<section>_config` method that returns a deep copy. Make an input path absolute against the config file's directory in `_resolve_paths`, which runs before `validate()` and so must skip values of the wrong type. Read the section in `optimize.py`, and in `analysis/plot_objective.py` if plotting needs it.
 
 ## Testing
 
-Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_config.py` from the repository root. It checks that `ConfigHandler` reads each file type and rejects files it cannot read. `validate()` must require every key that `optimize.py` reads, with each section a dictionary and `max_iter` a non-negative integer, and ignore `restart` and `project`, whatever they hold. Relative data paths must be read from the config file's directory, or from the working directory after `from_dict`, every dataset must load, and the `get_*_config` methods must return deep copies. For `load_data`, it checks each CSV layout and delimiter, inline arrays and scalars, and that bad input raises `DataLoadError`. The known defects CFG-1 to CFG-5 are not pinned. `legacy_tests/test_config/test_data_io.py` also covers `load_data`, and only `test_missing_source` fails (CFG-4). `legacy_tests/test_config/test_config_handler.py` follows the old schema, and 28 of its tests fail.
+Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_config.py` from the repository root. It checks that `ConfigHandler` reads each file type and rejects files it cannot read or that hold no mapping. `validate()` must require every key that `optimize.py` reads, with each section and its `parameters` a dictionary and `max_iter` a non-negative integer, and ignore `restart` and `project`, whatever they hold. An entry of the wrong type must raise `ConfigError` when a file is read, checked and its data loaded, as in `optimize.py`. Relative data paths must be read from the config file's directory, or from the working directory after `from_dict`, every dataset must load, and the `get_*_config` methods must return deep copies. For `load_data`, it checks each CSV layout and delimiter, inline arrays and scalars, and that bad input raises `DataLoadError`. The known defects CFG-1, CFG-2, CFG-4 and CFG-5 are not pinned. `legacy_tests/test_config/test_data_io.py` also covers `load_data`, and only `test_missing_source` fails (CFG-4). `legacy_tests/test_config/test_config_handler.py` follows the old schema, and 28 of its tests fail.
