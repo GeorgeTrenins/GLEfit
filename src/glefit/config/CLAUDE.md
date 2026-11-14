@@ -9,7 +9,7 @@ This module reads and checks the YAML or JSON file that defines a fit, and loads
 ```yaml
 data:                      # required: one or more named datasets
   spectrum:
-    source: external       # defaults to inline (CFG-4)
+    source: external       # required: external or inline
     path: target.csv       # relative to the config file
     format: csv            # optional; csv is the only format
     columns: [0, 1]        # grid column, then target column, from 0
@@ -55,4 +55,4 @@ Check its structure in `validate()`, raising `ConfigError`, and add a `get_<sect
 
 ## Testing
 
-Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_config.py` from the repository root. It checks that `ConfigHandler` reads each file type and rejects files it cannot read or that hold no mapping. `validate()` must require every key that `optimize.py` reads, with each section and its `parameters` a dictionary and `max_iter` a non-negative integer, and ignore `restart` and `project`, whatever they hold. An entry of the wrong type must raise `ConfigError` when a file is read, checked and its data loaded, as in `optimize.py`. Relative data paths must be read from the config file's directory, or from the working directory after `from_dict`, every dataset must load, and the `get_*_config` methods must return deep copies. For `load_data`, it checks each CSV layout and delimiter, inline arrays and scalars, and that bad input raises `DataLoadError`. The known defects CFG-4 and CFG-5 are not pinned. `legacy_tests/test_config/test_data_io.py` also covers `load_data`, and only `test_missing_source` fails (CFG-4). `legacy_tests/test_config/test_config_handler.py` follows the old schema, and 28 of its tests fail.
+Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_config.py` from the repository root. It checks that `ConfigHandler` reads each file type and rejects files it cannot read or that hold no mapping. `validate()` must require every key that `optimize.py` reads, with each section and its `parameters` a dictionary and `max_iter` a non-negative integer, and ignore `restart` and `project`, whatever they hold. An entry of the wrong type must raise `ConfigError` when a file is read, checked and its data loaded, as in `optimize.py`. Relative data paths must be read from the config file's directory, or from the working directory after `from_dict`, every dataset must load, and the `get_*_config` methods must return deep copies. For `load_data`, it checks each CSV layout and delimiter, inline arrays and scalars, and that bad input raises `DataLoadError`. The known defect CFG-5 is not pinned. `legacy_tests/test_config/test_data_io.py` also covers `load_data`, and all its tests pass. `legacy_tests/test_config/test_config_handler.py` follows the old schema, and 28 of its tests fail.

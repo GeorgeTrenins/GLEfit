@@ -45,16 +45,16 @@ def load_data(
     Raises:
         DataLoadError: If configuration is invalid or loading fails
     """
-    source = config_dict.get('source', 'inline')
-    
+    source = config_dict.get('source')
+
     if source == 'external':
         return _load_external(config_dict, data_name)
     elif source == 'inline':
         return _load_inline(config_dict, data_name)
     else:
         raise DataLoadError(
-            f"Unknown data source: {source}. Must be 'external' or 'inline'"
-        )
+            f"Data '{data_name}': Unknown data source {source!r}; 'source' "
+            "is required and must be 'external' or 'inline'")
 
 
 def _load_external(

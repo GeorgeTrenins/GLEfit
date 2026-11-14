@@ -446,3 +446,12 @@ def test_load_data_rejects_an_unknown_source():
 
     with pytest.raises(DataLoadError, match="Unknown data source"):
         load_data(dataset, "target")
+
+
+@pytest.mark.parametrize("dataset", [
+    {"grid": GRID, "target": TARGET},
+    {"path": "target.csv", "columns": [0, 1]},
+], ids=["inline", "external"])
+def test_load_data_requires_a_source(dataset):
+    with pytest.raises(DataLoadError, match="'source'"):
+        load_data(dataset, "target")
