@@ -15,7 +15,7 @@ None.
 ### Accepted
 
 **CFG-6 · accepted · A file without the `.json` suffix is read only as YAML.**
-YAML reads most JSON, but not JSON indented with tabs, which therefore loads only from a `.json` file. The fallback to JSON in `__init__` never runs, because `_load_yaml` turns `yaml.YAMLError` into `ConfigError`.
+YAML reads most JSON, but not JSON indented with tabs, which therefore loads only from a `.json` file.
 
 ### Deferred features
 

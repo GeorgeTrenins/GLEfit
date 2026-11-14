@@ -15,13 +15,9 @@ import json
 import copy
 import numbers
 import yaml
-import numpy as np
 from .data_io import load_data, DataLoadError
 
 logger = logging.getLogger(__name__)
-
-# TODO: parse constraints
-
 
 
 class ConfigError(Exception):
@@ -50,21 +46,12 @@ class ConfigHandler:
         if not self.config_path.exists():
             raise ConfigError(f"Configuration file not found: {self.config_path}")
         
-        # Determine file type and load
-        if self.config_path.suffix in ['.yaml', '.yml']:
-            self._load_yaml()
-        elif self.config_path.suffix == '.json':
+        # any suffix but .json is read as YAML, which reads most JSON too
+        if self.config_path.suffix == '.json':
             self._load_json()
         else:
-            # Try YAML first, then JSON
-            try:
-                self._load_yaml()
-            except yaml.YAMLError:
-                try:
-                    self._load_json()
-                except json.JSONDecodeError as e:
-                    raise ConfigError(f"Failed to parse config as YAML or JSON: {e}")
-        
+            self._load_yaml()
+
         if self.config is None:
             raise ConfigError("Configuration file is empty")
         if not isinstance(self.config, dict):
@@ -116,34 +103,20 @@ class ConfigHandler:
                 if not path.is_absolute():
                     data_config['path'] = str((config_dir / path).resolve())
 
-    @staticmethod
-    def _validate_config_structure(config: Dict[str, Any]) -> None:
-        """Validate that required top-level keys are present.
-        
-        Args:
-            config: Configuration dictionary
-            
+    def validate(self) -> None:
+        """Validate configuration structure and content.
+
         Raises:
-            ConfigError: If required keys are missing
+            ConfigError: If validation fails
         """
         required_keys = {'data', 'merit_function', 'embedder', 'optimization'}
-        missing = required_keys - set(config.keys())
-        
+        missing = required_keys - set(self.config.keys())
         if missing:
             raise ConfigError(
                 f"Configuration missing required keys: {missing}. "
                 f"Required keys: {required_keys}"
             )
 
-    def validate(self) -> None:
-        """Validate configuration structure and content.
-        
-        Raises:
-            ConfigError: If validation fails
-        """
-        self._validate_config_structure(self.config)
-        self.config: dict
-        
         # Validate data section
         if not isinstance(self.config.get('data'), dict):
             raise ConfigError("'data' must be a dictionary")
@@ -274,109 +247,3 @@ class ConfigHandler:
         handler.config = copy.deepcopy(config_dict)
         handler.config_path = Path(config_path).resolve() if config_path else None
         return handler
-
-
-    # def save_checkpoint(
-    #     self,
-    #     filepath: Union[str, Path],
-    #     optimization_state: Dict[str, Any]
-    # ) -> None:
-    #     """Save configuration and optimization state as JSON checkpoint.
-        
-    #     Args:
-    #         filepath: Path to save checkpoint
-    #         optimization_state: Dict with required keys:
-    #             - completed_steps: Number of steps completed
-    #             - max_steps: Maximum steps configured
-    #             - timestamp: ISO 8601 timestamp
-    #             - converged: Whether optimization converged
-    #             - merit_value: Current merit function value
-    #             - gradient_norm: Current gradient norm
-    #             - gradient_max_norm: Current gradient max-norm
-                
-    #     Raises:
-    #         IOError: If writing fails
-    #         ValueError: If optimization_state missing required keys
-    #     """
-    #     filepath = Path(filepath)
-        
-    #     # Validate optimization_state
-    #     #TODO: add the missing keys for embedder state
-    #     required_keys = {'completed_steps', 'max_steps', 'timestamp', 'converged', 
-    #                     'merit_value', 'gradient_norm', 'gradient_max_norm'}
-    #     missing = required_keys - set(optimization_state.keys())
-    #     if missing:
-    #         raise ValueError(f"optimization_state missing required keys: {missing}")
-        
-    #     checkpoint = copy.deepcopy(self.config)
-    #     checkpoint['optimization_state'] = optimization_state
-        
-    #     try:
-    #         with open(filepath, 'w') as f:
-    #             json.dump(checkpoint, f, indent=2, default=_json_encoder)
-    #         logger.info(f"Saved checkpoint to {filepath}")
-    #     except (IOError, OSError, TypeError) as e:
-    #         raise IOError(f"Failed to save checkpoint: {e}")
-
-    # @staticmethod
-    # def load_checkpoint(filepath: Union[str, Path]) -> tuple:
-    #     """Load configuration and optimization state from JSON checkpoint.
-        
-    #     Args:
-    #         filepath: Path to checkpoint file
-            
-    #     Returns:
-    #         Tuple of (ConfigHandler, optimization_state_dict)
-            
-    #     Raises:
-    #         IOError: If loading fails
-    #         ConfigError: If configuration is invalid
-    #     """
-    #     filepath = Path(filepath).resolve()
-        
-    #     if not filepath.exists():
-    #         raise IOError(f"Checkpoint file not found: {filepath}")
-        
-    #     try:
-    #         with open(filepath, 'r') as f:
-    #             checkpoint = json.load(f)
-    #     except (IOError, OSError, json.JSONDecodeError) as e:
-    #         raise IOError(f"Failed to load checkpoint: {e}")
-        
-    #     # Extract optimization state (must be present in checkpoints)
-    #     if 'optimization_state' not in checkpoint:
-    #         raise ConfigError("Checkpoint missing 'optimization_state' section")
-        
-    #     optimization_state = checkpoint.pop('optimization_state')
-        
-    #     # Reconstruct ConfigHandler from checkpoint config
-    #     try:
-    #         handler = ConfigHandler.from_dict(checkpoint, config_path=filepath)
-    #         logger.info(f"Loaded checkpoint from {filepath}")
-    #         return handler, optimization_state
-    #     except ConfigError as e:
-    #         raise ConfigError(f"Checkpoint contains invalid configuration: {e}")
-
-
-def _json_encoder(obj: Any) -> Any:
-    """Custom JSON encoder for numpy types and other non-standard objects.
-    
-    Args:
-        obj: Object to encode
-        
-    Returns:
-        JSON-serializable representation
-        
-    Raises:
-        TypeError: If object cannot be serialized
-    """
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, (np.integer, np.floating)):
-        return float(obj)
-    elif isinstance(obj, np.bool_):
-        return bool(obj)
-    elif isinstance(obj, Path):
-        return str(obj)
-    else:
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")

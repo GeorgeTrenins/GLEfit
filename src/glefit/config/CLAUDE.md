@@ -46,7 +46,7 @@ project: {}                # optional, never read
 - **Data:** `load_data` returns `(grid, target)` as 1-dimensional float arrays of equal length. CSV files are read with `np.loadtxt`, so `#` starts a comment and any other header line fails. An inline scalar `target` with no `grid` loads as `(None, float(target))`, which no merit function accepts.
 - **Copies:** the `get_*_config` methods return deep copies, which `optimize.py` relies on when it pops `max_iter`.
 - **Logging:** messages go to `logging` at level `INFO`, so they are hidden unless the caller sets up logging.
-- **Unused code:** `to_dict` and `_json_encoder` have no callers, and the checkpoint methods are commented out. Only tests call `from_dict`.
+- **Kept for `legacy_tests`:** `to_dict` and the `config_path` argument of `from_dict` have no other callers, and otherwise only tests call `from_dict`.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
 ## New section or key
