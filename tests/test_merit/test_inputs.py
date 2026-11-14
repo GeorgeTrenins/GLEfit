@@ -25,8 +25,6 @@ TARGET = np.array([0.3, -0.2, 0.1, 0.05])
 WEIGHT = [0.5, 2.0, 1.0, 3.0]
 DATASETS = {
     "curve": (GRID, TARGET),
-    # the config loader gives a single number without a grid
-    "scalar": (None, 1.0),
     "unsorted": (np.array([0.0, 1.3, 0.4, 3.0]), TARGET),
     "zeros": (GRID, np.zeros_like(GRID)),
 }
@@ -42,8 +40,6 @@ BAD_ENTRIES = {
     "unknown-metric": ({"data": "curve", "metric": "absolute"}, "absolute"),
     "unknown-key": ({"data": "curve", "metric": "squared", "wieght": 2.0},
                     "wieght"),
-    "dataset-without-grid": ({"data": "scalar", "metric": "squared"},
-                             "no grid"),
     "negative-weight": ({"data": "curve", "metric": "squared",
                          "weight": -1.0}, "non-negative"),
     "unsorted-grid": ({"data": "unsorted", "metric": "squared"},

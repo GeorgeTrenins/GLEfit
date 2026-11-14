@@ -209,8 +209,8 @@ class BaseProperty(ABC):
             embedder: the embedder whose drift matrix is fitted
 
         Raises:
-            ConfigError: for a missing or unknown entry, a dataset without
-                a grid, or any value the constructor rejects
+            ConfigError: for a missing or unknown entry, or any value the
+                constructor rejects
         """
         accepted = ("data", "metric", "weight")
         unexpected = sorted(set(parameters) - set(accepted))
@@ -230,10 +230,6 @@ class BaseProperty(ABC):
             metric: str = parameters["metric"]
         except KeyError:
             raise ConfigError(f"The configuration for {cls.__name__} is missing 'metric'.")
-        if grid is None:
-            raise ConfigError(
-                f"The dataset {data_reference} has no grid, which the "
-                f"objective function of type {cls.__name__} needs.")
         weight = parameters.get("weight")
         try:
             return cls(grid, target, embedder, metric, weight=weight)
