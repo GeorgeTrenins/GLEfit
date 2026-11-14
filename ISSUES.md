@@ -2,7 +2,47 @@
 
 Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code.
 
-Only `glefit.embedding`, `glefit.mappers`, `glefit.merit` and `glefit.optimization` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
+Only `glefit.config`, `glefit.embedding`, `glefit.mappers`, `glefit.merit` and `glefit.optimization` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
+
+## `glefit.config`
+
+Reproduced at `d5c95ac` by running the code.
+
+### Open
+
+**CFG-1 · A CSV file with one column is read as one row.**
+`np.loadtxt` returns shape (n,) for a single column, which `_load_external` reshapes to one row of n columns. Values 0, 1, 2, 3 with `columns: [0, 1]` gave grid [0.0] and target [1.0], without error. A file with a single value gives a 0-dimensional array and raises `IndexError`. A fix would pass `ndmin=2` to `np.loadtxt` and drop the reshape.
+
+**CFG-2 · Boolean column indices and targets are accepted.**
+`bool` is a subclass of `int`, so `columns: [false, true]`, which YAML 1.1 also reads from `[no, yes]`, passes the checks and indexes the data as a mask: it gave a grid of shape (2, 0, 2) without error. An inline `target: true` with no grid loads as 1.0. A fix would reject `bool`, as `validate()` does for `max_iter`.
+
+**CFG-3 · Malformed sections raise Python errors, not `ConfigError`.**
+`__init__` makes paths absolute before `validate()` has checked any types, and `data_io` does not check types. In `__init__`, `data` that is null or a list raises `AttributeError`, as do `restart: true` and a `restart` list, and a top level that is a list, string or number raises `TypeError`, as does a `path` that is not a string. In `load_data`, a `format` that is not a string raises `AttributeError`, and an inline `target` that is a non-numeric string raises `ValueError`. A fix would check in `__init__` that the top level is a mapping, make data paths absolute in `load_data`, after `validate()`, and turn type errors in `data_io` into `DataLoadError`.
+
+**CFG-4 · `source` defaults to `inline`.**
+A dataset with `path` but no `source` fails with "'target' required for inline source", which does not name the missing key. `legacy_tests/test_config/test_data_io.py::test_missing_source` expects an error for a missing `source`, and every config in the repository sets it. A fix would require `source`.
+
+**CFG-5 · `validate()` names `optimization.type` by an old name.**
+A missing `optimization.type` is reported as "'optimization.optimizer' is required".
+
+**CFG-8 · `restart` is checked but never used.**
+Restarts are not implemented (OPT-11), but `validate()` requires `restart` to be a dictionary and `enabled` a boolean, and if it is true, `restart_file` to exist, after `__init__` has made it absolute. A config can thus fail for a section that has no effect. A fix would drop these checks, so that `restart`, like `project`, is never read.
+
+### Accepted
+
+**CFG-6 · accepted · A file without the `.json` suffix is read only as YAML.**
+YAML reads most JSON, but not JSON indented with tabs, which therefore loads only from a `.json` file. The fallback to JSON in `__init__` never runs, because `_load_yaml` turns `yaml.YAMLError` into `ConfigError`.
+
+### Deferred features
+
+**CFG-7 · deferred · Targets can only be inline or read from a CSV file.**
+A model spectral density from `glefit.spectral`, for example, cannot be a target.
+
+### Tracked in other modules
+
+- Restarts (OPT-11), mappers (MAP-7), combined objectives (MER-11) and per-point weights from a file (MER-12) cannot be set in a config.
+- A missing key inside `embedder.parameters` (EMB-23) and an unknown component type of `multi` (EMB-24) raise a bare `KeyError`.
+- A target with NaN or ±∞ loads without error, and fails later with a misleading message (MER-14).
 
 ## `glefit.embedding`
 
@@ -81,11 +121,12 @@ This is by design: custom mappers are for debugging only, so fits always use eac
 
 ## `glefit.merit`
 
-Reproduced at `368b598` by running the code.
+Reproduced at `368b598` by running the code, and MER-14 at `d5c95ac`.
 
 ### Open
 
-None.
+**MER-14 · A non-finite target is rejected with a misleading message.**
+The constructor checks the shapes of grid and target and the order of the grid, but not that the target is finite. With the default weights, which divide by max|y|², a NaN in the target raises "weight must be finite" and ±∞ raises "weight must be positive at one point at least". With an explicit `weight`, the merit function is built, and the fit stops at step 0 with `ValueError` for a non-finite distance, gradient and Hessian (OPT-16). A fix would raise `ValueError` for a non-finite target in the constructor, as for non-finite weights.
 
 ### Accepted
 
