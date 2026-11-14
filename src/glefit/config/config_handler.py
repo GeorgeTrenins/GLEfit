@@ -181,7 +181,7 @@ class ConfigHandler:
         if not isinstance(self.config.get('optimization'), dict):
             raise ConfigError("'optimization' must be a dictionary")
         if 'type' not in self.config['optimization']:
-            raise ConfigError("'optimization.optimizer' is required")
+            raise ConfigError("'optimization.type' is required")
         if 'parameters' not in self.config['optimization']:
             raise ConfigError("'optimization.parameters' is required")
         if not isinstance(self.config['optimization']['parameters'], dict):

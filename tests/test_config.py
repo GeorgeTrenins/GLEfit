@@ -104,8 +104,7 @@ REQUIRED = [
     (("embedder", "type"), "embedder.type"),
     (("embedder", "parameters"), "embedder.parameters"),
     (("optimization",), "optimization"),
-    # the message names optimization.optimizer, an old name of the key
-    (("optimization", "type"), "optimization"),
+    (("optimization", "type"), "optimization.type"),
     (("optimization", "parameters"), "optimization.parameters"),
     (("optimization", "options"), "optimization.options"),
     (("optimization", "options", "max_iter"),
