@@ -147,6 +147,23 @@ def test_validate_rejects_bad_data(data, name):
         handler.validate()
 
 
+# sections that optimize.py never reads, whatever they hold
+@pytest.mark.parametrize("section, value", [
+    ("project", {"name": "fit"}),
+    ("restart", True),
+    ("restart", ["chk.json"]),
+    ("restart", {"enabled": "yes"}),
+    ("restart", {"enabled": True}),
+    ("restart", {"enabled": True, "restart_file": "chk.json"}),
+], ids=["project", "restart true", "restart list", "enabled not bool",
+        "no restart file", "missing restart file"])
+def test_handler_ignores_an_unread_section(section, value, tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(replaced(section, value)))
+
+    ConfigHandler(path).validate()
+
+
 # CONFIG as text: YAML cannot read JSON indented with tabs, and JSON
 # cannot read YAML in block style
 YAML_TEXT = yaml.safe_dump(CONFIG)

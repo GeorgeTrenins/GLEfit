@@ -94,12 +94,8 @@ class ConfigHandler:
             raise ConfigError(f"I/O error reading config: {e}")
 
     def _resolve_paths(self) -> None:
-        """Convert relative paths to absolute paths relative to config file directory.
-        
-        Modifies config dict in-place to store absolute paths for:
-        - data[*].path (for external sources)
-        - restart.restart_file
-        """
+        """Make the relative path of each external dataset absolute,
+        against the config file's directory, in place."""
         config_dir: Path = self.config_path.parent
         
         # Resolve data file paths
@@ -110,13 +106,6 @@ class ConfigHandler:
                         path: Path = Path(data_config['path'])
                         if not path.is_absolute():
                             data_config['path'] = str((config_dir / path).resolve())
-        
-        # Resolve restart file path
-        if 'restart' in self.config and self.config['restart'].get('enabled'):
-            if 'restart_file' in self.config['restart']:
-                path = Path(self.config['restart']['restart_file'])
-                if not path.is_absolute():
-                    self.config['restart']['restart_file'] = str((config_dir / path).resolve())
 
     @staticmethod
     def _validate_config_structure(config: Dict[str, Any]) -> None:
@@ -197,22 +186,6 @@ class ConfigHandler:
                 "'optimization.options.max_iter' must be a non-negative "
                 f"integer, got {max_iter!r}")
 
-        # Validate restart section if present
-        if 'restart' in self.config:
-            restart = self.config['restart']
-            if not isinstance(restart, dict):
-                raise ConfigError("'restart' must be a dictionary")
-            if 'enabled' in restart and not isinstance(restart['enabled'], bool):
-                raise ConfigError("'restart.enabled' must be a boolean")
-            
-            # If restart enabled, validate restart_file exists
-            if restart.get('enabled', False):
-                if 'restart_file' not in restart:
-                    raise ConfigError("'restart.restart_file' is required when restart is enabled")
-                restart_path = Path(restart['restart_file'])
-                if not restart_path.exists():
-                    raise ConfigError(f"Restart file not found: {restart_path}")
-        
         logger.info("Configuration validation passed")
 
     def load_data(self) -> Dict[str, tuple]:
@@ -259,17 +232,6 @@ class ConfigHandler:
             Optimization configuration dictionary
         """
         return copy.deepcopy(self.config['optimization'])
-
-    def get_restart_config(self) -> Optional[Dict[str, Any]]:
-        """Get restart configuration if present.
-        
-        Returns:
-            Restart configuration dictionary or None if not configured
-        """
-        restart = self.config.get('restart')
-        if restart is None:
-            return None
-        return copy.deepcopy(restart)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary (for serialization).
