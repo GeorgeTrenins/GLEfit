@@ -35,6 +35,7 @@ A model spectral density from `glefit.spectral`, for example, cannot be a target
 - **CFG-4** · `fix(config): require the source of each dataset`
 - **CFG-5** · `fix(config): name optimization.type in its error`
 - **CFG-3** · `fix(config): report malformed entries with ConfigError` · Data paths are still made absolute when the file is read, as `legacy_tests` expects.
+- **CFG-9** · `fix(config): require a grid for inline data` · An inline scalar target with no grid loaded as `(None, value)`, which no merit function accepts.
 - **CFG-8** · `fix(config): stop reading the restart section` · `restart` had to be a dictionary with a boolean `enabled` and, if enabled, an existing `restart_file`, although restarts are not implemented; it is now never read, like `project`.
 
 ## `glefit.embedding`

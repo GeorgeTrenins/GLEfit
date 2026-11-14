@@ -167,21 +167,9 @@ def _load_inline(
     if target is None:
         raise DataLoadError(f"Data '{data_name}': 'target' required for inline source")
     if grid is None:
-        # No grid for scalar quantites
-        if not np.isscalar(target):
-            raise DataLoadError(f"Data '{data_name}': 'grid' required for inline source unless the target is a scalar")
-        # float() reads true and false as 1 and 0
-        if isinstance(target, bool):
-            raise DataLoadError(
-                f"Data '{data_name}': the target must be a number, got "
-                f"{target!r}")
-        try:
-            return None, float(target)
-        except (TypeError, ValueError) as e:
-            raise DataLoadError(
-                f"Data '{data_name}': Failed to convert the target: {e}")
-    
-    # Both grid and target have been specified, treat as arrays
+        raise DataLoadError(
+            f"Data '{data_name}': 'grid' required for inline source")
+
     try:
         grid = np.atleast_1d(np.asarray(grid, dtype=float))
         target = np.atleast_1d(np.asarray(target, dtype=float))

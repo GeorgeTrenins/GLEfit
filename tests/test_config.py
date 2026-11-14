@@ -411,15 +411,6 @@ def test_load_data_reads_inline_arrays(
     assert_array_equal(loaded_target, expected_target, strict=True)
 
 
-def test_load_data_reads_inline_scalar_without_grid():
-    dataset = {"source": "inline", "target": 2}
-
-    grid, target = load_data(dataset, "target")
-
-    assert grid is None
-    assert type(target) is float and target == 2.0
-
-
 @pytest.mark.parametrize("entries, message", [
     pytest.param({"grid": GRID}, "'target' required", id="no target"),
     pytest.param({"target": TARGET}, "'grid' required",
@@ -429,8 +420,11 @@ def test_load_data_reads_inline_scalar_without_grid():
     pytest.param({"grid": [GRID], "target": TARGET}, "1D", id="2-D grid"),
     pytest.param({"grid": ["a", "b"], "target": TARGET}, "convert",
                  id="text"),
-    pytest.param({"target": "abc"}, "convert", id="text without grid"),
-    pytest.param({"target": True}, "must be a number",
+    pytest.param({"target": 2.5}, "'grid' required",
+                 id="number without grid"),
+    pytest.param({"target": "abc"}, "'grid' required",
+                 id="text without grid"),
+    pytest.param({"target": True}, "'grid' required",
                  id="boolean without grid"),
 ])
 def test_load_data_rejects_bad_inline_data(entries, message):
