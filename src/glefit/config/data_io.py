@@ -4,12 +4,8 @@
 @File    :   data_io.py
 @Time    :   2026/01/12 11:38:01
 @Author  :   George Trenins
-@Desc    :   None
-
-Data loading utilities for external arrays (CSV) or inline specifications.
-
-Provides flexible loading of data from CSV files or inline (YAML-specified) arrays.
-Uses numpy.loadtxt for robust CSV parsing with configurable delimiters and column selection.
+@Desc    :   Load the grid and target of a dataset, from a CSV file with
+             np.loadtxt or from arrays given in the config file.
 '''
 
 from __future__ import print_function, division, absolute_import

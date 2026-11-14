@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*-coding:utf-8 -*-
-"""
-Configuration management for GLE parameter optimization.
-
-Handles loading YAML configs, validating structure, serializing/deserializing
-checkpoints, and tracking optimization state.
-"""
+'''
+@File    :   config_handler.py
+@Time    :   2026/01/12 17:05:26
+@Author  :   George Trenins
+@Desc    :   Read the YAML or JSON file that defines a fit, check its
+             structure, and give out its sections and target data.
+'''
 
 from __future__ import print_function, division, absolute_import
 from pathlib import Path
@@ -26,10 +27,11 @@ class ConfigError(Exception):
 
 
 class ConfigHandler:
-    """Load, validate, and manage optimization configurations.
-    
-    Handles YAML input files, validation, and checkpoint serialization/deserialization.
-    Converts relative paths to absolute paths relative to config file directory.
+    """Read a YAML or JSON configuration file, check its structure, and give
+    out its sections and target data.
+
+    Relative data paths are made absolute against the directory of the
+    config file.
     """
 
     def __init__(self, config_path: Union[str, Path]) -> None:
@@ -75,7 +77,7 @@ class ConfigHandler:
             raise ConfigError(f"I/O error reading config: {e}")
 
     def _load_json(self) -> None:
-        """Load configuration from JSON file (e.g., checkpoint)."""
+        """Load configuration from JSON file."""
         try:
             with open(self.config_path, 'r') as f:
                 self.config = json.load(f)
@@ -233,15 +235,18 @@ class ConfigHandler:
 
     @staticmethod
     def from_dict(config_dict: Dict[str, Any], config_path: Optional[Path] = None) -> 'ConfigHandler':
-        """Create ConfigHandler from dictionary (e.g., from checkpoint).
-        
+        """Create a ConfigHandler from a dictionary, without reading a file.
+
+        Paths are kept as given, so relative ones are relative to the
+        working directory.
+
         Args:
-            config_dict: Configuration dictionary
-            config_path: Optional path to associate with this config (for relative path resolution)
-            
+            config_dict: Configuration dictionary, copied
+            config_path: stored as `config_path`, but not used to resolve
+                paths
+
         Returns:
             ConfigHandler instance
-            
         """
         handler = ConfigHandler.__new__(ConfigHandler)
         handler.config = copy.deepcopy(config_dict)
