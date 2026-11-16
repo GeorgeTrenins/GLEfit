@@ -8,49 +8,64 @@
 '''
 
 from __future__ import print_function, division, absolute_import
-from typing import Optional
-from scipy.optimize import root_scalar, RootResults
 import numpy as np
 import numpy.typing as npt
-from scipy.interpolate import make_interp_spline, BSpline
+from scipy.interpolate import make_interp_spline
+from scipy.optimize import root_scalar
 
 
 def WAM_discretization(
-    omega: npt.NDArray[np.floating], 
-    Lambda: npt.NDArray[np.floating], 
+    omega: npt.NDArray[np.floating],
+    Lambda: npt.NDArray[np.floating],
     nbath: int,
     wmax: float = np.inf,
-    options: Optional[dict] = None
 ) -> tuple[float, npt.NDArray[np.floating]]:
-    """Discretize the bath spectrum Λ(ω) = J(ω)/ω according to the scheme
-    by P. L. Walters, T. C. Allen, and N. Makri in J. Comp. Chem., 38, pp. 110-115 (2017) [DOI: 10.1002/jcc.24527]
+    """Discretize a bath spectrum Λ(ω) into nbath harmonic modes of equal
+    weight, by the scheme of P. L. Walters, T. C. Allen and N. Makri,
+    J. Comput. Chem. 38, 110 (2017).
+
+    Let C(ω) be the integral of Λ from omega[0] to ω, and ω_max the smaller
+    of wmax and omega[-1]. Each mode has the weight ε = C(ω_max)/nbath, and
+    the frequency ωⱼ that solves C(ωⱼ) = (j − ½)ε, for j = 1, ..., nbath.
 
     Args:
-        Lambda (Callable[[float], float]): cosine transform of the memory kernel
-        nbath (int): number of discrete bath modes
+        omega (ndarray): increasing frequencies, from 0 to discretize all
+            of Λ
+        Lambda (ndarray): Λ at omega, non-negative, interpolated by a cubic
+            spline
+        nbath (int): number of modes
+        wmax (float, optional): upper limit of the integral. Defaults to
+            omega[-1].
 
     Returns:
-        weight: float
-        freqs: np.ndarray
+        tuple: the weight ε (float) and the nbath frequencies (ndarray)
+
+    Raises:
+        RuntimeError: if the bisection for a frequency does not converge
+
+    Notes:
+        Neither the start of the grid nor the sign of Λ is checked. A grid
+        from ω₀ > 0 discretizes Λ on [ω₀, ω_max] only, and where Λ < 0, C
+        is not monotonic and the frequencies are meaningless.
     """
-    
-    if options is None:
-        options = {}
-    spline: BSpline = make_interp_spline(omega, Lambda, **options)
-    antiderivative: BSpline = spline.antiderivative(nu=1)
-    wmax: float = min(wmax, omega[-1])
-    cumulative_spectrum = lambda x: np.nan_to_num(
-        antiderivative(x, extrapolate=False), nan=0.0)
-    exact_reorganisation = 4/np.pi * cumulative_spectrum(wmax)  # Eq. (2.5)
-    weight = np.pi * exact_reorganisation / (4 * nbath)
+    antiderivative = make_interp_spline(omega, Lambda).antiderivative(nu=1)
+    wmax = min(wmax, omega[-1])
+
+    def cumulative_spectrum(x):
+        # zero outside the grid
+        return np.nan_to_num(antiderivative(x, extrapolate=False), nan=0.0)
+
+    weight = cumulative_spectrum(wmax) / nbath
     freqs = []
-    prev = 0.0 
+    prev = 0.0
     for j in range(nbath):
-        fun = lambda x: ( cumulative_spectrum(x) - (j+1/2) * weight)  # Eq. (2.6)
-        ans: RootResults = root_scalar(fun, method="bisect", bracket=[prev, wmax])
+        ans = root_scalar(
+            lambda x: cumulative_spectrum(x) - (j + 1/2) * weight,
+            method="bisect", bracket=[prev, wmax])
+        # root_scalar returns rather than raises if the bisection fails
         if not ans.converged:
-            raise RuntimeError(f"Failed to find discrete frequency number {j+1}")
+            raise RuntimeError(
+                f"Failed to find discrete frequency number {j+1}")
         freqs.append(ans.root)
         prev = ans.root
-    freqs = np.asarray(freqs)
-    return weight, freqs
+    return weight, np.asarray(freqs)

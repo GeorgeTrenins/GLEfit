@@ -36,13 +36,13 @@ The functions that built the `gen2x2` kernel before EMB-20 (`coscosh`, `sincsinh
 
 ## `bath.py`
 
-`WAM_discretization(omega, Lambda, nbath, wmax=inf, options=None)` follows Walters, Allen and Makri, J. Comput. Chem. 38, 110 (2017). `Lambda` is an array of Λ values on the grid `omega`, not a function. The function:
+`WAM_discretization(omega, Lambda, nbath, wmax=inf)` follows Walters, Allen and Makri, J. Comput. Chem. 38, 110 (2017). `Lambda` is an array of Λ values on the grid `omega`. The function:
 
-1. fits an interpolating B-spline to the samples, passing `options` to `scipy.interpolate.make_interp_spline`,
+1. fits an interpolating cubic B-spline to the samples,
 2. forms C(ω) = ∫ Λ from `omega[0]` to ω,
-3. returns `weight = C(wmax)/nbath` and the frequencies that solve C(ωⱼ) = (j + ½)·weight. `wmax` is capped at `omega[-1]`.
+3. returns `weight = C(wmax)/nbath` and the frequencies that solve C(ωⱼ) = (j + ½)·weight, for j = 0, ..., nbath − 1, by bisection. `wmax` is capped at `omega[-1]`.
 
-It does not check that the grid starts at 0 (UTL-3) or that Λ ≥ 0 (UTL-4).
+It does not check that the grid starts at 0 (UTL-3) or that Λ ≥ 0 (UTL-4). `root_scalar` returns rather than raises when a bisection fails, so the function checks `converged` itself; 100 halvings reach `xtol` = 2e-12 unless the bracket is wider than about 2e18.
 
 The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, gamma)`. For a Debye spectrum with 5 modes, the weight matched the exact value to 1e-13 and the frequencies to 4e-12.
 

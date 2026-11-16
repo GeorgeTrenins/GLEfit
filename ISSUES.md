@@ -235,16 +235,17 @@ Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also che
 
 ### Open
 
-**UTL-1 · open · The docstring of `WAM_discretization` is outdated.**
-It documents `Lambda` as a callable, and does not document `omega`, `wmax` or `options`.
-
 **UTL-2 · open · No code writes the inputs of a fit.**
 Target files and initial guesses are made by hand, as in the tutorial. Agreed: a script in `glefit.utils` writes the kernel or spectrum of a `glefit.spectral` model, transformed for a given ωₙ, to a CSV file that `load_data` reads. The grid is either a linspace or read from a one-column CSV file, and the target is not divided by Kₙ(0). The script also writes an initial guess as an `embedder` section: either the exact `prony` embedding of a Debye model, which raises `ValueError` for ωₙ ≠ 0, or a `multi` of `gen2x2` from `WAM_discretization` of Λₙ, with damping rates from the spacing of the frequencies, as in the tutorial.
 
 ### Accepted
 
 **UTL-3 · accepted · `WAM_discretization` integrates from `omega[0]`.**
-It forms C(ω) = ∫ Λ from `omega[0]` to ω, so the grid must start at 0 to discretise all of Λ: for a Debye spectrum on a grid from 0.5, the weight is 13% low and the frequencies are off by up to 120%. It raises no error, and its docstring is to say so (UTL-1).
+It forms C(ω) = ∫ Λ from `omega[0]` to ω, so the grid must start at 0 to discretise all of Λ.
 
 **UTL-4 · accepted · `WAM_discretization` assumes Λ ≥ 0.**
-Where Λ is negative, C(ω) is not monotonic, and the frequencies are meaningless: for Λ = e^(−ω) − 0.3 e^(−(ω−3)²) on [0, 20], all 8 lie below 0.58. It raises no error, and its docstring is to say so (UTL-1).
+Where Λ is negative, C(ω) is not monotonic, and the frequencies are meaningless.
+
+### Resolved
+
+- **UTL-1** · `refactor(utils): tidy WAM_discretization` · Its docstring documented `Lambda` as a callable and left out `omega`, `wmax` and `options`; `options`, which nothing passed, is removed.
