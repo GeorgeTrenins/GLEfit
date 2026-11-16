@@ -172,12 +172,27 @@ def test_debye_matches_its_exact_prony_embedding(prony, debye):
     assert_allclose(actual, prony(emb, x), rtol=RTOL)
 
 
+@pytest.mark.parametrize("nm_omega", [
+    np.float32(NM_OMEGA), np.int64(NM_OMEGA), int(NM_OMEGA),
+], ids=["float32", "int64", "int"])
 @pytest.mark.parametrize("method", ["nmLambda", "nmK"])
-def test_negative_nm_omega_raises_value_error(method):
+def test_nm_omega_may_be_any_real_number(method, nm_omega):
+    x = np.array([0.4, 3.1, 6.0])
+    bath = Debye(ETA, OMEGA_CUT)
+    expected = getattr(bath, method)(NM_OMEGA, x)
+
+    actual = getattr(bath, method)(nm_omega, x)
+
+    assert_allclose(actual, expected, rtol=RTOL)
+
+
+@pytest.mark.parametrize("nm_omega", [-1.0, np.nan], ids=["negative", "nan"])
+@pytest.mark.parametrize("method", ["nmLambda", "nmK"])
+def test_negative_or_nan_nm_omega_raises_value_error(method, nm_omega):
     bath = Debye(ETA, OMEGA_CUT)
 
-    with pytest.raises(ValueError, match="normal-mode frequency"):
-        getattr(bath, method)(-1.0, 1.0)
+    with pytest.raises(ValueError, match="must be non-negative"):
+        getattr(bath, method)(nm_omega, 1.0)
 
 
 @pytest.mark.parametrize("method", ["nmLambda", "nmK"])
@@ -186,3 +201,38 @@ def test_array_nm_omega_raises_type_error(method):
 
     with pytest.raises(TypeError, match="normal-mode frequency"):
         getattr(bath, method)(np.array([1.0, 2.0]), 1.0)
+
+
+@pytest.mark.parametrize("args, kwargs", [
+    ((ETA, OMEGA_CUT, 1.0), {}),
+    ((ETA, OMEGA_CUT), {"omgea": 5.0}),
+], ids=["positional", "keyword"])
+@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
+def test_constructor_rejects_extra_arguments(model, args, kwargs):
+    with pytest.raises(TypeError, match="argument"):
+        model(*args, **kwargs)
+
+
+@pytest.mark.parametrize("eta", [-0.1, np.nan], ids=["negative", "nan"])
+@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
+def test_constructor_rejects_invalid_eta(model, eta):
+    with pytest.raises(ValueError, match="eta must be non-negative"):
+        model(eta, OMEGA_CUT)
+
+
+@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
+def test_constructor_accepts_zero_eta(model):
+    # a bath without friction
+    omega = np.array([0.0, 1.0])
+
+    actual = model(0.0, OMEGA_CUT).Lambda(omega)
+
+    assert_allclose(actual, [0.0, 0.0], atol=0.0)
+
+
+@pytest.mark.parametrize("omega_cut", [0.0, -1.0, np.nan],
+                         ids=["zero", "negative", "nan"])
+@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
+def test_constructor_rejects_invalid_omega_cut(model, omega_cut):
+    with pytest.raises(ValueError, match="omega_cut must be positive"):
+        model(ETA, omega_cut)

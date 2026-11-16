@@ -9,26 +9,27 @@
 
 
 from __future__ import print_function, division, absolute_import
-from ._base import BaseSpectralDensity
+from ._base import BaseSpectralDensity, check_parameters
 import numpy as np
 from typing import Union
 
 
 class ExpOhmic(BaseSpectralDensity):
 
-    def __init__(self, 
-                 eta: float, 
-                 omega_cut: float, 
-                 *args, **kwargs) -> None:
+    def __init__(self, eta: float, omega_cut: float) -> None:
         """Exponentially damped Ohmic spectral density
 
         J(ω) = η * ω * exp(-ω/ωc)
-        K(t) = 2 * η * ωc / π * (1 + ωc²t²) 
+        K(t) = 2 * η * ωc / π * (1 + ωc²t²)
 
         Args:
             eta (float): static friction
             omega_cut (float): cut-off frequency
+
+        Raises:
+            ValueError: unless eta ≥ 0 and omega_cut > 0
         """
+        check_parameters(eta, omega_cut)
         self.eta = eta
         self.omega_cut = omega_cut
 

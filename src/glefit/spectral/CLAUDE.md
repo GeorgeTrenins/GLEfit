@@ -50,11 +50,11 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 ## Conventions
 
 - **Names:** `Lambda` is Λ and `J` is ω·Λ, as in the embedders' `spectrum()` and `spectral_density()`. `nm_omega` is ωₙ and always comes first.
-- **Arguments:** `J`, `Lambda` and `K` are NumPy expressions and accept scalars or arrays. ωₙ must be a Python `int` or `float` (`np.float64` passes) and must not be negative (SPC-4).
+- **Arguments:** `J`, `Lambda` and `K` are NumPy expressions and accept scalars or arrays. ωₙ must be a real number, and ωₙ ≥ 0: other types raise `TypeError`, and negative values and NaN raise `ValueError`.
 - **Closed form or numerical:** `nmJ` and `nmLambda` are closed forms built from `J`. `nmK` integrates `Lambda` with `scipy.integrate.quad`, once per time point, using the Fourier weight for t ≠ 0. Extra keyword arguments go to `quad`. 201 time points take about 0.06 s.
 - **Symmetry:** Λ, K and their `nm` versions are even in ω and t. J is not consistent (SPC-2).
 - **Return types:** for ωₙ > 0, `nmJ` and `nmLambda` return a 0-dimensional array for a scalar ω. `nmK` returns a float for a Python scalar t, and an array otherwise, including for a 0-dimensional array.
-- **Constructors:** they store `eta` and `omega_cut` without checks, and ignore extra arguments (SPC-3).
+- **Constructors:** they take only `eta` and `omega_cut`, and `check_parameters` in `_base.py` raises `ValueError` unless η ≥ 0 and ωc > 0. They store the values as given.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
 ## Adding features
@@ -79,7 +79,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_spectral.py
 ```
 
-`tests/test_spectral.py` compares both models with values from mpmath at 30 digits: Λ with its closed form, K with the cosine transform of Λ, `nmLambda` with θ(x)√x Λ(ω√x), where x = 1 − ωₙ²/ω², and `nmK` with (2/π)∫₀^∞ Λ(u) u²/(u² + ωₙ²) cos(t√(u² + ωₙ²)) du, which shares no code with it. It also checks that Λ, K and their `nm` versions are even, that the `nm` versions reduce to Λ and K at ωₙ = 0, that `nmK` passes keyword arguments to `quad`, that `Debye` matches `PronyEmbedder`, and that a negative or array ωₙ raises. `J` and `nmJ` are not tested.
+`tests/test_spectral.py` compares both models with values from mpmath at 30 digits: Λ with its closed form, K with the cosine transform of Λ, `nmLambda` with θ(x)√x Λ(ω√x), where x = 1 − ωₙ²/ω², and `nmK` with (2/π)∫₀^∞ Λ(u) u²/(u² + ωₙ²) cos(t√(u² + ωₙ²)) du, which shares no code with it. It also checks that Λ, K and their `nm` versions are even, that the `nm` versions reduce to Λ and K at ωₙ = 0, that `nmK` passes keyword arguments to `quad`, that `Debye` matches `PronyEmbedder`, that ωₙ may be any real number ≥ 0, and that the constructors and the `nm` methods reject bad input. `J` and `nmJ` are not tested.
 
 A new or changed model should have tests that:
 

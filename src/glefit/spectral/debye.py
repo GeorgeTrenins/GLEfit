@@ -9,17 +9,14 @@
 
 
 from __future__ import print_function, division, absolute_import
-from ._base import BaseSpectralDensity
+from ._base import BaseSpectralDensity, check_parameters
 import numpy as np
 from typing import Union
 
 
 class Debye(BaseSpectralDensity):
-    
-    def __init__(self, 
-                 eta: float, 
-                 omega_cut: float, 
-                 *args, **kwargs) -> None:
+
+    def __init__(self, eta: float, omega_cut: float) -> None:
         """Debye spectral density
 
         J(ω) = η * ω * ωc^2 / (ωc^2 + ω^2)
@@ -28,7 +25,11 @@ class Debye(BaseSpectralDensity):
         Args:
             eta (float): static friction
             omega_cut (float): cut-off frequency
+
+        Raises:
+            ValueError: unless eta ≥ 0 and omega_cut > 0
         """
+        check_parameters(eta, omega_cut)
         self.eta = eta
         self.omega_cut = omega_cut
 

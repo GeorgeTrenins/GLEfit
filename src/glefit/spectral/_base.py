@@ -11,20 +11,32 @@
 from __future__ import print_function, division, absolute_import
 from abc import ABC, abstractmethod
 from functools import wraps
+import numbers
 import numpy as np
 
+
+def check_parameters(eta: float, omega_cut: float) -> None:
+    """Raise ValueError unless eta ≥ 0 and omega_cut > 0, so also for NaN."""
+    if not eta >= 0:
+        raise ValueError(f"eta must be non-negative, got {eta}")
+    if not omega_cut > 0:
+        raise ValueError(f"omega_cut must be positive, got {omega_cut}")
+
+
 def check_nm_omega(func):
+    """Make func raise TypeError unless the normal-mode frequency is a real
+    number, such as np.float32 or np.int64, and ValueError unless it is
+    non-negative, so also for NaN."""
     @wraps(func)
     def wrapper(self, nm_omega: float, *args, **kwargs):
-        if not isinstance(nm_omega, (int, float)):
+        if not isinstance(nm_omega, numbers.Real):
             raise TypeError(
-                f"Expecting the normal-mode frequency to be a scalar, "
-                f"instead got `{type(nm_omega).__name__}`"
-            )
-        if nm_omega < 0:
+                f"The normal-mode frequency must be a real number, "
+                f"got `{type(nm_omega).__name__}`")
+        if not nm_omega >= 0:
             raise ValueError(
-                f"Expecting the normal-mode frequency to be positive, instead got {nm_omega}"
-            )
+                f"The normal-mode frequency must be non-negative, "
+                f"got {nm_omega}")
         return func(self, nm_omega, *args, **kwargs)
     return wrapper
 

@@ -204,12 +204,6 @@ Reproduced at `4c95893` by running the code.
 **SPC-2 · open · The sign of J at negative ω differs between models.**
 `Debye.J` is odd, and `ExpOhmic.J` is even because it uses |ω|. `nmJ` is even for ωₙ > 0 but returns `J` at ωₙ = 0, so for `Debye(0.7, 2.5)`, `nmJ(0, -2)` gives −0.85 and `nmJ(1e-12, -2)` gives +0.85. Λ and K are not affected. Agreed fix: remove `J` and `nmJ`. Targets need only Λ and K, and Λₙ(ω) = θ(x)√x Λ(ω√x), with x = 1 − ωₙ²/ω², needs only Λ.
 
-**SPC-3 · open · Constructors accept any arguments.**
-They ignore extra arguments, so `ExpOhmic(eta=1.0, omega_cut=2.0, omgea=5.0)` drops the misspelled keyword. They do not check `eta` or `omega_cut`: η < 0 gives Λ < 0, and `Debye(1.0, 0.0).Lambda(0.0)` raises `ZeroDivisionError`. Agreed fix: drop `*args` and `**kwargs`, and raise `ValueError` for η < 0 or ωc ≤ 0.
-
-**SPC-4 · open · ωₙ must be a Python `int` or `float`.**
-`np.float32` and `np.int64` raise `TypeError`, while `np.float64` passes as a subclass of `float`. The `ValueError` for ωₙ < 0 says that ωₙ must be positive, but 0 is accepted. Agreed fix: accept any real number ωₙ ≥ 0, and say "non-negative" in the error.
-
 **SPC-5 · open · Outdated text in the code.**
 The `ExpOhmic` docstring gives K(t) = 2ηωc/π · (1 + ωc²t²), but the code correctly divides by (1 + ωc²t²). The `BaseSpectralDensity` docstring says Λ = J/ω, which is false for `ExpOhmic` at ω < 0. `nmJ`, `nmLambda` and `nmK` have no docstrings.
 
@@ -234,6 +228,8 @@ It integrates numerically, once per time point, so 201 time points take about 0.
 ### Resolved
 
 - **SPC-1** · `fix(spectral): keep integer frequencies from truncating` · For ωₙ > 0, `nmJ` and `nmLambda` truncated their values to integers for integer ω, so `ExpOhmic(0.7, 2.5).nmLambda(1.0, np.array([0, 2, 3]))` gave `[0, 0, 0]`.
+- **SPC-3** · `fix(spectral): check the inputs of the models` · Constructors ignored extra arguments, such as a misspelled keyword, and accepted any `eta` and `omega_cut`; they now raise `TypeError` for extra arguments and `ValueError` unless η ≥ 0 and ωc > 0, which also rejects NaN.
+- **SPC-4** · `fix(spectral): check the inputs of the models` · ωₙ had to be a Python `int` or `float`, so `np.float32` and `np.int64` raised `TypeError`, and NaN passed; any real number ωₙ ≥ 0 is now accepted, and the error says "non-negative".
 
 ## `glefit.utils`
 
