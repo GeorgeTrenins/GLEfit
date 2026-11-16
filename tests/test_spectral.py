@@ -24,8 +24,12 @@ NM_OMEGA = 3.0
 RTOL = 1.0e-13
 # quad's default tolerances give nmK to about 2e-11
 NM_KERNEL_ATOL = 1.0e-9
-MODELS = [Debye, ExpOhmic]
-MODEL_IDS = ["debye", "expohmic"]
+# each model, and the arguments of its constructor in signature order
+MODELS = {
+    "debye": (Debye, {"eta": ETA, "omega_cut": OMEGA_CUT}),
+    "expohmic": (ExpOhmic, {"eta": ETA, "omega_cut": OMEGA_CUT}),
+}
+MODEL_IDS = list(MODELS)
 EVALUATIONS = [
     lambda bath, x: bath.Lambda(x),
     lambda bath, x: bath.K(x),
@@ -35,40 +39,47 @@ EVALUATIONS = [
 EVALUATION_IDS = ["Lambda", "K", "nmLambda", "nmK"]
 
 
-@pytest.mark.parametrize("model, expected", [
+def make_model(name, **changes):
+    """The model `name` of MODELS, with some of its arguments changed,
+    passed by position, so that their order is tested too."""
+    model, arguments = MODELS[name]
+    return model(*{**arguments, **changes}.values())
+
+
+@pytest.mark.parametrize("name, expected", [
     # η ωc² / (ω² + ωc²)
-    (Debye, [0.7, 0.35, 0.10355029585798817]),
+    ("debye", [0.7, 0.35, 0.10355029585798817]),
     # η exp(-|ω|/ωc)
-    (ExpOhmic, [0.7, 0.2575156088200096, 0.06350256730258876]),
+    ("expohmic", [0.7, 0.2575156088200096, 0.06350256730258876]),
 ], ids=MODEL_IDS)
-def test_lambda_matches_the_closed_form(model, expected):
+def test_lambda_matches_the_closed_form(name, expected):
     omega = np.array([0.0, OMEGA_CUT, 6.0])
 
-    actual = model(ETA, OMEGA_CUT).Lambda(omega)
+    actual = make_model(name).Lambda(omega)
 
     assert_allclose(actual, expected, rtol=RTOL)
 
 
 # (2/π) ∫₀^∞ Λ(ω) cos(ωt) dω, with mpmath at 30 digits
-@pytest.mark.parametrize("model, expected", [
-    (Debye, [1.75, 0.6437890220500241, 0.0009678976477587088]),
-    (ExpOhmic, [1.1140846016432673, 0.5570423008216336,
-                0.019459993041803795]),
+@pytest.mark.parametrize("name, expected", [
+    ("debye", [1.75, 0.6437890220500241, 0.0009678976477587088]),
+    ("expohmic", [1.1140846016432673, 0.5570423008216336,
+                  0.019459993041803795]),
 ], ids=MODEL_IDS)
-def test_kernel_is_the_cosine_transform_of_lambda(model, expected):
+def test_kernel_is_the_cosine_transform_of_lambda(name, expected):
     t = np.array([0.0, 0.4, 3.0])
 
-    actual = model(ETA, OMEGA_CUT).K(t)
+    actual = make_model(name).K(t)
 
     assert_allclose(actual, expected, rtol=RTOL)
 
 
 @pytest.mark.parametrize("evaluate", EVALUATIONS, ids=EVALUATION_IDS)
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_negative_argument_gives_the_same_value(model, evaluate):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_negative_argument_gives_the_same_value(name, evaluate):
     # 3.1 and 6.0 lie above ωₙ, where nmLambda is not zero
     x = np.array([0.4, 3.1, 6.0])
-    bath = model(ETA, OMEGA_CUT)
+    bath = make_model(name)
     expected = evaluate(bath, x)
 
     actual = evaluate(bath, -x)
@@ -78,61 +89,61 @@ def test_negative_argument_gives_the_same_value(model, evaluate):
 
 # θ(x) √x Λ(ω√x) with x = 1 - ωₙ²/ω², with mpmath at 30 digits:
 # zero at and below ωₙ
-@pytest.mark.parametrize("model, expected", [
-    (Debye, [0.0, 0.0, 0.16067827674264842, 0.11395071102426824]),
-    (ExpOhmic, [0.0, 0.0, 0.12903969569715906, 0.07585156434200468]),
+@pytest.mark.parametrize("name, expected", [
+    ("debye", [0.0, 0.0, 0.16067827674264842, 0.11395071102426824]),
+    ("expohmic", [0.0, 0.0, 0.12903969569715906, 0.07585156434200468]),
 ], ids=MODEL_IDS)
-def test_nm_lambda_matches_the_transformed_spectrum(model, expected):
+def test_nm_lambda_matches_the_transformed_spectrum(name, expected):
     omega = np.array([2.9, NM_OMEGA, 3.1, 6.0])
 
-    actual = model(ETA, OMEGA_CUT).nmLambda(NM_OMEGA, omega)
+    actual = make_model(name).nmLambda(NM_OMEGA, omega)
 
     assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
 
 
 # as above, at ωₙ = 1 and ω = 0, 2, 3
-@pytest.mark.parametrize("model, expected", [
-    (Debye, [0.0, 0.4096066098980453, 0.2894589162751949]),
-    (ExpOhmic, [0.0, 0.3032079809420304, 0.2128990196866008]),
+@pytest.mark.parametrize("name, expected", [
+    ("debye", [0.0, 0.4096066098980453, 0.2894589162751949]),
+    ("expohmic", [0.0, 0.3032079809420304, 0.2128990196866008]),
 ], ids=MODEL_IDS)
-def test_nm_lambda_accepts_integer_frequencies(model, expected):
+def test_nm_lambda_accepts_integer_frequencies(name, expected):
     omega = np.array([0, 2, 3])
 
-    actual = model(ETA, OMEGA_CUT).nmLambda(1.0, omega)
+    actual = make_model(name).nmLambda(1.0, omega)
 
     assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
 
 
 # (2/π) ∫₀^∞ Λ(u) u²/(u² + ωₙ²) cos(t√(u² + ωₙ²)) du, with mpmath at
 # 30 digits; at t = 0, the Debye value is η ωc²/(ωc + ωₙ)
-@pytest.mark.parametrize("model, expected", [
-    (Debye, [0.7954545454545454, -0.18737358431293366,
-             -0.007117004849324067]),
-    (ExpOhmic, [0.36600113125987366, -0.12085373339234454,
-                -0.0068643627371438014]),
+@pytest.mark.parametrize("name, expected", [
+    ("debye", [0.7954545454545454, -0.18737358431293366,
+               -0.007117004849324067]),
+    ("expohmic", [0.36600113125987366, -0.12085373339234454,
+                  -0.0068643627371438014]),
 ], ids=MODEL_IDS)
-def test_nm_kernel_matches_the_substituted_integral(model, expected):
+def test_nm_kernel_matches_the_substituted_integral(name, expected):
     t = np.array([0.0, 0.4, 3.0])
 
-    actual = model(ETA, OMEGA_CUT).nmK(NM_OMEGA, t)
+    actual = make_model(name).nmK(NM_OMEGA, t)
 
     assert_allclose(actual, expected, rtol=0.0, atol=NM_KERNEL_ATOL)
 
 
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_nm_lambda_at_zero_nm_omega_equals_lambda(model):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_nm_lambda_at_zero_nm_omega_equals_lambda(name):
     omega = np.array([0.0, 0.4, 3.1, 6.0])
-    bath = model(ETA, OMEGA_CUT)
+    bath = make_model(name)
 
     actual = bath.nmLambda(0.0, omega)
 
     assert_allclose(actual, bath.Lambda(omega), rtol=RTOL)
 
 
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_nm_kernel_at_zero_nm_omega_equals_kernel(model):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_nm_kernel_at_zero_nm_omega_equals_kernel(name):
     t = np.array([0.0, 0.4, 3.0])
-    bath = model(ETA, OMEGA_CUT)
+    bath = make_model(name)
 
     actual = bath.nmK(0.0, t)
 
@@ -203,36 +214,41 @@ def test_array_nm_omega_raises_type_error(method):
         getattr(bath, method)(np.array([1.0, 2.0]), 1.0)
 
 
-@pytest.mark.parametrize("args, kwargs", [
-    ((ETA, OMEGA_CUT, 1.0), {}),
-    ((ETA, OMEGA_CUT), {"omgea": 5.0}),
+@pytest.mark.parametrize("call", [
+    lambda model, arguments: model(*arguments.values(), 1.0),
+    lambda model, arguments: model(**arguments, omgea=5.0),
 ], ids=["positional", "keyword"])
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_constructor_rejects_extra_arguments(model, args, kwargs):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_constructor_rejects_extra_arguments(name, call):
+    model, arguments = MODELS[name]
+
     with pytest.raises(TypeError, match="argument"):
-        model(*args, **kwargs)
+        call(model, arguments)
 
 
 @pytest.mark.parametrize("eta", [-0.1, np.nan], ids=["negative", "nan"])
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_constructor_rejects_invalid_eta(model, eta):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_constructor_rejects_invalid_eta(name, eta):
     with pytest.raises(ValueError, match="eta must be non-negative"):
-        model(eta, OMEGA_CUT)
+        make_model(name, eta=eta)
 
 
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_constructor_accepts_zero_eta(model):
+@pytest.mark.parametrize("name", MODEL_IDS)
+def test_constructor_accepts_zero_eta(name):
     # a bath without friction
     omega = np.array([0.0, 1.0])
 
-    actual = model(0.0, OMEGA_CUT).Lambda(omega)
+    actual = make_model(name, eta=0.0).Lambda(omega)
 
     assert_allclose(actual, [0.0, 0.0], atol=0.0)
 
 
-@pytest.mark.parametrize("omega_cut", [0.0, -1.0, np.nan],
+@pytest.mark.parametrize("value", [0.0, -1.0, np.nan],
                          ids=["zero", "negative", "nan"])
-@pytest.mark.parametrize("model", MODELS, ids=MODEL_IDS)
-def test_constructor_rejects_invalid_omega_cut(model, omega_cut):
-    with pytest.raises(ValueError, match="omega_cut must be positive"):
-        model(ETA, omega_cut)
+@pytest.mark.parametrize("name, parameter", [
+    ("debye", "omega_cut"),
+    ("expohmic", "omega_cut"),
+], ids=["debye-omega_cut", "expohmic-omega_cut"])
+def test_constructor_rejects_parameter_not_positive(name, parameter, value):
+    with pytest.raises(ValueError, match=f"{parameter} must be positive"):
+        make_model(name, **{parameter: value})
