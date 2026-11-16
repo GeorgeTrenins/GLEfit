@@ -41,7 +41,7 @@ Config `parameters`: `theta` and `gamma`, plus `omega` for `pronycos`, and `delt
 - `from_dict` raises `TypeError` for keys other than the required ones and `mappers` (`_check_config_keys`), copies its input, pops the required keys and passes `mappers` to the constructor. `MultiEmbedder.from_dict` takes only `embedders`. `from_harmonic` (pronycos, gen2x2) returns a dict for `from_dict`, not an embedder.
 - `to_dict()` returns `{"type", "parameters"}`, like a config's `embedder` section, with built-in Python types: the class's name in `EMBEDDER_MAP`, and `_config_parameters()`, the conventional parameters under the keys of `from_dict`. `from_dict` of it gives the same kernel and spectrum, but the default mappers, and for gen2x2 r ≥ 0 and 0 ≤ φ ≤ π/2.
 - `MultiEmbedder`: the components hold the parameters and their mappers (passing `mappers` raises `TypeError`), but set values on the `MultiEmbedder`. It keeps no copy, so a component edited directly is seen at once. It takes any non-empty iterable of components and keeps its own list of them, so appending to the caller's list has no effect. Slice conventional arrays by `nparam` and primitive arrays by `ndof`.
-- `analysis/plot_objective.py` uses the private attributes `_embs` and `_mappers`.
+- `utils/plot_objective.py` uses the private attributes `_embs` and `_mappers`.
 - Style: write `lamda` for λ. Start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
 ## New embedder

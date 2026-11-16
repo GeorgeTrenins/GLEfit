@@ -2,8 +2,6 @@
 
 Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code.
 
-Every module except `glefit.analysis` keeps its issues here. `glefit.analysis` still lists its own under "Known gaps" in its `CLAUDE.md`, and moves them here when it is revised.
-
 ## `glefit.config`
 
 Reproduced at `d5c95ac` by running the code.
@@ -232,19 +230,34 @@ It integrates numerically, once per time point, so 201 time points take about 0.
 
 ## `glefit.utils`
 
-Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also checked against exact values, and no defect was found.
+Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also checked against exact values, and no defect was found. `plot_objective.py`, which moved here from `glefit.analysis`, was reproduced at `7f08960`.
 
 ### Open
 
-None.
+**UTL-5 · `setup_from_config` in `plot_objective.py` fails for every embedder but `multi`.**
+For an embedder without components, it turns off the mappers of `emb`, a name that only the loop over components binds, so `prony`, `pronycos` and `gen2x2` configs raise `UnboundLocalError`. A fix would set `embedder._mappers`.
+
+**UTL-6 · An empty trajectory raises `IndexError` in `plot_objective.py`.**
+`parse_trajectory_file` returns no steps for a file without a step header, such as the trajectory of a fit that stopped at step 0 (OPT-16), or a log passed as `--traj`, and `plot_trajectory` then reads the first step. A fix would raise `ValueError` that names the file.
+
+**UTL-9 · `plot_objective.py` does not plot the distance or the gradient against step.**
+The log holds both at each step: the distance, and max|gᵢ|, which the convergence test compares with `gtol`.
 
 ### Accepted
+
+**UTL-7 · accepted · `plot_objective.py` does not check the trajectory against the config.**
+A trajectory of the wrong length fails at step 0, before the window opens, with `ValueError` from the `conventional_params` setter, such as "conventional_params must have shape (4,), got (2,)". One of the right length from another embedder cannot be told apart, since the file does not name the embedder.
 
 **UTL-3 · accepted · `WAM_discretization` integrates from `omega[0]`.**
 It forms C(ω) = ∫ Λ from `omega[0]` to ω, so the grid must start at 0 to discretise all of Λ.
 
 **UTL-4 · accepted · `WAM_discretization` assumes Λ ≥ 0.**
 Where Λ is negative, C(ω) is not monotonic, and the frequencies are meaningless.
+
+### Deferred features
+
+**UTL-8 · deferred · `plot_objective.py` cannot save a figure without the interactive window.**
+A fix would add an option that calls `fig.savefig` for chosen steps, so that the script runs with the `Agg` backend.
 
 ### Resolved
 

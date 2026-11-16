@@ -1,1 +1,1 @@
-../src/glefit/analysis/plot_objective.py
+../src/glefit/utils/plot_objective.py

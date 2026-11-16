@@ -225,7 +225,7 @@ class BaseEmbedder(ABC):
     ) -> npt.NDArray[np.floating]:
         """Apply `method` of each mapper to the matching entry of values.
 
-        Without mappers (`_mappers` is None, as analysis/plot_objective.py
+        Without mappers (`_mappers` is None, as utils/plot_objective.py
         sets), return unmapped(values) instead.
         """
         values = np.asarray(values, dtype=float)

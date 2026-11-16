@@ -25,7 +25,7 @@ Each embedder holds one mapper per primitive parameter, so `ndof` in all (for ge
 - **One parameter each:** a limit that couples parameters, such as γ ≥ |δ| for gen2x2, must be built into the primitive parameters.
 - **Scalars only:** each method takes and returns one number, and the bounded mappers' `forward` raises on arrays. `IdentityMapper.forward` and `inverse` return 0-dimensional arrays, and its `grad` returns `1.0` whatever x is.
 - **No state:** a mapper stores only its bounds, so one instance can serve several parameters, as in `pronycos`.
-- **No mappers:** `_mappers = None` on an embedder means no limits, as `analysis/plot_objective.py` sets it. It is read at every call, so changing it after construction leaves the stored `x` out of date until a setter runs.
+- **No mappers:** `_mappers = None` on an embedder means no limits, as `utils/plot_objective.py` sets it. It is read at every call, so changing it after construction leaves the stored `x` out of date until a setter runs.
 - **Units:** with a bounded mapper, changing the units of p and its bounds shifts x by at most a constant. With `IdentityMapper`, x has the units of p, which matters for the fitting Hessian's finite-difference step (MER-8).
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 

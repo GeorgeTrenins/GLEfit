@@ -56,7 +56,7 @@ merit_function:
 - **Constructors:** `BaseProperty.__init__` stores float copies of `grid` and `target`, and raises `ValueError` unless the grid is a non-empty, strictly increasing 1-D array and `target` has its shape. It sets `_grid` before calling `_set_weight`, which needs the grid. `_set_weight` stores a float copy of the weight, and raises `ValueError` unless every entry is finite and non-negative and one at least is positive. `weight=None` gives the default above, which needs `_target` as well as `_grid`, and raises `ValueError` for a target that is zero everywhere. An unknown `metric` also raises `ValueError`.
 - **`from_dict`:** takes only `data`, `metric` and `weight`. It raises `ConfigError` for a missing or unknown entry, and turns the constructor's `ValueError` into `ConfigError`.
 - **Deviations:** they work point by point and return arrays. `hessian` returns only the second derivative at each point. `BaseProperty` calls `__call__`, `both` and `all`, which `SquaredDeviation` builds from `gradient` and `hessian`.
-- **Outside use:** the optimizers call only `all()`. `analysis/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
+- **Outside use:** the optimizers call only `all()`. `utils/plot_objective.py` uses `distance`, `function`, `grid` and `target`, and it swaps `merit.emb` to plot each component.
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
 
 ## Adding features

@@ -17,7 +17,7 @@ import re
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from glefit.analysis.plot_objective import parse_trajectory_file
+from glefit.utils.plot_objective import parse_trajectory_file
 from glefit.config.config_handler import ConfigError, ConfigHandler
 from glefit.embedding import EMBEDDER_MAP, TwoAuxEmbedder
 from glefit.optimize import Optimization, main

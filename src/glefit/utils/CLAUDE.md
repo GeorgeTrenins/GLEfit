@@ -1,10 +1,10 @@
 # CLAUDE.md: `glefit.utils`
 
-This module holds numerical helpers for the rest of GLEFit: finite differences, special functions and bath discretization, and a script that writes target data. Its open issues and accepted limits are in `ISSUES.md` at the repository root, as `UTL-n`.
+This module holds numerical helpers for the rest of GLEFit: finite differences, special functions and bath discretization, a script that writes target data, and one that plots a fit. Its open issues and accepted limits are in `ISSUES.md` at the repository root, as `UTL-n`.
 
 ## Background
 
-GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme. Each one depends only on NumPy or SciPy, except `make_target.py`, which imports `glefit.config`, `glefit.embedding` and `glefit.spectral`.
+GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme. Each one depends only on NumPy or SciPy, except `make_target.py`, which imports `glefit.config`, `glefit.embedding` and `glefit.spectral`, and `plot_objective.py`, which imports Matplotlib, `glefit.config`, `glefit.embedding` and `glefit.merit`.
 
 ## Contents
 
@@ -14,6 +14,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | `special.py` | `sinc` | `gen2x2` embedder |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | `make_target.py`, tutorial notebook |
 | `make_target.py` | Script that writes the target and an initial guess of a fit | `bin/make_target.py` |
+| `plot_objective.py` | Script that plots each step of a fit against the target | `bin/plot_objective.py`; its parser, tests of `glefit.optimization` |
 
 `__init__.py` is empty, so import from the submodules.
 
@@ -58,6 +59,23 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 - **Errors:** an unknown key, an unknown `type` or `property`, a malformed `grid` or `initial_guess`, or an exact guess that does not exist raises `ConfigError`, before anything is computed or written.
 - **Accuracy:** `nmK` uses the default tolerances of `quad` (SPC-6), which the config cannot change.
 
+## `plot_objective.py`
+
+`plot_objective.py CONFIG [--traj TRAJ]` rebuilds the embedder and merit function from a fit config, and plots the fitted curve against the target at each step of the trajectory that the optimizer wrote, `traj.out` in the working directory by default. The window shows the target (red), the fitted total (black) and, for a `multi` embedder, each component (dashed), with a slider over the steps. The title shows the distance at the selected step.
+
+| Function | Does |
+| --- | --- |
+| `parse_trajectory_file(path)` | Returns step numbers and parameter arrays from a trajectory |
+| `setup_from_config(config_path)` | Builds the embedder and merit function, then turns off the embedder's mappers |
+| `compute_contributions(embedder, merit, params)` | Sets `embedder.conventional_params`, then evaluates the property for each component and for the total |
+| `plot_trajectory(merit, embedder, steps, params_list)` | Draws the figure and slider, then calls `plt.show()` |
+
+- **Trajectory:** the parser reads the format that `Optimizer.log` writes, a line with `|` and `Step N,`, the array, then a blank line, so change both together. Values have 7 significant digits, so the curves use rounded parameters.
+- **Config:** read with `ConfigHandler`, as in `optimize.py`. The `optimization` section is ignored. `setup_from_config` fails for every embedder but `multi` (UTL-5).
+- **Merit function:** uses `function()`, `distance`, `grid` and `target`, and sets `merit.emb` to each component in turn.
+- **Embedder:** uses the private attributes `_embs` and `_mappers`. Setting `_mappers = None` turns off range checks on the values read back.
+- **Display:** needs an interactive Matplotlib backend, and `plt.show()` blocks until the window closes. The y-range is fixed from min(0, target) to max(target), with a 5% margin, so curves outside it are cut off.
+
 ## Conventions
 
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
@@ -67,6 +85,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 - **Special functions:** follow the `nu` interface of `sinc`, and test real and complex arguments, small and large, against SymPy.
 - **Finite differences:** add first-derivative stencils to `STENCILS`, keyed by their order of accuracy. The default step uses that order.
 - **Discretization schemes:** add them to `bath.py`, taking Λ on a grid and returning values that `from_harmonic` accepts.
+- **Scripts:** read the config with `ConfigHandler`, look up each `type` in its registry as `optimize.py` does, and add a symlink in `bin/`.
 
 ## Testing
 
@@ -76,7 +95,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_utils
 ```
 
-`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `test_bath.py` compares `WAM_discretization` with the closed form for a Debye spectrum, on a grid from 0 and on one from 0.5 (UTL-3), with `wmax` inside and beyond the grid. On 4001 points, the weight agrees to 1e-12 and the frequencies to 1e-11, which is the bisection's `xtol`. `test_make_target.py` runs the script on configs in a temporary directory, and reads the output back with `load_data`. It checks that the target equals `nmK` or `nmLambda` exactly, that both kinds of grid are read, where the output goes, the header, and the errors for malformed configs. For the initial guess, it rebuilds the embedder with `EMBEDDER_MAP`: the exact guess must have the Λ of Debye or of the Brownian oscillator, and the WAM guess the closed-form Debye frequencies, damping rates and K(0), and the frequencies of `WAM_discretization` of Λₙ at ωₙ > 0.
+`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `test_bath.py` compares `WAM_discretization` with the closed form for a Debye spectrum, on a grid from 0 and on one from 0.5 (UTL-3), with `wmax` inside and beyond the grid. On 4001 points, the weight agrees to 1e-12 and the frequencies to 1e-11, which is the bisection's `xtol`. `test_make_target.py` runs the script on configs in a temporary directory, and reads the output back with `load_data`. It checks that the target equals `nmK` or `nmLambda` exactly, that both kinds of grid are read, where the output goes, the header, and the errors for malformed configs. For the initial guess, it rebuilds the embedder with `EMBEDDER_MAP`: the exact guess must have the Λ of Debye or of the Brownian oscillator, and the WAM guess the closed-form Debye frequencies, damping rates and K(0), and the frequencies of `WAM_discretization` of Λₙ at ωₙ > 0. `plot_objective.py` has no tests of its own; `tests/test_optimize.py` and `tests/test_optimization.py` read trajectories with `parse_trajectory_file`. With `matplotlib.use("Agg")` and `plt.show` patched out, its functions run without a display, on a short fit that `glefit.optimize.main` writes to a temporary directory.
 
 New or changed code should have tests that:
 
@@ -84,3 +103,4 @@ New or changed code should have tests that:
 - pass integer and scalar inputs
 - check `jacobian` against exact derivatives, as `tests/test_utils/test_numderiv.py` does
 - check `WAM_discretization` against the closed form for a Debye spectrum, where C(ω) = η ωc arctan(ω/ωc)
+- check the curves of `plot_objective.py` against the closed-form `kernel` or `spectrum` of each embedder type

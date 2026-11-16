@@ -4,7 +4,7 @@ This module reads and checks the YAML or JSON file that defines a fit, and loads
 
 ## Model
 
-`config_handler.py` holds `ConfigHandler` and `ConfigError`, and `data_io.py` holds `load_data` and `DataLoadError`. `__init__.py` is empty, so import from the submodules. `optimize.py` and `analysis/plot_objective.py` call `ConfigHandler(path)` and `validate()`, then `load_data()` and the `get_*_config` methods, and look up each section's `type` in its registry. Working configs are in `legacy_tests/test_optimize/fixtures/` and `tutorials/fixtures/`; those in `legacy_tests/test_config/fixtures/` follow an older schema. The `parameters` of each type are described in the `CLAUDE.md` of `embedding`, `merit` and `optimization`.
+`config_handler.py` holds `ConfigHandler` and `ConfigError`, and `data_io.py` holds `load_data` and `DataLoadError`. `__init__.py` is empty, so import from the submodules. `optimize.py` and `utils/plot_objective.py` call `ConfigHandler(path)` and `validate()`, then `load_data()` and the `get_*_config` methods, and look up each section's `type` in its registry. Working configs are in `legacy_tests/test_optimize/fixtures/` and `tutorials/fixtures/`; those in `legacy_tests/test_config/fixtures/` follow an older schema. The `parameters` of each type are described in the `CLAUDE.md` of `embedding`, `merit` and `optimization`.
 
 ```yaml
 data:                      # required: one or more named datasets
@@ -51,7 +51,7 @@ project: {}                # optional, never read
 
 ## New section or key
 
-Check its structure in `validate()`, raising `ConfigError`, and add a `get_<section>_config` method that returns a deep copy. Make an input path absolute against the config file's directory in `_resolve_paths`, which runs before `validate()` and so must skip values of the wrong type. Read the section in `optimize.py`, and in `analysis/plot_objective.py` if plotting needs it.
+Check its structure in `validate()`, raising `ConfigError`, and add a `get_<section>_config` method that returns a deep copy. Make an input path absolute against the config file's directory in `_resolve_paths`, which runs before `validate()` and so must skip values of the wrong type. Read the section in `optimize.py`, and in `utils/plot_objective.py` if plotting needs it.
 
 ## Testing
 

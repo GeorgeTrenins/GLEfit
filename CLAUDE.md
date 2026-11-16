@@ -101,7 +101,7 @@ Subclass `BaseEmbedder` and implement `from_dict` and its inverse `_config_param
 
 ### Standalone code
 
-The pipeline does not use `spectral/` (model spectral densities). `utils/make_target.py` writes target files from its models, which it looks up in `SPECTRAL_MAP`. `utils/bath.py::WAM_discretization` supplies the WAM initial guesses of `make_target.py` and the tutorial notebook.
+The pipeline does not use `spectral/` (model spectral densities). `utils/make_target.py` writes target files from its models, which it looks up in `SPECTRAL_MAP`. `utils/bath.py::WAM_discretization` supplies the WAM initial guesses of `make_target.py` and the tutorial notebook. `utils/plot_objective.py` replots each step of a fit from its config and trajectory.
 
 ## Conventions
 

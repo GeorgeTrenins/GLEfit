@@ -13,7 +13,7 @@ import io
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from glefit.analysis.plot_objective import parse_trajectory_file
+from glefit.utils.plot_objective import parse_trajectory_file
 from glefit.embedding import (
     MultiEmbedder, PronyCosineEmbedder, PronyEmbedder)
 from glefit.merit import MemorySpectrum
