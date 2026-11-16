@@ -219,7 +219,7 @@ It integrates numerically, once per time point, so 201 time points take about 0.
 
 ### Tracked in other modules
 
-- No code writes model kernels or spectra to target files (UTL-2), and a model cannot be a config target (CFG-7).
+- No code writes an initial guess from a model (UTL-2), and a model cannot be a config target (CFG-7).
 
 ### Resolved
 
@@ -236,7 +236,7 @@ Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also che
 ### Open
 
 **UTL-2 · open · No code writes the inputs of a fit.**
-Target files and initial guesses are made by hand, as in the tutorial. Agreed: a script in `glefit.utils` writes the kernel or spectrum of a `glefit.spectral` model, transformed for a given ωₙ, to a CSV file that `load_data` reads. The grid is either a linspace or read from a one-column CSV file, and the target is not divided by Kₙ(0). The script also writes an initial guess as an `embedder` section: either the exact `prony` embedding of a Debye model, which raises `ValueError` for ωₙ ≠ 0, or a `multi` of `gen2x2` from `WAM_discretization` of Λₙ, with damping rates from the spacing of the frequencies, as in the tutorial.
+Initial guesses are made by hand, as in the tutorial. Target files are written by `utils/make_target.py` (`feat(utils): write target data from a model`): the kernel or spectrum of a `glefit.spectral` model, transformed for a given ωₙ, on a linspace or a grid read from a one-column CSV file, and not divided by Kₙ(0). Agreed: the script also writes an initial guess as an `embedder` section: either the exact `prony` embedding of a Debye model, which raises `ValueError` for ωₙ ≠ 0, or a `multi` of `gen2x2` from `WAM_discretization` of Λₙ, with damping rates from the spacing of the frequencies, as in the tutorial.
 
 ### Accepted
 

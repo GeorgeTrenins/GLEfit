@@ -1,6 +1,6 @@
 # CLAUDE.md: `glefit.spectral`
 
-This module defines model spectral densities and their memory kernels. Nothing in the repository imports it, and the fitting pipeline does not use it. It is for making target data and reference values by hand. Its open issues, accepted limits and missing features are in `ISSUES.md` at the repository root, as `SPC-n`.
+This module defines model spectral densities and their memory kernels. The fitting pipeline does not use it: `utils/make_target.py` writes target data from its models, and tests use them as reference values. Its open issues, accepted limits and missing features are in `ISSUES.md` at the repository root, as `SPC-n`.
 
 ## Background
 
@@ -30,7 +30,7 @@ At ωₙ = 0 they reduce to Λ and K. For a free ring polymer with P beads at in
 
 η is the static friction Λ(0), so K integrates to 2η over all t. ωc is the cut-off frequency.
 
-`_base.py` holds the abstract `BaseSpectralDensity`, which requires `Lambda` and `K` and provides `nmLambda` and `nmK`. It also holds `check_parameters`, which the constructors call, and the decorator `check_nm_omega`, which checks ωₙ. `__init__.py` exports `Debye` and `ExpOhmic`. There is no registry and no config `type`.
+`_base.py` holds the abstract `BaseSpectralDensity`, which requires `Lambda` and `K` and provides `nmLambda` and `nmK`. It also holds `check_parameters`, which the constructors call, and the decorator `check_nm_omega`, which checks ωₙ. `__init__.py` exports `Debye`, `ExpOhmic` and the registry `SPECTRAL_MAP`, whose keys are the `model.type` of `make_target.py`. Models are not a `type` in a fit config (CFG-7).
 
 ```python
 from glefit.spectral import ExpOhmic
@@ -43,7 +43,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 ## Relation to the rest of GLEFit
 
 - **Reference values:** `Debye(η, ωc)` is exactly `PronyEmbedder(theta=√(η ωc), gamma=ωc)`. Their K and Λ agree to 2e-16. `ExpOhmic` has no exact finite embedding, so it is a natural fitting target.
-- **Target data:** the config reads targets only from files or inline values, so evaluate a model on a grid and save it. `legacy_tests/test_optimize/fixtures/expohmic_nm_spectrum.csv` matches `ExpOhmic(1, 1).nmLambda(10, ω)` divided by `ExpOhmic(1, 1).nmK(10, 0)` = 1.1516e-02 to 5e-8. Its header records ωₙ = 10 and that K₀. The script that wrote it is not in the repository (UTL-2).
+- **Target data:** the config reads targets only from files or inline values, so evaluate a model on a grid and save it. `legacy_tests/test_optimize/fixtures/expohmic_nm_spectrum.csv` matches `ExpOhmic(1, 1).nmLambda(10, ω)` divided by `ExpOhmic(1, 1).nmK(10, 0)` = 1.1516e-02 to 5e-8. Its header records ωₙ = 10 and that K₀. The script that wrote it is not in the repository. `utils/make_target.py` writes such files, but does not divide by Kₙ(0).
 - **Initial guesses:** `utils/bath.py::WAM_discretization(omega, Lambda, nbath)` takes Λ sampled on a grid, so pass `bath.Lambda(omega)` or `bath.nmLambda(wn, omega)`, not the model object.
 
 ## Conventions
@@ -63,7 +63,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 1. Add `<name>.py` and subclass `BaseSpectralDensity`.
 2. Check and store the parameters in `__init__`, and implement `Lambda` and `K` in closed form. Use |ω| and |t| so that both are even.
 3. The `nm` methods are inherited, and call `Lambda`.
-4. Export the class from `__init__.py`. No registration is needed.
+4. Export the class from `__init__.py` and add it to `SPECTRAL_MAP`. `make_target.py` then builds it from `model.parameters`, passed to the constructor as keyword arguments, so its parameters may differ from η and ωc.
 
 ### Other changes
 
