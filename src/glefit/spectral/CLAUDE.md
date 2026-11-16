@@ -73,18 +73,18 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 
 ## Testing
 
-`glefit` is not installed. Put new tests in `tests/test_spectral/`, and from the repository root run:
+`glefit` is not installed. From the repository root, run:
 
 ```bash
-PYTHONPATH=src conda run -n tools python -m pytest tests/test_spectral
+PYTHONPATH=src conda run -n tools python -m pytest tests/test_spectral.py
 ```
 
-Nothing tests this module yet.
+`tests/test_spectral.py` compares both models with values from mpmath at 30 digits: Λ with its closed form, K with the cosine transform of Λ, `nmLambda` with θ(x)√x Λ(ω√x), where x = 1 − ωₙ²/ω², and `nmK` with (2/π)∫₀^∞ Λ(u) u²/(u² + ωₙ²) cos(t√(u² + ωₙ²)) du, which shares no code with it. It also checks that Λ, K and their `nm` versions are even, that the `nm` versions reduce to Λ and K at ωₙ = 0, that `nmK` passes keyword arguments to `quad`, that `Debye` matches `PronyEmbedder`, and that a negative or array ωₙ raises. `J` and `nmJ` are not tested.
 
 A new or changed model should have tests that:
 
-- compare `K(t)` with `(2/π)·quad(Lambda, 0, inf, weight='cos', wvar=t)`, including t = 0
+- compare K(t) with the cosine transform of Λ, including t = 0
 - check J = ωΛ and the symmetry of J, Λ and K at negative ω and t
-- compare `nmJ`, `nmLambda` and `nmK` at ωₙ = 0 with `J`, `Lambda` and `K`, and `nmK` at ωₙ > 0 with a direct integral of `nmLambda`
+- compare `nmJ`, `nmLambda` and `nmK` at ωₙ = 0 with `J`, `Lambda` and `K`, and `nmLambda` and `nmK` at ωₙ > 0 with the references above
 - pass scalars and integer arrays
 - for a model with an exact embedding, compare with it, as `Debye` does with `PronyEmbedder`
