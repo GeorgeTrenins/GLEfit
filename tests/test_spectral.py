@@ -13,23 +13,34 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from scipy.integrate import IntegrationWarning
+from glefit.embedding.gen2x2 import TwoAuxEmbedder
 from glefit.embedding.prony import PronyEmbedder
-from glefit.spectral import Debye, ExpOhmic
+from glefit.spectral import BrownianOscillator, Debye, ExpOhmic
 
 
-# η ≠ 1 and ωc ≠ 1, so that a missing or inverted factor shows
+# η ≠ 1, ωc ≠ 1 and ω₀ ≠ 1, so that a missing or inverted factor shows
 ETA = 0.7
 OMEGA_CUT = 2.5
+OMEGA_0 = 1.7
 NM_OMEGA = 3.0
 RTOL = 1.0e-13
 # quad's default tolerances give nmK to about 2e-11
 NM_KERNEL_ATOL = 1.0e-9
-# each model, and the arguments of its constructor in signature order
+# each model, and the arguments of its constructor in signature order; the
+# Brownian oscillator is under-, critically and overdamped, γ <, = and > 2ω₀
 MODELS = {
     "debye": (Debye, {"eta": ETA, "omega_cut": OMEGA_CUT}),
     "expohmic": (ExpOhmic, {"eta": ETA, "omega_cut": OMEGA_CUT}),
+    "brownian-under": (BrownianOscillator,
+                       {"eta": ETA, "omega_0": OMEGA_0, "gamma": 0.9}),
+    "brownian-critical": (BrownianOscillator,
+                          {"eta": ETA, "omega_0": OMEGA_0,
+                           "gamma": 2 * OMEGA_0}),
+    "brownian-over": (BrownianOscillator,
+                      {"eta": ETA, "omega_0": OMEGA_0, "gamma": 9.0}),
 }
 MODEL_IDS = list(MODELS)
+BROWNIAN_IDS = ["brownian-under", "brownian-critical", "brownian-over"]
 EVALUATIONS = [
     lambda bath, x: bath.Lambda(x),
     lambda bath, x: bath.K(x),
@@ -51,6 +62,10 @@ def make_model(name, **changes):
     ("debye", [0.7, 0.35, 0.10355029585798817]),
     # η exp(-|ω|/ωc)
     ("expohmic", [0.7, 0.2575156088200096, 0.06350256730258876]),
+    # η ω₀⁴ / ((ω² - ω₀²)² + γ²ω²)
+    ("brownian-under", [0.7, 0.3575363408981109, 0.005194866931554556]),
+    ("brownian-critical", [0.7, 0.06998441457703891, 0.00386560824780167]),
+    ("brownian-over", [0.7, 0.011296662129815766, 0.0014571469367693182]),
 ], ids=MODEL_IDS)
 def test_lambda_matches_the_closed_form(name, expected):
     omega = np.array([0.0, OMEGA_CUT, 6.0])
@@ -65,6 +80,11 @@ def test_lambda_matches_the_closed_form(name, expected):
     ("debye", [1.75, 0.6437890220500241, 0.0009678976477587088]),
     ("expohmic", [1.1140846016432673, 0.5570423008216336,
                   0.019459993041803795]),
+    ("brownian-under", [2.247777777777778, 1.8023437536738574,
+                        -0.03756674541069539]),
+    ("brownian-critical", [0.595, 0.5064143455686434, 0.022128141659539]),
+    ("brownian-over", [0.22477777777777777, 0.20429993533728139,
+                       0.08596580342889688]),
 ], ids=MODEL_IDS)
 def test_kernel_is_the_cosine_transform_of_lambda(name, expected):
     t = np.array([0.0, 0.4, 3.0])
@@ -92,6 +112,12 @@ def test_negative_argument_gives_the_same_value(name, evaluate):
 @pytest.mark.parametrize("name, expected", [
     ("debye", [0.0, 0.0, 0.16067827674264842, 0.11395071102426824]),
     ("expohmic", [0.0, 0.0, 0.12903969569715906, 0.07585156434200468]),
+    ("brownian-under", [0.0, 0.0, 0.2587580739949168,
+                        0.008394412617211206]),
+    ("brownian-critical", [0.0, 0.0, 0.12024329275233174,
+                           0.005667252035721933]),
+    ("brownian-over", [0.0, 0.0, 0.026973512064372217,
+                       0.001828994686819215]),
 ], ids=MODEL_IDS)
 def test_nm_lambda_matches_the_transformed_spectrum(name, expected):
     omega = np.array([2.9, NM_OMEGA, 3.1, 6.0])
@@ -105,6 +131,9 @@ def test_nm_lambda_matches_the_transformed_spectrum(name, expected):
 @pytest.mark.parametrize("name, expected", [
     ("debye", [0.0, 0.4096066098980453, 0.2894589162751949]),
     ("expohmic", [0.0, 0.3032079809420304, 0.2128990196866008]),
+    ("brownian-under", [0.0, 2.073294108539211, 0.1691239526553455]),
+    ("brownian-critical", [0.0, 0.1459465279548833, 0.04647952753461897]),
+    ("brownian-over", [0.0, 0.020835141717073378, 0.008176837023602284]),
 ], ids=MODEL_IDS)
 def test_nm_lambda_accepts_integer_frequencies(name, expected):
     omega = np.array([0, 2, 3])
@@ -121,6 +150,12 @@ def test_nm_lambda_accepts_integer_frequencies(name, expected):
                -0.007117004849324067]),
     ("expohmic", [0.36600113125987366, -0.12085373339234454,
                   -0.0068643627371438014]),
+    ("brownian-under", [0.4452417942274008, 0.051676654640324594,
+                        -0.15694029681203195]),
+    ("brownian-critical", [0.07784291534631055, -0.0002026381787078442,
+                           -0.0199937462288828]),
+    ("brownian-over", [0.016703722750778548, -0.0012868013019111208,
+                       -0.00429938707092122]),
 ], ids=MODEL_IDS)
 def test_nm_kernel_matches_the_substituted_integral(name, expected):
     t = np.array([0.0, 0.4, 3.0])
@@ -181,6 +216,40 @@ def test_debye_matches_its_exact_prony_embedding(prony, debye):
     actual = debye(Debye(ETA, OMEGA_CUT), x)
 
     assert_allclose(actual, prony(emb, x), rtol=RTOL)
+
+
+@pytest.mark.parametrize("gen2x2, brownian", [
+    (lambda emb, x: emb.kernel(x), lambda bath, x: bath.K(x)),
+    (lambda emb, x: emb.spectrum(x), lambda bath, x: bath.Lambda(x)),
+], ids=["kernel", "spectrum"])
+@pytest.mark.parametrize("name", BROWNIAN_IDS)
+def test_brownian_matches_its_exact_gen2x2_embedding(name, gen2x2, brownian):
+    x = np.array([0.0, 0.4, 3.0, 7.0])
+    eta, omega_0, gamma = MODELS[name][1].values()
+    emb = TwoAuxEmbedder(theta=[omega_0 * np.sqrt(eta / gamma), 0.0],
+                         gamma=gamma / 2, delta=-gamma / 2, zeta=omega_0)
+
+    actual = brownian(make_model(name), x)
+
+    assert_allclose(actual, gen2x2(emb, x), rtol=RTOL)
+
+
+# K in closed form, with mpmath at 50 digits. With ω̃² = γ²/4 - ω₀² > 0,
+# 1 - exp(-2ω̃t) is small just above critical damping, and for γ ≫ ω₀,
+# γ/2 - ω̃ cancels and cosh(ω̃t) overflows at long times.
+@pytest.mark.parametrize("gamma, t, expected", [
+    (2 * OMEGA_0 * (1 + 1.0e-12), [0.4, 3.0, 10.0],
+     [0.5064143455681684, 0.02212814165967729, 4.433873297217927e-07]),
+    (1.0e3, [0.4, 30.0, 300.0],
+     [0.0020206685961984047, 0.0018549990754360313,
+      0.0008500857455754076]),
+], ids=["near-critical", "strongly-overdamped"])
+def test_brownian_kernel_is_accurate_when_overdamped(gamma, t, expected):
+    bath = BrownianOscillator(ETA, OMEGA_0, gamma)
+
+    actual = bath.K(np.array(t))
+
+    assert_allclose(actual, expected, rtol=RTOL)
 
 
 @pytest.mark.parametrize("nm_omega", [
@@ -248,7 +317,10 @@ def test_constructor_accepts_zero_eta(name):
 @pytest.mark.parametrize("name, parameter", [
     ("debye", "omega_cut"),
     ("expohmic", "omega_cut"),
-], ids=["debye-omega_cut", "expohmic-omega_cut"])
+    ("brownian-under", "omega_0"),
+    ("brownian-under", "gamma"),
+], ids=["debye-omega_cut", "expohmic-omega_cut", "brownian-omega_0",
+        "brownian-gamma"])
 def test_constructor_rejects_parameter_not_positive(name, parameter, value):
     with pytest.raises(ValueError, match=f"{parameter} must be positive"):
         make_model(name, **{parameter: value})

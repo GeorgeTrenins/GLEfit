@@ -29,7 +29,7 @@ class Debye(BaseSpectralDensity):
         Raises:
             ValueError: unless eta ≥ 0 and omega_cut > 0
         """
-        check_parameters(eta, omega_cut)
+        check_parameters(eta, omega_cut=omega_cut)
         self.eta = eta
         self.omega_cut = omega_cut
 

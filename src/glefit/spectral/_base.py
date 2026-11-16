@@ -16,12 +16,14 @@ import numpy as np
 from scipy.integrate import quad
 
 
-def check_parameters(eta: float, omega_cut: float) -> None:
-    """Raise ValueError unless eta ≥ 0 and omega_cut > 0, so also for NaN."""
+def check_parameters(eta: float, **positive: float) -> None:
+    """Raise ValueError unless eta ≥ 0 and the parameters passed by keyword
+    are > 0, so also for NaN. The message names the parameter."""
     if not eta >= 0:
         raise ValueError(f"eta must be non-negative, got {eta}")
-    if not omega_cut > 0:
-        raise ValueError(f"omega_cut must be positive, got {omega_cut}")
+    for name, value in positive.items():
+        if not value > 0:
+            raise ValueError(f"{name} must be positive, got {value}")
 
 
 def check_nm_omega(func):

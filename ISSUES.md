@@ -210,7 +210,8 @@ At ωₙ = 0, `Debye(0.7, 2.5).nmK(0, t)` differs from K(t) by 1e-11 to 5e-11 fo
 
 ### Deferred features
 
-**SPC-7 · deferred · Only two models exist.**
+**SPC-7 · deferred · No model interpolates a spectrum given on a grid.**
+`Debye`, `ExpOhmic` and `BrownianOscillator` are closed forms.
 
 **SPC-8 · deferred · `nmK` has no closed form.**
 It integrates numerically, once per time point, so 201 time points take about 0.06 s.
