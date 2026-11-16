@@ -44,8 +44,23 @@ def debye_embedding(model) -> dict:
         "gamma": float(model.omega_cut)}}
 
 
+def brownian_embedding(model) -> dict:
+    """The gen2x2 embedder with the drift matrix
+    [[0, a, 0], [-a, 0, ω₀], [0, -ω₀, γ]], where a = ω₀ √(η/γ), which has
+    the kernel and spectrum of the Brownian oscillator."""
+    eta, w0, g = model.eta, model.omega_0, model.gamma
+    return {"type": "gen2x2", "parameters": {
+        "theta": [float(w0 * np.sqrt(eta / g)), 0.0],
+        "gamma": float(g / 2),
+        "delta": float(-g / 2),
+        "zeta": float(w0)}}
+
+
 # model.type: its exact embedding, as an `embedder` section
-EXACT_EMBEDDINGS = {"debye": debye_embedding}
+EXACT_EMBEDDINGS = {
+    "debye": debye_embedding,
+    "brownian": brownian_embedding,
+}
 
 
 def read_model(section) -> BaseSpectralDensity:

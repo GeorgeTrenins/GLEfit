@@ -17,7 +17,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 from glefit.config.config_handler import ConfigError
 from glefit.config.data_io import load_data
 from glefit.embedding import EMBEDDER_MAP
-from glefit.spectral import Debye, ExpOhmic
+from glefit.spectral import BrownianOscillator, Debye, ExpOhmic
 from glefit.utils.bath import WAM_discretization
 from glefit.utils.make_target import main
 
@@ -28,7 +28,13 @@ NM_OMEGA = 3.0
 PARAMETERS = {"omega_cut": OMEGA_CUT, "eta": ETA}
 LINSPACE = [0.0, 6.0, 13]
 GRID = np.linspace(0.0, 6.0, 13)
-MODELS = {"debye": Debye, "expohmic": ExpOhmic}
+# model.type: the class and parameters of a model, as above
+MODELS = {
+    "debye": (Debye, PARAMETERS),
+    "expohmic": (ExpOhmic, PARAMETERS),
+    "brownian": (BrownianOscillator,
+                 {"gamma": 0.9, "omega_0": 1.7, "eta": ETA}),
+}
 NBATH = 5
 WMAX = 10.0
 WAM_LINSPACE = [0.0, 40.0, 4001]
@@ -94,7 +100,7 @@ def run_main(tmp_path, monkeypatch):
     return run
 
 
-@pytest.mark.parametrize("model", MODELS)
+@pytest.mark.parametrize("name", MODELS)
 @pytest.mark.parametrize(
     "prop, method", [("kernel", "nmK"), ("spectrum", "nmLambda")],
     ids=["kernel", "spectrum"])
@@ -102,12 +108,12 @@ def run_main(tmp_path, monkeypatch):
     "nm_config, nm_omega", [({}, 0.0), ({"nm_omega": NM_OMEGA}, NM_OMEGA)],
     ids=["default-nm-omega", "nm-omega-3"])
 def test_target_is_the_transformed_property(
-        run_main, model, prop, method, nm_config, nm_omega):
+        run_main, name, prop, method, nm_config, nm_omega):
+    model, parameters = MODELS[name]
     config = make_config(
-        model={"type": model, "parameters": PARAMETERS}, property=prop,
+        model={"type": name, "parameters": parameters}, property=prop,
         **nm_config)
-    bath = MODELS[model](eta=ETA, omega_cut=OMEGA_CUT)
-    expected = getattr(bath, method)(nm_omega, GRID)
+    expected = getattr(model(**parameters), method)(nm_omega, GRID)
 
     run_dir = run_main(config)
 
@@ -279,14 +285,16 @@ def test_guess_header_records_the_inputs(run_main):
     ]
 
 
-def test_exact_guess_has_the_debye_spectrum(run_main):
-    config = make_config(initial_guess={"type": "exact"})
+@pytest.mark.parametrize("name", ["debye", "brownian"])
+def test_exact_guess_has_the_spectrum_of_the_model(run_main, name):
+    model, parameters = MODELS[name]
+    config = make_config(model={"type": name, "parameters": parameters},
+                         initial_guess={"type": "exact"})
 
     run_dir = run_main(config)
 
     assert_allclose(read_embedder(run_dir / "embedder.yaml").spectrum(GRID),
-                    Debye(eta=ETA, omega_cut=OMEGA_CUT).Lambda(GRID),
-                    rtol=1e-14)
+                    model(**parameters).Lambda(GRID), rtol=1e-14)
 
 
 def test_wam_frequencies_match_the_debye_closed_form(run_main):

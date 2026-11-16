@@ -31,7 +31,7 @@ At ωₙ = 0 they reduce to Λ and K. For a free ring polymer with P beads at in
 
 η is the static friction Λ(0), so K integrates to 2η over all t. ωc is the cut-off frequency. ω₀ and γ are the undamped frequency and the damping rate of the oscillator, and ω̄ = √(ω₀² − γ²/4), which is imaginary for γ > 2ω₀.
 
-`_base.py` holds the abstract `BaseSpectralDensity`, which requires `Lambda` and `K` and provides `nmLambda` and `nmK`. It also holds `check_parameters`, which the constructors call, and the decorator `check_nm_omega`, which checks ωₙ. `__init__.py` exports the three models and the registry `SPECTRAL_MAP` of `Debye` and `ExpOhmic`, whose keys are the `model.type` of `make_target.py`. Models are not a `type` in a fit config (CFG-7).
+`_base.py` holds the abstract `BaseSpectralDensity`, which requires `Lambda` and `K` and provides `nmLambda` and `nmK`. It also holds `check_parameters`, which the constructors call, and the decorator `check_nm_omega`, which checks ωₙ. `__init__.py` exports the three models and the registry `SPECTRAL_MAP`, whose keys are the `model.type` of `make_target.py`. Models are not a `type` in a fit config (CFG-7).
 
 ```python
 from glefit.spectral import ExpOhmic

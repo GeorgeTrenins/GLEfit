@@ -51,13 +51,12 @@ class BrownianOscillator(BaseSpectralDensity):
         """Memory-friction kernel at time t.
 
         Notes:
-            With s = |t|, ω̄² = ω₀² - γ²/4 and sinc(x) = sin(x)/x, K divided
-            by η ω₀²/γ is exp(-γs/2) [cos(ω̄s) + (γs/2) sinc(ω̄s)] for
-            ω̄² ≥ 0. For ω̄² < 0, with ω̃ = √(-ω̄²) and the rates
-            λ± = γ/2 ± ω̃, it is exp(-λ₋s) [1 + λ₋ (1 - exp(-2ω̃s))/(2ω̃)],
-            which does not overflow like cosh(ω̃s). λ₋ is computed as
-            ω₀²/λ₊, since γ/2 - ω̃ cancels for γ ≫ ω₀, and 1 - exp(-2ω̃s)
-            with expm1, since it is small just above critical damping.
+            With s = |t|, ω̄² = ω₀² - γ²/4 and sinc(x) = sin(x)/x, 
+                K / (η ω₀²/γ) = exp(-γs/2) [cos(ω̄s) + (γs/2) sinc(ω̄s)] 
+            for ω̄² ≥ 0. For ω̄² < 0, with ω̃ = √(-ω̄²) and the rates λ± = γ/2 ± ω̃, 
+                K / (η ω₀²/γ) = exp(-λ₋s) [1 + λ₋ (1 - exp(-2ω̃s))/(2ω̃)],
+            λ₋ is computed as ω₀²/λ₊, since γ/2 - ω̃ cancels for γ ≫ ω₀, 
+            and 1 - exp(-2ω̃s) with expm1, since it is small just above critical damping.
         """
         w0, g = self.omega_0, self.gamma
         s = np.abs(t)
