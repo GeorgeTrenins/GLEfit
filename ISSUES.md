@@ -2,7 +2,7 @@
 
 Known defects and limitations of GLEFit, one ID per issue. IDs are never reused. When a commit resolves an issue, move it to "Resolved" as a one-line entry that names the commit. `accepted` marks behaviour that was examined and kept. `deferred` marks a missing feature: adding it is outside the scope of the ongoing refactoring, which only fixes bugs and simplifies code.
 
-Only `glefit.config`, `glefit.embedding`, `glefit.mappers`, `glefit.merit` and `glefit.optimization` keep their issues here so far. The other modules still list theirs under "Known gaps" in their own `CLAUDE.md`, and move them here when they are revised.
+Every module except `glefit.analysis` keeps its issues here. `glefit.analysis` still lists its own under "Known gaps" in its `CLAUDE.md`, and moves them here when it is revised.
 
 ## `glefit.config`
 
@@ -194,3 +194,62 @@ Every step needs the finite-difference Hessian, at 4p + 2 gradient evaluations (
 - **OPT-10** · `0e87107` and `feat(optimize): pickle the fitted embedder` · `optimize.py` now additionally pickles `emb.to_dict()` with `success` to `embedder_parameters.pkl` after every run, also one that raises.
 - **OPT-15** · `fix(optimization): no EF step along modes too flat to resolve` · Along a mode whose curvature and gradient were rounding errors, as for a term with θ ≈ 0, EF stepped at random by up to 1, and under `max_step` that slowed fits up to 18-fold; EF now takes no step where |bₖ| ≤ `TAU`·max|b|, with `TAU` = 1e-10, and |gₖ| < `gtol`/√p.
 - **OPT-9** · `refactor(optimization): correct outdated text`
+
+## `glefit.spectral`
+
+Reproduced at `4c95893` by running the code.
+
+### Open
+
+**SPC-1 · open · Integer frequency arrays give zeros.**
+For ωₙ > 0, `nmJ` and `nmLambda` create their output with `np.zeros_like(omega)`, so `ExpOhmic(0.7, 2.5).nmLambda(1.0, np.array([0, 2, 3]))` returns `[0, 0, 0]`. Agreed fix: create it with `np.zeros(np.shape(omega))`.
+
+**SPC-2 · open · The sign of J at negative ω differs between models.**
+`Debye.J` is odd, and `ExpOhmic.J` is even because it uses |ω|. `nmJ` is even for ωₙ > 0 but returns `J` at ωₙ = 0, so for `Debye(0.7, 2.5)`, `nmJ(0, -2)` gives −0.85 and `nmJ(1e-12, -2)` gives +0.85. Λ and K are not affected. Agreed fix: remove `J` and `nmJ`. Targets need only Λ and K, and Λₙ(ω) = θ(x)√x Λ(ω√x), with x = 1 − ωₙ²/ω², needs only Λ.
+
+**SPC-3 · open · Constructors accept any arguments.**
+They ignore extra arguments, so `ExpOhmic(eta=1.0, omega_cut=2.0, omgea=5.0)` drops the misspelled keyword. They do not check `eta` or `omega_cut`: η < 0 gives Λ < 0, and `Debye(1.0, 0.0).Lambda(0.0)` raises `ZeroDivisionError`. Agreed fix: drop `*args` and `**kwargs`, and raise `ValueError` for η < 0 or ωc ≤ 0.
+
+**SPC-4 · open · ωₙ must be a Python `int` or `float`.**
+`np.float32` and `np.int64` raise `TypeError`, while `np.float64` passes as a subclass of `float`. The `ValueError` for ωₙ < 0 says that ωₙ must be positive, but 0 is accepted. Agreed fix: accept any real number ωₙ ≥ 0, and say "non-negative" in the error.
+
+**SPC-5 · open · Outdated text in the code.**
+The `ExpOhmic` docstring gives K(t) = 2ηωc/π · (1 + ωc²t²), but the code correctly divides by (1 + ωc²t²). The `BaseSpectralDensity` docstring says Λ = J/ω, which is false for `ExpOhmic` at ω < 0. `nmJ`, `nmLambda` and `nmK` have no docstrings.
+
+### Accepted
+
+**SPC-6 · accepted · `nmK` uses the default tolerances of `quad`.**
+At ωₙ = 0, `Debye(0.7, 2.5).nmK(0, t)` differs from K(t) by 1e-11 to 5e-11 for t from 0.5 to 10, where K(10) = 2.4e-11. Extra keyword arguments go to `quad`, so pass `epsabs` for small values at long times.
+
+### Deferred features
+
+**SPC-7 · deferred · Only two models exist.**
+
+**SPC-8 · deferred · `nmK` has no closed form.**
+It integrates numerically, once per time point, so 201 time points take about 0.06 s.
+
+**SPC-9 · deferred · There are no derivatives with respect to model parameters.**
+
+### Tracked in other modules
+
+- No code writes model kernels or spectra to target files (UTL-2), and a model cannot be a config target (CFG-7).
+
+## `glefit.utils`
+
+Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also checked against exact values, and no defect was found.
+
+### Open
+
+**UTL-1 · open · The docstring of `WAM_discretization` is outdated.**
+It documents `Lambda` as a callable, and does not document `omega`, `wmax` or `options`.
+
+**UTL-2 · open · No code writes the inputs of a fit.**
+Target files and initial guesses are made by hand, as in the tutorial. Agreed: a script in `glefit.utils` writes the kernel or spectrum of a `glefit.spectral` model, transformed for a given ωₙ, to a CSV file that `load_data` reads. The grid is either a linspace or read from a one-column CSV file, and the target is not divided by Kₙ(0). The script also writes an initial guess as an `embedder` section: either the exact `prony` embedding of a Debye model, which raises `ValueError` for ωₙ ≠ 0, or a `multi` of `gen2x2` from `WAM_discretization` of Λₙ, with damping rates from the spacing of the frequencies, as in the tutorial.
+
+### Accepted
+
+**UTL-3 · accepted · `WAM_discretization` integrates from `omega[0]`.**
+It forms C(ω) = ∫ Λ from `omega[0]` to ω, so the grid must start at 0 to discretise all of Λ: for a Debye spectrum on a grid from 0.5, the weight is 13% low and the frequencies are off by up to 120%. It raises no error, and its docstring is to say so (UTL-1).
+
+**UTL-4 · accepted · `WAM_discretization` assumes Λ ≥ 0.**
+Where Λ is negative, C(ω) is not monotonic, and the frequencies are meaningless: for Λ = e^(−ω) − 0.3 e^(−(ω−3)²) on [0, 20], all 8 lie below 0.58. It raises no error, and its docstring is to say so (UTL-1).

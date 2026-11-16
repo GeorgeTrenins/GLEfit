@@ -1,6 +1,6 @@
 # CLAUDE.md: `glefit.utils`
 
-This module holds numerical helpers for the rest of GLEFit: finite differences, special functions, linear solves, bath discretization, ring-polymer frequencies and unit conversion.
+This module holds numerical helpers for the rest of GLEFit: finite differences, special functions, linear solves, bath discretization, ring-polymer frequencies and unit conversion. Its open issues and accepted limits are in `ISSUES.md` at the repository root, as `UTL-n`.
 
 ## Background
 
@@ -45,6 +45,8 @@ The functions that built the `gen2x2` kernel before EMB-20 (`coscosh`, `sincsinh
 2. forms C(ω) = ∫ Λ from `omega[0]` to ω,
 3. returns `weight = C(wmax)/nbath` and the frequencies that solve C(ωⱼ) = (j + ½)·weight. `wmax` is capped at `omega[-1]`.
 
+It does not check that the grid starts at 0 (UTL-3) or that Λ ≥ 0 (UTL-4).
+
 The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, gamma)`. For a Debye spectrum with 5 modes, the weight matched the exact value to 1e-13 and the frequencies to 4e-12.
 
 ## `rp.py` and `units.py`
@@ -55,30 +57,6 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 ## Conventions
 
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
-
-## Known gaps
-
-Checked at commit `ffd03fd`. Everything under Surprising limits was reproduced by running the code.
-
-### Surprising limits
-
-- **`WAM_discretization` needs a grid that starts at 0 and a non-negative Λ.** It integrates from `omega[0]`, so a Debye grid starting at 0.5 gave a weight of 0.437 instead of 0.506. A region of negative Λ gave meaningless frequencies with no error: five between 0.05 and 0.42, then 11.4, 13.8 and 17.4.
-- **`symmat_inv_vec` raises `LinAlgError`** for a matrix that is not positive definite, such as an indefinite Hessian.
-
-### Missing features
-
-- `units.py` is not connected to the config or the data, so all inputs must already share one unit system.
-
-### Test gaps
-
-- `tests/test_utils/test_special.py` tests only `sinc`, against SymPy.
-- `tests/test_utils/test_numderiv.py` tests `jacobian`, but only the exactness for polynomials, the default step through the known truncation error for sin(ωx), and the input checks.
-- `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
-
-### Outdated text in the code
-
-- `WAM_discretization` documents `Lambda` as a callable and does not document `omega`, `wmax` or `options`.
-- The `units.py` docstring contains a stray `"""` and lists five of the seven unit systems.
 
 ## Adding features
 
@@ -93,6 +71,8 @@ Checked at commit `ffd03fd`. Everything under Surprising limits was reproduced b
 ```bash
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_utils
 ```
+
+`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
 
 New or changed code should have tests that:
 
