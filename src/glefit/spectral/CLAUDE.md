@@ -44,7 +44,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 
 - **Reference values:** `Debye(η, ωc)` is exactly `PronyEmbedder(theta=√(η ωc), gamma=ωc)`. Their K and Λ agree to 2e-16. `ExpOhmic` has no exact finite embedding, so it is a natural fitting target.
 - **Target data:** the config reads targets only from files or inline values, so evaluate a model on a grid and save it. `legacy_tests/test_optimize/fixtures/expohmic_nm_spectrum.csv` matches `ExpOhmic(1, 1).nmLambda(10, ω)` divided by `ExpOhmic(1, 1).nmK(10, 0)` = 1.1516e-02 to 5e-8. Its header records ωₙ = 10 and that K₀. The script that wrote it is not in the repository. `utils/make_target.py` writes such files, but does not divide by Kₙ(0).
-- **Initial guesses:** `utils/bath.py::WAM_discretization(omega, Lambda, nbath)` takes Λ sampled on a grid, so pass `bath.Lambda(omega)` or `bath.nmLambda(wn, omega)`, not the model object.
+- **Initial guesses:** the `initial_guess` section of `utils/make_target.py` writes the exact embedding of a model, if it has one, or a WAM discretization of Λₙ. `utils/bath.py::WAM_discretization(omega, Lambda, nbath)` takes Λ sampled on a grid, so pass `bath.nmLambda(wn, omega)`, not the model object.
 
 ## Conventions
 
@@ -63,7 +63,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 1. Add `<name>.py` and subclass `BaseSpectralDensity`.
 2. Check and store the parameters in `__init__`, and implement `Lambda` and `K` in closed form. Use |ω| and |t| so that both are even.
 3. The `nm` methods are inherited, and call `Lambda`.
-4. Export the class from `__init__.py` and add it to `SPECTRAL_MAP`. `make_target.py` then builds it from `model.parameters`, passed to the constructor as keyword arguments, so its parameters may differ from η and ωc.
+4. Export the class from `__init__.py` and add it to `SPECTRAL_MAP`. `make_target.py` then builds it from `model.parameters`, passed to the constructor as keyword arguments, so its parameters may differ from η and ωc. If the model has an exact embedding, add it to `EXACT_EMBEDDINGS` in `make_target.py`.
 
 ### Other changes
 

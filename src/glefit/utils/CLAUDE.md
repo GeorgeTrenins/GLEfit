@@ -4,7 +4,7 @@ This module holds numerical helpers for the rest of GLEFit: finite differences, 
 
 ## Background
 
-GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme. Each one depends only on NumPy or SciPy, except `make_target.py`, which imports `glefit.config` and `glefit.spectral`.
+GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme. Each one depends only on NumPy or SciPy, except `make_target.py`, which imports `glefit.config`, `glefit.embedding` and `glefit.spectral`.
 
 ## Contents
 
@@ -12,8 +12,8 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | --- | --- | --- |
 | `numderiv.py` | `jacobian`: central finite differences | Fitting Hessian in `glefit.merit` |
 | `special.py` | `sinc` | `gen2x2` embedder |
-| `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
-| `make_target.py` | Script that writes the target of a fit | `bin/make_target.py` |
+| `bath.py` | `WAM_discretization`: initial guesses from Λ | `make_target.py`, tutorial notebook |
+| `make_target.py` | Script that writes the target and an initial guess of a fit | `bin/make_target.py` |
 
 `__init__.py` is empty, so import from the submodules.
 
@@ -49,12 +49,13 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 
 ## `make_target.py`
 
-`make_target.py CONFIG` reads a YAML or JSON file, whose keys the docstring of `main` lists, and writes Kₙ or Λₙ of a model to a CSV file that a fit config reads with `columns: [0, 1]`.
+`make_target.py CONFIG` reads a YAML or JSON file, whose keys the docstring of `main` lists, and writes Kₙ or Λₙ of a model to a CSV file that a fit config reads with `columns: [0, 1]`. With an `initial_guess` section, it also writes an `embedder` section for a fit config to a YAML file.
 
 - **Model:** `model.type` is a key of `glefit.spectral.SPECTRAL_MAP`, and `model.parameters` go to its constructor as keyword arguments, so models with different parameters need no change here. The constructor raises `TypeError` or `ValueError` for bad parameters.
 - **Grid:** either `linspace: [start, stop, num]` or the `path` of a one-column CSV file, read relative to the config file.
 - **Output:** relative to the working directory, with 17 significant digits, not divided by Kₙ(0). A `#` header records the inputs.
-- **Errors:** an unknown key, an unknown `type` or `property`, or a malformed `grid` raises `ConfigError`, before anything is computed.
+- **Initial guess:** `exact` is the exact embedding of the model, from `EXACT_EMBEDDINGS` in the script, which so far holds only Debye as `prony`, and is refused for ωₙ ≠ 0. `wam` is a `multi` of `nbath` `gen2x2` embedders from `from_harmonic`, at the WAM frequencies of Λₙ on its own grid, which should start at 0 (UTL-3). The damping rate of each is the spacing to the frequency below, γ₁ = ω₂ − ω₁, or ω₁ for one mode.
+- **Errors:** an unknown key, an unknown `type` or `property`, a malformed `grid` or `initial_guess`, or an exact guess that does not exist raises `ConfigError`, before anything is computed or written.
 - **Accuracy:** `nmK` uses the default tolerances of `quad` (SPC-6), which the config cannot change.
 
 ## Conventions
@@ -75,7 +76,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_utils
 ```
 
-`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `test_bath.py` compares `WAM_discretization` with the closed form for a Debye spectrum, on a grid from 0 and on one from 0.5 (UTL-3), with `wmax` inside and beyond the grid. On 4001 points, the weight agrees to 1e-12 and the frequencies to 1e-11, which is the bisection's `xtol`. `test_make_target.py` runs the script on configs in a temporary directory, and reads the output back with `load_data`. It checks that the target equals `nmK` or `nmLambda` exactly, that both kinds of grid are read, where the output goes, the header, and the errors for malformed configs.
+`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `test_bath.py` compares `WAM_discretization` with the closed form for a Debye spectrum, on a grid from 0 and on one from 0.5 (UTL-3), with `wmax` inside and beyond the grid. On 4001 points, the weight agrees to 1e-12 and the frequencies to 1e-11, which is the bisection's `xtol`. `test_make_target.py` runs the script on configs in a temporary directory, and reads the output back with `load_data`. It checks that the target equals `nmK` or `nmLambda` exactly, that both kinds of grid are read, where the output goes, the header, and the errors for malformed configs. For the initial guess, it rebuilds the embedder with `EMBEDDER_MAP`: the exact guess must have the Debye Λ, and the WAM guess the closed-form Debye frequencies, damping rates and K(0), and the frequencies of `WAM_discretization` of Λₙ at ωₙ > 0.
 
 New or changed code should have tests that:
 

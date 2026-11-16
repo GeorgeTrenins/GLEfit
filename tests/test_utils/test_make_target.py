@@ -13,10 +13,12 @@ import argparse
 import numpy as np
 import pytest
 import yaml
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 from glefit.config.config_handler import ConfigError
 from glefit.config.data_io import load_data
+from glefit.embedding import EMBEDDER_MAP
 from glefit.spectral import Debye, ExpOhmic
+from glefit.utils.bath import WAM_discretization
 from glefit.utils.make_target import main
 
 ETA = 0.7
@@ -27,6 +29,17 @@ PARAMETERS = {"omega_cut": OMEGA_CUT, "eta": ETA}
 LINSPACE = [0.0, 6.0, 13]
 GRID = np.linspace(0.0, 6.0, 13)
 MODELS = {"debye": Debye, "expohmic": ExpOhmic}
+NBATH = 5
+WMAX = 10.0
+WAM_LINSPACE = [0.0, 40.0, 4001]
+WAM_GUESS = {"type": "wam", "nbath": NBATH,
+             "grid": {"linspace": WAM_LINSPACE}, "wmax": WMAX}
+# ωⱼ = ωc tan((j − ½)ε/(η ωc)) for Debye, where C(ω) = η ωc arctan(ω/ωc)
+# and ε = C(WMAX)/nbath, from mpmath; the 4001-point grid gives 1e-10
+DEBYE_FREQUENCIES = [0.33341026255524782, 1.0503450185880893,
+                     1.9519410160110378, 3.3387357835679967,
+                     6.3037916244711532]
+FREQUENCY_ATOL = 1e-10
 
 
 def make_config(**changes):
@@ -45,6 +58,21 @@ def read_target(path):
     return load_data(
         {"source": "external", "path": str(path), "columns": [0, 1]},
         "target")
+
+
+def read_embedder(path):
+    """The embedder that a fit config builds from the guess in path."""
+    section = yaml.safe_load(path.read_text())["embedder"]
+    return EMBEDDER_MAP[section["type"]].from_dict(section["parameters"])
+
+
+def read_modes(path):
+    """The frequencies and damping rates of the gen2x2 components of the
+    guess in path, as written by from_harmonic."""
+    section = yaml.safe_load(path.read_text())["embedder"]
+    modes = [emb["parameters"] for emb in section["parameters"]["embedders"]]
+    return (np.array([m["zeta"] for m in modes]),
+            np.array([m["gamma"] for m in modes]))
 
 
 @pytest.fixture
@@ -155,6 +183,36 @@ BAD_CONFIGS = {
     "float-num": (
         {"grid": {"linspace": [0.0, 6.0, 13.0]}}, "grid.linspace must be"),
     "misspelled-key": ({"nm_omgea": NM_OMEGA}, r"unknown keys \['nm_omgea'\]"),
+    "guess-not-a-dict": (
+        {"initial_guess": "wam"}, "initial_guess must be a dictionary"),
+    "unknown-guess": (
+        {"initial_guess": {"type": "prony"}},
+        "initial_guess.type 'prony' is unknown"),
+    "exact-at-nm-omega-3": (
+        {"initial_guess": {"type": "exact"}, "nm_omega": NM_OMEGA},
+        "the exact embedding needs nm_omega = 0"),
+    "exact-expohmic": (
+        {"initial_guess": {"type": "exact"},
+         "model": {"type": "expohmic", "parameters": PARAMETERS}},
+        "model.type 'expohmic' has no exact embedding"),
+    "wam-key-in-exact": (
+        {"initial_guess": {"type": "exact", "nbath": NBATH}},
+        r"unknown keys \['nbath'\] in initial_guess"),
+    "no-nbath": (
+        {"initial_guess": {"type": "wam", "grid": {"linspace": LINSPACE}}},
+        "initial_guess.nbath must be a positive integer"),
+    "zero-nbath": (
+        {"initial_guess": {**WAM_GUESS, "nbath": 0}},
+        "initial_guess.nbath must be a positive integer"),
+    "float-nbath": (
+        {"initial_guess": {**WAM_GUESS, "nbath": 5.0}},
+        "initial_guess.nbath must be a positive integer"),
+    "no-wam-grid": (
+        {"initial_guess": {"type": "wam", "nbath": NBATH}},
+        "initial_guess.grid must have exactly one key"),
+    "string-wmax": (
+        {"initial_guess": {**WAM_GUESS, "wmax": "10"}},
+        "initial_guess.wmax must be a real number"),
 }
 
 
@@ -180,3 +238,109 @@ def test_invalid_eta_raises_value_error(run_main):
 
     with pytest.raises(ValueError, match="eta must be non-negative"):
         run_main(config)
+
+
+def test_bad_guess_writes_no_target(run_main, tmp_path):
+    config = make_config(initial_guess={"type": "exact"}, nm_omega=NM_OMEGA)
+
+    with pytest.raises(ConfigError):
+        run_main(config)
+    assert list((tmp_path / "run").iterdir()) == []
+
+
+def test_no_guess_section_writes_only_the_target(run_main):
+    run_dir = run_main(make_config())
+
+    assert list(run_dir.iterdir()) == [run_dir / "target.csv"]
+
+
+@pytest.mark.parametrize(
+    "output, name",
+    [({}, "embedder.yaml"), ({"output": "guess.yaml"}, "guess.yaml")],
+    ids=["default", "given"])
+def test_guess_is_written_to_the_working_directory(run_main, output, name):
+    config = make_config(initial_guess={"type": "exact", **output})
+
+    run_dir = run_main(config)
+
+    assert (run_dir / name).is_file()
+
+
+def test_guess_header_records_the_inputs(run_main):
+    config = make_config(initial_guess=WAM_GUESS)
+
+    run_dir = run_main(config)
+
+    assert (run_dir / "embedder.yaml").read_text().splitlines()[:3] == [
+        '# model: debye {"omega_cut": 2.5, "eta": 0.7}',
+        "# nm_omega: 0.0",
+        '# initial_guess: wam {"nbath": 5, "grid": {"linspace": '
+        '[0.0, 40.0, 4001]}, "wmax": 10.0}',
+    ]
+
+
+def test_exact_guess_has_the_debye_spectrum(run_main):
+    config = make_config(initial_guess={"type": "exact"})
+
+    run_dir = run_main(config)
+
+    assert_allclose(read_embedder(run_dir / "embedder.yaml").spectrum(GRID),
+                    Debye(eta=ETA, omega_cut=OMEGA_CUT).Lambda(GRID),
+                    rtol=1e-14)
+
+
+def test_wam_frequencies_match_the_debye_closed_form(run_main):
+    run_dir = run_main(make_config(initial_guess=WAM_GUESS))
+
+    assert_allclose(read_modes(run_dir / "embedder.yaml")[0],
+                    DEBYE_FREQUENCIES, rtol=0, atol=FREQUENCY_ATOL)
+
+
+@pytest.mark.parametrize(
+    "nbath, damping",
+    [(5, [0.71693475603284143, 0.71693475603284143, 0.90159599742294859,
+          1.3867947675569589, 2.9650558409031565]),
+     # no spacing, so the distance of the only frequency from 0
+     (1, [1.9519410160110378])],
+    ids=["five-modes", "one-mode"])
+def test_wam_damping_is_the_frequency_spacing(run_main, nbath, damping):
+    config = make_config(initial_guess={**WAM_GUESS, "nbath": nbath})
+
+    run_dir = run_main(config)
+
+    assert_allclose(read_modes(run_dir / "embedder.yaml")[1], damping,
+                    rtol=0, atol=2 * FREQUENCY_ATOL)
+
+
+def test_wam_kernel_at_zero_is_the_integrated_spectrum(run_main):
+    # K(0) = (2/π) C(WMAX) = (2/π) η ωc arctan(WMAX/ωc), from mpmath
+    run_dir = run_main(make_config(initial_guess=WAM_GUESS))
+
+    assert_allclose(read_embedder(run_dir / "embedder.yaml").kernel([0.0]),
+                    [1.4770730436792074], rtol=1e-11)
+
+
+def test_wam_guess_discretizes_the_nm_spectrum(run_main):
+    config = make_config(
+        model={"type": "expohmic", "parameters": PARAMETERS},
+        nm_omega=NM_OMEGA, initial_guess=WAM_GUESS)
+    grid = np.linspace(*WAM_LINSPACE)
+    expected = WAM_discretization(
+        grid, ExpOhmic(eta=ETA, omega_cut=OMEGA_CUT).nmLambda(NM_OMEGA, grid),
+        NBATH, WMAX)[1]
+
+    run_dir = run_main(config)
+
+    assert_array_equal(read_modes(run_dir / "embedder.yaml")[0], expected)
+
+
+def test_wam_grid_file_is_read_relative_to_the_config(run_main, tmp_path):
+    np.savetxt(tmp_path / "inputs" / "wam_grid.csv",
+               np.linspace(*WAM_LINSPACE))
+    config = make_config(
+        initial_guess={**WAM_GUESS, "grid": {"path": "wam_grid.csv"}})
+
+    run_dir = run_main(config)
+
+    assert_allclose(read_modes(run_dir / "embedder.yaml")[0],
+                    DEBYE_FREQUENCIES, rtol=0, atol=FREQUENCY_ATOL)

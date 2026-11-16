@@ -21,7 +21,7 @@ Use the `tools` conda environment, not the `glefit` environment defined in `envi
 
 A run that does not converge prints nothing and exits 0, so check `success` in the pickle.
 
-`make_target.py` writes the kernel or spectrum of a model to `output` (default `target.csv`) in the working directory. The docstring of its `main` lists the config keys.
+`make_target.py` writes the kernel or spectrum of a model to `output` (default `target.csv`) in the working directory, and with `initial_guess`, an `embedder` section to `embedder.yaml`. The docstring of its `main` lists the config keys.
 
 `tutorials/spectrum_optimization.ipynb` creates its workspace under `tutorials/spectrum_optimization/`.
 
@@ -29,7 +29,7 @@ A run that does not converge prints nothing and exits 0, so check `success` in t
 
 Open issues are listed in `ISSUES.md`.
 
-`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives, input checks, `from_dict` and the weights), `sinc` in `glefit.utils.special`, `jacobian` in `glefit.utils.numderiv`, `WAM_discretization` in `glefit.utils.bath` and the script `glefit.utils.make_target`: `tests/test_embedding` has 386 passing tests, `tests/test_merit` has 165, `tests/test_utils` has 58, `tests/test_optimization.py` checks the optimizers' steps, convergence test and trajectory, and one fit, `tests/test_optimize.py` checks the files that `optimize.py` writes and that it rejects unknown types, `tests/test_config.py` checks how `ConfigHandler` reads each file type, checks the sections that `optimize.py` reads, ignores the others, and finds data files, and how `load_data` reads CSV and inline data and rejects bad input, `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject bad parameters and bounds, and `tests/test_spectral.py` checks the spectra and kernels of the models in `glefit.spectral` and their normal-mode transforms. Its references are SymPy and mpmath.
+`tests/` is the maintained suite, written to `tests/CLAUDE.md`. So far it covers `glefit.embedding`, the merit functions of `glefit.merit` (values, `grad_wrt_A`, the distance and its derivatives, input checks, `from_dict` and the weights), `sinc` in `glefit.utils.special`, `jacobian` in `glefit.utils.numderiv`, `WAM_discretization` in `glefit.utils.bath` and the script `glefit.utils.make_target`: `tests/test_embedding` has 386 passing tests, `tests/test_merit` has 165, `tests/test_utils` has 80, `tests/test_optimization.py` checks the optimizers' steps, convergence test and trajectory, and one fit, `tests/test_optimize.py` checks the files that `optimize.py` writes and that it rejects unknown types, `tests/test_config.py` checks how `ConfigHandler` reads each file type, checks the sections that `optimize.py` reads, ignores the others, and finds data files, and how `load_data` reads CSV and inline data and rejects bad input, `tests/test_mappers.py` checks the bounded mappers and their derivatives against SymPy, and that they reject bad parameters and bounds, and `tests/test_spectral.py` checks the spectra and kernels of the models in `glefit.spectral` and their normal-mode transforms. Its references are SymPy and mpmath.
 
 `legacy_tests/` is the original suite and must not be edited. Run it with `--continue-on-collection-errors`: `test_utils/test_special.py`, `test_utils/test_numderiv.py` and `test_mappers/test_intervals.py` cannot be imported. 72 tests pass, 52 fail and those three files fail to import. The failures are known, caused by tests lagging the code:
 
@@ -101,7 +101,7 @@ Subclass `BaseEmbedder` and implement `from_dict` and its inverse `_config_param
 
 ### Standalone code
 
-The pipeline does not use `spectral/` (model spectral densities). `utils/make_target.py` writes target files from its models, which it looks up in `SPECTRAL_MAP`. `utils/bath.py::WAM_discretization` supplies the initial guesses in the tutorial notebook.
+The pipeline does not use `spectral/` (model spectral densities). `utils/make_target.py` writes target files from its models, which it looks up in `SPECTRAL_MAP`. `utils/bath.py::WAM_discretization` supplies the WAM initial guesses of `make_target.py` and the tutorial notebook.
 
 ## Conventions
 
