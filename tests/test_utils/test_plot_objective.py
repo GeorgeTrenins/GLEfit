@@ -11,6 +11,7 @@
 from __future__ import print_function, division, absolute_import
 import argparse
 import json
+import pickle
 import re
 import sys
 import matplotlib
@@ -20,9 +21,11 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from glefit.embedding import EMBEDDER_MAP
-from glefit.optimize import main as optimize
+from glefit.merit import PROPERTY_MAP
+from glefit.optimize import EMBEDDER_FILE, main as optimize
 from glefit.utils.plot_objective import (
-    main, parse_trajectory_file, plot_trajectory, setup_from_config)
+    main, parse_log_file, parse_trajectory_file, plot_trajectory,
+    setup_from_config)
 
 # a prony and a pronycos term, fitted from START to TARGET_PARAMS, the
 # conventional parameters of their sum
@@ -48,6 +51,9 @@ OUT_OF_BOUNDS = {
     "pronycos": [0.7, -0.5, -2.0],
     "gen2x2": [1.0, 0.5, 0.9, 0.9, 0.0],
 }
+# the terms of each embedder section, for closed_forms
+TERMS = {"multi": START["embedders"], "prony": [EMBEDDERS["prony"]],
+         "pronycos": [EMBEDDERS["pronycos"]], "gen2x2": [EMBEDDERS["gen2x2"]]}
 PROPERTIES = ["kernel", "spectrum"]
 GRIDS = {"kernel": np.linspace(0.0, 6.0, 13),
          "spectrum": np.linspace(0.0, 5.0, 11)}
@@ -57,6 +63,7 @@ GTOL = 1e-12
 # the drift-matrix and closed forms agree to rounding
 RTOL, ATOL = 1e-10, 1e-12
 TITLE = re.compile(r"Step (\d+) / (\d+) \| Merit = (\S+)$")
+GMAX_LABEL = r"max $|g_i|$"
 
 
 def closed_forms(prop, params, sections=START["embedders"]):
@@ -121,9 +128,34 @@ def plot(config):
     return merit, params, plt.gcf().axes[0]
 
 
+def draw(config, logfile=None):
+    """Plot traj.out of the fit with this config, and the log if given.
+    Return the merit function, the parameters at each step, the figure
+    and the slider."""
+    embedder, merit = setup_from_config(config)
+    steps, params = parse_trajectory_file("traj.out")
+    log = None if logfile is None else parse_log_file(logfile)
+    fig, slider = plot_trajectory(merit, embedder, steps, params, log=log)
+    return merit, params, fig, slider
+
+
 def curves(ax):
     """The points (x, y) of each line in ax, by label, shape (n, 2)."""
     return {line.get_label(): line.get_xydata() for line in ax.get_lines()}
+
+
+def merit_at(prop, parameters):
+    """The merit function of a fit of K or Λ for a multi embedder with
+    these parameters and the default mappers, as in the fit."""
+    embedder = EMBEDDER_MAP["multi"].from_dict(parameters)
+    target = sum(closed_forms(prop, TARGET_PARAMS))
+    return PROPERTY_MAP[prop](GRIDS[prop], target, embedder, "squared")
+
+
+def final_parameters():
+    """The parameters at the end of the fit, at full precision."""
+    with open(EMBEDDER_FILE, "rb") as f:
+        return pickle.load(f)["parameters"]
 
 
 def test_parse_rejects_empty_file(tmp_path):
@@ -140,6 +172,29 @@ def test_parse_rejects_log_file(fit):
 
     with pytest.raises(ValueError, match="log.out"):
         parse_trajectory_file("log.out")
+
+
+@pytest.mark.parametrize("prop", PROPERTIES)
+def test_parse_log_reads_distance_and_gradient(fit, prop):
+    fit(prop)
+    first, last = merit_at(prop, START), merit_at(prop, final_parameters())
+
+    steps, distance, gmax = parse_log_file("log.out")
+
+    assert steps == list(range(MAX_ITER + 1))
+    # the log has 8 significant digits
+    assert distance[[0, -1]] == pytest.approx(
+        [first.distance, last.distance], rel=1e-7)
+    assert gmax[[0, -1]] == pytest.approx(
+        [np.max(np.abs(first.gradient())), np.max(np.abs(last.gradient()))],
+        rel=1e-7)
+
+
+def test_parse_log_rejects_trajectory(fit):
+    fit("kernel")
+
+    with pytest.raises(ValueError, match="traj.out"):
+        parse_log_file("traj.out")
 
 
 @pytest.mark.parametrize("name", OUT_OF_BOUNDS)
@@ -221,6 +276,65 @@ def test_plot_y_range_is_target_with_margin(fit):
     assert ax.get_ylim() == pytest.approx((-0.05 * top, 1.05 * top))
 
 
+def test_plot_log_panel_shows_log(fit):
+    _, _, fig, _ = draw(fit("kernel"), "log.out")
+
+    steps, distance, gmax = parse_log_file("log.out")
+    lines = curves(fig.axes[1])
+
+    assert fig.axes[1].get_yscale() == "log"
+    assert_allclose(lines["Distance"], np.column_stack([steps, distance]))
+    assert_allclose(lines[GMAX_LABEL], np.column_stack([steps, gmax]))
+
+
+def test_plot_rejects_log_of_other_run(fit):
+    embedder, merit = setup_from_config(fit("kernel"))
+    steps, params = parse_trajectory_file("traj.out")
+    # as from a fit that stopped a step earlier
+    log = [values[:-1] for values in parse_log_file("log.out")]
+
+    with pytest.raises(ValueError, match="steps"):
+        plot_trajectory(merit, embedder, steps, params, log=log)
+
+
+@pytest.mark.parametrize("name", TERMS)
+def test_slider_draws_total_at_selected_step(fit, name):
+    merit, params, fig, slider = draw(
+        fit("kernel", embedder=EMBEDDERS[name]))
+
+    slider.set_val(MAX_ITER)
+
+    total = sum(closed_forms("kernel", params[MAX_ITER], TERMS[name]))
+    step, _, distance = TITLE.search(fig.axes[0].get_title()).groups()
+    assert_allclose(curves(fig.axes[0])["Total"][:, 1], total,
+                    rtol=RTOL, atol=ATOL)
+    assert int(step) == MAX_ITER
+    assert float(distance) == pytest.approx(
+        np.sum(merit.weight * (total - merit.target)**2), rel=1e-6)
+
+
+def test_slider_draws_components_at_selected_step(fit):
+    _, params, fig, slider = draw(fit("kernel"))
+
+    slider.set_val(MAX_ITER)
+
+    lines = curves(fig.axes[0])
+    terms = closed_forms("kernel", params[MAX_ITER])
+    assert_allclose(lines["Component 1"][:, 1], terms[0],
+                    rtol=RTOL, atol=ATOL)
+    assert_allclose(lines["Component 2"][:, 1], terms[1],
+                    rtol=RTOL, atol=ATOL)
+
+
+def test_slider_moves_step_marker(fit):
+    _, _, fig, slider = draw(fit("kernel"), "log.out")
+
+    slider.set_val(MAX_ITER)
+
+    assert_allclose(curves(fig.axes[1])["Selected step"][:, 0],
+                    [MAX_ITER, MAX_ITER])
+
+
 @pytest.mark.parametrize("args, trajfile", [
     ([], "traj.out"),
     (["--traj", "other.out"], "other.out"),
@@ -236,6 +350,21 @@ def test_main_reads_given_trajectory(fit, monkeypatch, args, trajfile):
     total = sum(closed_forms("kernel", params[0]))
     assert_allclose(curves(plt.gcf().axes[0])["Total"][:, 1], total,
                     rtol=RTOL, atol=ATOL)
+
+
+@pytest.mark.parametrize("args, naxes", [
+    ([], 2),
+    (["--log", "log.out"], 3),
+], ids=["without", "with"])
+def test_main_draws_log_panel_if_given(fit, monkeypatch, args, naxes):
+    config = fit("kernel")
+    monkeypatch.setattr(sys, "argv", ["plot_objective.py", str(config)]
+                        + args)
+
+    main()
+
+    # the curves, the log panel if any, and the slider
+    assert len(plt.gcf().axes) == naxes
 
 
 def test_main_rejects_missing_trajectory(tmp_path, monkeypatch):

@@ -10,6 +10,7 @@
 from __future__ import print_function, division, absolute_import
 import argparse
 from pathlib import Path
+from typing import Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
@@ -59,6 +60,35 @@ def parse_trajectory_file(filepath: Path) -> tuple[list[int], list[np.ndarray]]:
     if not steps:
         raise ValueError(f"no steps in the trajectory file {filepath}")
     return steps, params
+
+
+def parse_log_file(
+        filepath: Path
+) -> tuple[list[int], np.ndarray, np.ndarray]:
+    """Read the step numbers, distances and max|gᵢ| from the log of a fit.
+
+    The log is the one that NewtonRaphson.log writes, where a line
+    `<Class>: step hh:mm:ss distance max|gᵢ|`, with 8 significant digits,
+    follows each header `Step Time Value Gmax`.
+
+    Returns:
+        Tuple of (step_numbers, distances, max_gradients)
+
+    Raises:
+        ValueError: if the file has no step.
+    """
+    steps, distance, gmax = [], [], []
+    with open(filepath, 'r') as f:
+        lines = f.readlines()
+    for header, line in zip(lines, lines[1:]):
+        if header.split() == ["Step", "Time", "Value", "Gmax"]:
+            _, step, _, value, grad = line.split()
+            steps.append(int(step))
+            distance.append(float(value))
+            gmax.append(float(grad))
+    if not steps:
+        raise ValueError(f"no steps in the log file {filepath}")
+    return steps, np.array(distance), np.array(gmax)
 
 
 def setup_from_config(config_path: Path) -> tuple[BaseEmbedder, BaseProperty]:
@@ -124,10 +154,30 @@ def plot_trajectory(
     merit: BaseProperty,
     embedder: BaseEmbedder,
     steps: list[int],
-    params_list: list[np.ndarray]
-):
-    """Create interactive plot with slider."""
-    fig, ax = plt.subplots(figsize=(10, 6))
+    params_list: list[np.ndarray],
+    log: Optional[tuple[list[int], np.ndarray, np.ndarray]] = None
+) -> tuple[plt.Figure, Slider]:
+    """Create interactive plot with slider.
+
+    With `log`, the step numbers, distances and max|gᵢ| that
+    parse_log_file returns, a second panel shows the distance and max|gᵢ|
+    against step, with a line at the selected step.
+
+    Returns:
+        The figure and the slider, which must stay referenced for the
+        slider to respond.
+
+    Raises:
+        ValueError: if the log and the trajectory have different steps.
+    """
+    if log is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+    else:
+        if list(log[0]) != list(steps):
+            raise ValueError(
+                "the steps of the log differ from those of the trajectory")
+        fig, (ax, ax_log) = plt.subplots(
+            2, 1, figsize=(10, 9), height_ratios=[2, 1])
     plt.subplots_adjust(bottom=0.25, right=0.85)
     
     ax.set_xlabel('Grid')
@@ -174,7 +224,21 @@ def plot_trajectory(
     
     ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1))
     ax.grid(True, alpha=0.3)
-    
+
+    # Plot the distance and max|gᵢ| against step, and mark the step
+    if log is not None:
+        log_steps, distance, gmax = log
+        ax_log.semilogy(log_steps, distance, 'k.-', label='Distance',
+                        linewidth=1)
+        ax_log.semilogy(log_steps, gmax, 'b.-', label=r'max $|g_i|$',
+                        linewidth=1)
+        marker = ax_log.axvline(steps[0], color='r', label='Selected step',
+                                linewidth=1)
+        ax_log.set_xlabel('Step')
+        # inside, below where both curves start
+        ax_log.legend(loc='lower left')
+        ax_log.grid(True, alpha=0.3)
+
     # Create slider
     ax_slider = plt.axes([0.2, 0.1, 0.6, 0.03])
     slider = Slider(
@@ -204,11 +268,15 @@ def plot_trajectory(
         
         # Update title
         ax.set_title(f'Step {steps[step_idx]} / {steps[-1]} | Merit = {merit_value:.6e}')
-        
+
+        if log is not None:
+            marker.set_xdata([steps[step_idx]] * 2)
+
         fig.canvas.draw_idle()
-    
+
     slider.on_changed(update)
     plt.show()
+    return fig, slider
 
 
 def main():
@@ -222,6 +290,13 @@ def main():
         default='traj.out',
         help="Path to trajectory file (default: traj.out)"
     )
+    parser.add_argument(
+        '--log', '-l',
+        type=str,
+        default=None,
+        help="Path to the log file of the fit, to plot the distance and "
+             "max|g_i| against step (default: none)"
+    )
     args = parser.parse_args()
     
     # Parse trajectory
@@ -232,7 +307,12 @@ def main():
     
     steps, params_list = parse_trajectory_file(traj_path)
     print(f"Found {len(steps)} optimization steps")
-    
+
+    log = None
+    if args.log is not None:
+        print("Parsing log file...")
+        log = parse_log_file(Path(args.log))
+
     # Load configuration
     print("Loading configuration...")
     config_path = Path(args.config)
@@ -240,7 +320,7 @@ def main():
     
     # Create interactive plot
     print("Creating interactive plot...")
-    plot_trajectory(merit, embedder, steps, params_list)
+    plot_trajectory(merit, embedder, steps, params_list, log=log)
 
 
 if __name__ == "__main__":
