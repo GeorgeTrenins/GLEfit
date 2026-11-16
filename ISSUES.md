@@ -234,9 +234,6 @@ Reproduced at `4c95893` by running the code. `jacobian` and `sinc` were also che
 
 ### Open
 
-**UTL-5 · `setup_from_config` in `plot_objective.py` fails for every embedder but `multi`.**
-For an embedder without components, it turns off the mappers of `emb`, a name that only the loop over components binds, so `prony`, `pronycos` and `gen2x2` configs raise `UnboundLocalError`. A fix would set `embedder._mappers`.
-
 **UTL-6 · An empty trajectory raises `IndexError` in `plot_objective.py`.**
 `parse_trajectory_file` returns no steps for a file without a step header, such as the trajectory of a fit that stopped at step 0 (OPT-16), or a log passed as `--traj`, and `plot_trajectory` then reads the first step. A fix would raise `ValueError` that names the file.
 
@@ -263,3 +260,4 @@ A fix would add an option that calls `fig.savefig` for chosen steps, so that the
 
 - **UTL-1** · `refactor(utils): tidy WAM_discretization` · Its docstring documented `Lambda` as a callable and left out `omega`, `wmax` and `options`; `options`, which nothing passed, is removed.
 - **UTL-2** · `feat(utils): write target data from a model`, `feat(utils): write an initial guess from a model` · `utils/make_target.py` now writes the kernel or spectrum of a `glefit.spectral` model for a given ωₙ, and optionally an `embedder` section: the exact `prony` embedding of a Debye model, for ωₙ = 0 only, or a `multi` of `gen2x2` from `WAM_discretization` of Λₙ, with damping rates from the frequency spacing.
+- **UTL-5** · `fix(utils): build any embedder in plot_objective` · `setup_from_config` raised `UnboundLocalError` for every embedder but `multi`, because it turned off the mappers of `emb`, a name that only the loop over components binds.

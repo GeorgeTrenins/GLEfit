@@ -70,7 +70,7 @@ def setup_from_config(config_path: Path) -> tuple[BaseEmbedder, BaseProperty]:
         for emb in embedder._embs:
             emb._mappers = None
     else:
-        emb._mappers = None
+        embedder._mappers = None
     
     # Load data and create merit function
     datasets = handler.load_data()

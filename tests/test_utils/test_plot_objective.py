@@ -31,6 +31,23 @@ START = {"embedders": [
     {"type": "pronycos",
      "parameters": {"theta": 0.5, "gamma": 0.4, "omega": 1.5}}]}
 TARGET_PARAMS = [1.0, 0.8, 0.7, 0.5, 2.0]
+# embedder sections by type: START, and each type alone
+EMBEDDERS = {
+    "multi": {"type": "multi", "parameters": START},
+    "prony": START["embedders"][0],
+    "pronycos": START["embedders"][1],
+    "gen2x2": {"type": "gen2x2",
+               "parameters": {"theta": [1.0, 0.5], "gamma": 0.9,
+                              "delta": 0.9, "zeta": 1.5}},
+}
+# admissible conventional parameters that the default mappers reject:
+# negative rates and frequencies, and for gen2x2, ζ = 0 at δ = γ, so Ω = 0
+OUT_OF_BOUNDS = {
+    "multi": [1.0, -0.8, 0.7, -0.5, -2.0],
+    "prony": [1.0, -0.8],
+    "pronycos": [0.7, -0.5, -2.0],
+    "gen2x2": [1.0, 0.5, 0.9, 0.9, 0.0],
+}
 PROPERTIES = ["kernel", "spectrum"]
 GRIDS = {"kernel": np.linspace(0.0, 6.0, 13),
          "spectrum": np.linspace(0.0, 5.0, 11)}
@@ -42,19 +59,21 @@ RTOL, ATOL = 1e-10, 1e-12
 TITLE = re.compile(r"Step (\d+) / (\d+) \| Merit = (\S+)$")
 
 
-def closed_forms(prop, params):
-    """K or Λ on GRIDS[prop] of each term of START, at the conventional
-    parameters params of their sum."""
+def closed_forms(prop, params, sections=START["embedders"]):
+    """K or Λ on GRIDS[prop] of each embedder in sections, by default the
+    terms of START, at the conventional parameters params of their sum."""
     terms = [EMBEDDER_MAP[term["type"]].from_dict(term["parameters"])
-             for term in START["embedders"]]
+             for term in sections]
     ends = np.cumsum([term.nparam for term in terms])
     for term, p in zip(terms, np.split(np.asarray(params), ends[:-1])):
         term.conventional_params = p
     return [getattr(term, prop)(GRIDS[prop]) for term in terms]
 
 
-def write_config(path, prop, trajfile="traj.out"):
-    """Write the config of a fit of K or Λ from START to TARGET_PARAMS."""
+def write_config(path, prop, trajfile="traj.out",
+                 embedder=EMBEDDERS["multi"]):
+    """Write the config of a fit of an embedder section, by default
+    START, to K or Λ of START at TARGET_PARAMS."""
     grid = GRIDS[prop]
     target = sum(closed_forms(prop, TARGET_PARAMS))
     config = {
@@ -63,7 +82,7 @@ def write_config(path, prop, trajfile="traj.out"):
         "merit_function": {
             "type": prop,
             "parameters": {"data": prop, "metric": "squared"}},
-        "embedder": {"type": "multi", "parameters": START},
+        "embedder": embedder,
         "optimization": {
             "type": "EF",
             "parameters": {"trajfile": trajfile},
@@ -85,9 +104,9 @@ def fit(tmp_path, monkeypatch):
     directory, and returns the path of its config."""
     monkeypatch.chdir(tmp_path)
 
-    def run(prop, trajfile="traj.out"):
+    def run(prop, trajfile="traj.out", embedder=EMBEDDERS["multi"]):
         path = tmp_path / "config.json"
-        write_config(path, prop, trajfile)
+        write_config(path, prop, trajfile, embedder)
         optimize(argparse.Namespace(config=str(path)))
         return path
     return run
@@ -107,15 +126,27 @@ def curves(ax):
     return {line.get_label(): line.get_xydata() for line in ax.get_lines()}
 
 
-def test_setup_multi_accepts_out_of_bounds_values(tmp_path):
-    write_config(tmp_path / "config.json", "kernel")
+@pytest.mark.parametrize("name", OUT_OF_BOUNDS)
+def test_setup_accepts_out_of_bounds_values(tmp_path, name):
+    write_config(tmp_path / "config.json", "kernel",
+                 embedder=EMBEDDERS[name])
     embedder, _ = setup_from_config(tmp_path / "config.json")
-    # the default mappers reject negative rates and frequencies
-    params = [1.0, -0.8, 0.7, -0.5, -2.0]
 
-    embedder.conventional_params = params
+    embedder.conventional_params = OUT_OF_BOUNDS[name]
 
-    assert_allclose(embedder.conventional_params, params)
+    assert_allclose(embedder.conventional_params, OUT_OF_BOUNDS[name])
+
+
+@pytest.mark.parametrize("name", ["prony", "pronycos", "gen2x2"])
+def test_plot_single_total_is_closed_form(fit, name):
+    _, params, ax = plot(fit("kernel", embedder=EMBEDDERS[name]))
+
+    lines = curves(ax)
+    total, = closed_forms("kernel", params[0], [EMBEDDERS[name]])
+
+    # no components are drawn
+    assert set(lines) == {"Target", "Total"}
+    assert_allclose(lines["Total"][:, 1], total, rtol=RTOL, atol=ATOL)
 
 
 @pytest.mark.parametrize("prop", PROPERTIES)
