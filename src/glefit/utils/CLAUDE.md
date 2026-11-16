@@ -64,7 +64,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_utils
 ```
 
-`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `bath.py` has no tests.
+`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `test_bath.py` compares `WAM_discretization` with the closed form for a Debye spectrum, on a grid from 0 and on one from 0.5 (UTL-3), with `wmax` inside and beyond the grid. On 4001 points, the weight agrees to 1e-12 and the frequencies to 1e-11, which is the bisection's `xtol`.
 
 New or changed code should have tests that:
 
