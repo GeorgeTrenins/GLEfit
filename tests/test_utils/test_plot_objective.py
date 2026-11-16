@@ -73,7 +73,7 @@ def closed_forms(prop, params, sections=START["embedders"]):
 def write_config(path, prop, trajfile="traj.out",
                  embedder=EMBEDDERS["multi"]):
     """Write the config of a fit of an embedder section, by default
-    START, to K or Λ of START at TARGET_PARAMS."""
+    START, to K or Λ of START at TARGET_PARAMS, which logs to log.out."""
     grid = GRIDS[prop]
     target = sum(closed_forms(prop, TARGET_PARAMS))
     config = {
@@ -85,7 +85,7 @@ def write_config(path, prop, trajfile="traj.out",
         "embedder": embedder,
         "optimization": {
             "type": "EF",
-            "parameters": {"trajfile": trajfile},
+            "parameters": {"trajfile": trajfile, "logfile": "log.out"},
             "options": {"max_iter": MAX_ITER, "gtol": GTOL}}}
     path.write_text(json.dumps(config))
 
@@ -124,6 +124,22 @@ def plot(config):
 def curves(ax):
     """The points (x, y) of each line in ax, by label, shape (n, 2)."""
     return {line.get_label(): line.get_xydata() for line in ax.get_lines()}
+
+
+def test_parse_rejects_empty_file(tmp_path):
+    # as left by a fit that stops before it writes step 0
+    path = tmp_path / "traj.out"
+    path.touch()
+
+    with pytest.raises(ValueError, match=re.escape(str(path))):
+        parse_trajectory_file(path)
+
+
+def test_parse_rejects_log_file(fit):
+    fit("kernel")
+
+    with pytest.raises(ValueError, match="log.out"):
+        parse_trajectory_file("log.out")
 
 
 @pytest.mark.parametrize("name", OUT_OF_BOUNDS)

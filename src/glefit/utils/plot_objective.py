@@ -23,6 +23,10 @@ def parse_trajectory_file(filepath: Path) -> tuple[list[int], list[np.ndarray]]:
     
     Returns:
         Tuple of (step_numbers, parameter_arrays)
+
+    Raises:
+        ValueError: if the file has no step, as when the fit stopped
+            before it wrote step 0, or the file is not a trajectory.
     """
     steps = []
     params = []
@@ -51,7 +55,9 @@ def parse_trajectory_file(filepath: Path) -> tuple[list[int], list[np.ndarray]]:
             param_array = np.fromstring(array_str, sep=',')
             params.append(param_array)
         i += 1
-    
+
+    if not steps:
+        raise ValueError(f"no steps in the trajectory file {filepath}")
     return steps, params
 
 
