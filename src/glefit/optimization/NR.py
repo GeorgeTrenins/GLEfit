@@ -11,7 +11,6 @@
 from __future__ import print_function, division, absolute_import
 from ._base import Optimizer, MAX_ITERATIONS_DEFAULT, _format
 from typing import Optional
-from glefit.utils.linalg import mat_inv_vec
 import numpy as np
 import numpy.typing as npt
 import time
@@ -116,7 +115,7 @@ class NewtonRaphson(Optimizer):
         Returns:
             Step vector of shape (p,) where p = number of parameters
         """
-        h = -mat_inv_vec(self._hess, self._grad) 
+        h = -np.linalg.solve(self._hess, self._grad)
         h = self.rescale_step(h)
         return h
     

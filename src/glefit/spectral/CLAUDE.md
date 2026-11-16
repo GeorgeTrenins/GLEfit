@@ -20,7 +20,7 @@ Jₙ(ω) = J(√(ω² − ωₙ²)) for |ω| > ωₙ, and 0 otherwise
 Kₙ(t) = (2/π) ∫_ωₙ^∞ Λₙ(ω) cos(ωt) dω
 ```
 
-At ωₙ = 0 they reduce to J, Λ and K. For a free ring polymer with P beads at inverse temperature β, `glefit.utils.rp.nmfreq(beta, P, n)` gives the frequency of normal mode n, ωₙ = 2(P/βħ)|sin(πn/P)|.
+At ωₙ = 0 they reduce to J, Λ and K. For a free ring polymer with P beads at inverse temperature β, normal mode n has the frequency ωₙ = 2(P/βħ)|sin(πn/P)|.
 
 ## Contents
 

@@ -1,10 +1,10 @@
 # CLAUDE.md: `glefit.utils`
 
-This module holds numerical helpers for the rest of GLEFit: finite differences, special functions, linear solves, bath discretization, ring-polymer frequencies and unit conversion. Its open issues and accepted limits are in `ISSUES.md` at the repository root, as `UTL-n`.
+This module holds numerical helpers for the rest of GLEFit: finite differences, special functions and bath discretization. Its open issues and accepted limits are in `ISSUES.md` at the repository root, as `UTL-n`.
 
 ## Background
 
-GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme, and each one depends only on NumPy, SciPy or SymPy.
+GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) of a generalized Langevin equation, or its cosine transform, the spectrum Λ(ω). The spectral density is J(ω) = ω Λ(ω). The files here have no common theme, and each one depends only on NumPy or SciPy.
 
 ## Contents
 
@@ -12,10 +12,7 @@ GLEFit fits a Markovian embedding so that it reproduces the memory kernel K(t) o
 | --- | --- | --- |
 | `numderiv.py` | `jacobian`: central finite differences | Fitting Hessian in `glefit.merit` |
 | `special.py` | `sinc` | `gen2x2` embedder |
-| `linalg.py` | `mat_inv_vec` (`np.linalg.solve`), `symmat_inv_vec` (Cholesky) | NR step. `symmat_inv_vec` is unused |
 | `bath.py` | `WAM_discretization`: initial guesses from Λ | Tutorial notebook |
-| `rp.py` | `nmfreq`: ring-polymer normal-mode frequencies | Unused. Gives ωₙ for the `nm` methods in `glefit.spectral` |
-| `units.py` | Unit systems built on `sympy.physics.units` | Unused |
 
 `__init__.py` is empty, so import from the submodules.
 
@@ -49,11 +46,6 @@ It does not check that the grid starts at 0 (UTL-3) or that Λ ≥ 0 (UTL-4).
 
 The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, gamma)`. For a Debye spectrum with 5 modes, the weight matched the exact value to 1e-13 and the frequencies to 4e-12.
 
-## `rp.py` and `units.py`
-
-- `nmfreq(beta, P, n, hbar=1.0)` returns 2(P/βħ)|sin(πn/P)|, the frequency of normal mode n of a free ring polymer with P beads.
-- `units.py` defines unit systems as classes: `SI`, `atomic`, `hartAng`, `kcalAfs`, `kcalAamu`, `eVAamu` and `cmbohramu`. Each gives constants (`hbar`, `kb`, `e`, `amu`, `me`, `c`), the SI size of its units through attributes such as `.energy` and `.time`, string parsing such as `str2base("1 fs")`, and wavenumber conversions. For example, the `eVAamu` time unit is 10.18 fs, and `atomic().wn2energy(1.0)` gives 4.556e-6. Importing it registers new quantities, such as `angstrom` and `hartree`, in SymPy's global SI system.
-
 ## Conventions
 
 - **Style:** start each file with the `@File`/`@Time`/`@Author`/`@Desc` header, then `from __future__ import print_function, division, absolute_import`.
@@ -72,7 +64,7 @@ The tutorial passes the result to `TwoAuxEmbedder.from_harmonic(weight, omega, g
 PYTHONPATH=src conda run -n tools python -m pytest tests/test_utils
 ```
 
-`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `bath.py`, `linalg.py`, `rp.py` and `units.py` have no tests.
+`test_special.py` tests `sinc` against SymPy. `test_numderiv.py` tests that `jacobian` is exact for polynomials, its default step through the known truncation error for sin(ωx), and its input checks. `bath.py` has no tests.
 
 New or changed code should have tests that:
 
