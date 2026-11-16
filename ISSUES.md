@@ -201,11 +201,7 @@ Reproduced at `4c95893` by running the code.
 
 ### Open
 
-**SPC-2 · open · The sign of J at negative ω differs between models.**
-`Debye.J` is odd, and `ExpOhmic.J` is even because it uses |ω|. `nmJ` is even for ωₙ > 0 but returns `J` at ωₙ = 0, so for `Debye(0.7, 2.5)`, `nmJ(0, -2)` gives −0.85 and `nmJ(1e-12, -2)` gives +0.85. Λ and K are not affected. Agreed fix: remove `J` and `nmJ`. Targets need only Λ and K, and Λₙ(ω) = θ(x)√x Λ(ω√x), with x = 1 − ωₙ²/ω², needs only Λ.
-
-**SPC-5 · open · Outdated text in the code.**
-The `ExpOhmic` docstring gives K(t) = 2ηωc/π · (1 + ωc²t²), but the code correctly divides by (1 + ωc²t²). The `BaseSpectralDensity` docstring says Λ = J/ω, which is false for `ExpOhmic` at ω < 0. `nmJ`, `nmLambda` and `nmK` have no docstrings.
+None.
 
 ### Accepted
 
@@ -230,6 +226,8 @@ It integrates numerically, once per time point, so 201 time points take about 0.
 - **SPC-1** · `fix(spectral): keep integer frequencies from truncating` · For ωₙ > 0, `nmJ` and `nmLambda` truncated their values to integers for integer ω, so `ExpOhmic(0.7, 2.5).nmLambda(1.0, np.array([0, 2, 3]))` gave `[0, 0, 0]`.
 - **SPC-3** · `fix(spectral): check the inputs of the models` · Constructors ignored extra arguments, such as a misspelled keyword, and accepted any `eta` and `omega_cut`; they now raise `TypeError` for extra arguments and `ValueError` unless η ≥ 0 and ωc > 0, which also rejects NaN.
 - **SPC-4** · `fix(spectral): check the inputs of the models` · ωₙ had to be a Python `int` or `float`, so `np.float32` and `np.int64` raised `TypeError`, and NaN passed; any real number ωₙ ≥ 0 is now accepted, and the error says "non-negative".
+- **SPC-2** · `refactor(spectral): keep only Λ and K` · `Debye.J` was odd and `ExpOhmic.J` even, and `nmJ` switched between them at ωₙ = 0; `J` and `nmJ` are removed, since targets need only Λ and K, and `nmLambda` now computes θ(x)√x Λ(ω√x) from Λ.
+- **SPC-5** · `refactor(spectral): keep only Λ and K` · The `ExpOhmic` docstring gave K(t) = 2ηωc/π · (1 + ωc²t²), the `BaseSpectralDensity` docstring said Λ = J/ω, and `nmLambda` and `nmK` had no docstrings.
 
 ## `glefit.utils`
 

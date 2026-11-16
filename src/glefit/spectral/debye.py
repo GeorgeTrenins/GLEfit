@@ -17,10 +17,10 @@ from typing import Union
 class Debye(BaseSpectralDensity):
 
     def __init__(self, eta: float, omega_cut: float) -> None:
-        """Debye spectral density
+        """Debye spectral density, with
 
-        J(ω) = η * ω * ωc^2 / (ωc^2 + ω^2)
-        K(t) = η * ωc * exp(-ωc*t)
+        Λ(ω) = η ωc² / (ω² + ωc²)
+        K(t) = η ωc exp(-ωc|t|)
 
         Args:
             eta (float): static friction
@@ -33,15 +33,10 @@ class Debye(BaseSpectralDensity):
         self.eta = eta
         self.omega_cut = omega_cut
 
-    def J(self, omega: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """Spectral density at frequency omega.
-        """
-        return self.eta * self.omega_cut**2 * omega / (
-            omega**2 + self.omega_cut**2
-        )
-    
-    def Lambda(self, omega: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """Spectral density at frequency omega, divided by omega.
+    def Lambda(
+            self, omega: Union[float, np.ndarray]
+    ) -> Union[float, np.ndarray]:
+        """Spectrum, the cosine transform of K, at frequency omega.
         """
         return self.eta * self.omega_cut**2 / (
             omega**2 + self.omega_cut**2

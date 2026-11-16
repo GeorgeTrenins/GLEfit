@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 import numbers
 import numpy as np
+from scipy.integrate import quad
 
 
 def check_parameters(eta: float, omega_cut: float) -> None:
@@ -26,7 +27,8 @@ def check_parameters(eta: float, omega_cut: float) -> None:
 def check_nm_omega(func):
     """Make func raise TypeError unless the normal-mode frequency is a real
     number, such as np.float32 or np.int64, and ValueError unless it is
-    non-negative, so also for NaN."""
+    non-negative, so also for NaN. func receives it as a Python float, so
+    that its arithmetic is in double precision."""
     @wraps(func)
     def wrapper(self, nm_omega: float, *args, **kwargs):
         if not isinstance(nm_omega, numbers.Real):
@@ -37,92 +39,88 @@ def check_nm_omega(func):
             raise ValueError(
                 f"The normal-mode frequency must be non-negative, "
                 f"got {nm_omega}")
-        return func(self, nm_omega, *args, **kwargs)
+        return func(self, float(nm_omega), *args, **kwargs)
     return wrapper
 
 
 class BaseSpectralDensity(ABC):
-    """Base class for calculating model spectral densities. Defines the 
-    following methods:
+    """Base class for models of a memory kernel K(t) and its cosine
+    transform, the spectrum
 
-        * J(omega): spectral density
-        * Lambda(omega): spectrum, Lambda = J/omega
-        * K(t): memory-friction kernel
-        
+        Λ(ω) = ∫₀^∞ K(t) cos(ωt) dt.
+
+    Subclasses implement Lambda and K in closed form, both even. The nm
+    methods transform them for a normal mode of frequency ωₙ ≥ 0.
     """
 
     @abstractmethod
-    def J(self, omega):
-        raise NotImplementedError
-    
-    @abstractmethod
     def Lambda(self, omega):
         raise NotImplementedError
-    
+
     @abstractmethod
     def K(self, t):
         raise NotImplementedError
-        
-    @check_nm_omega
-    def nmJ(self, nm_omega, omega):
-        if nm_omega == 0:
-            return self.J(omega)
-        else:
-            w = np.abs(omega)
-            diff = w - nm_omega
-            diff2 = diff * (w + nm_omega) # ω² - ωn²
-            mask = diff > 0
-            ans = np.zeros_like(omega, dtype=float)
-            ans[mask] = self.J(np.sqrt(diff2[mask]))
-            return ans
-        
+
     @check_nm_omega
     def nmLambda(self, nm_omega, omega):
+        """Return the spectrum for a normal mode of frequency ωₙ,
+
+            Λₙ(ω) = θ(x) √x Λ(ω√x),  where x = 1 − ωₙ²/ω²
+
+        and θ is the Heaviside step function, so Λₙ = 0 for |ω| ≤ ωₙ.
+
+        Args:
+            nm_omega (float): ωₙ ≥ 0
+            omega (float or ndarray): frequencies
+
+        Returns:
+            Λ(omega) for ωₙ = 0, else a float array of the shape of omega
+        """
         if nm_omega == 0:
             return self.Lambda(omega)
-        else:
-            w = np.abs(omega)
-            diff = w - nm_omega
-            diff2 = diff * (w + nm_omega) # ω² - ωn²
-            mask = diff > 0
-            ans = np.zeros_like(omega, dtype=float)
-            ans[mask] = self.J(np.sqrt(diff2[mask])) / w[mask]
-            return ans
-        
+        w = np.abs(omega)
+        diff = w - nm_omega
+        mask = diff > 0
+        # u = |ω|√x, as a product that stays accurate near ωₙ
+        u = np.sqrt(diff[mask] * (w[mask] + nm_omega))
+        ans = np.zeros_like(omega, dtype=float)
+        ans[mask] = u / w[mask] * self.Lambda(u)
+        return ans
+
     @check_nm_omega
     def nmK(self, nm_omega, t, **kwargs):
-        from scipy.integrate import quad
-        def f(w):
-            w = np.abs(w)
-            diff = w - nm_omega
-            if isinstance(w, (int, float)):
-                if diff <= 0.0:
-                    ans = 0.0
-                else:
-                    x = np.sqrt(diff * (w + nm_omega))
-                    ans = (2.0/np.pi) * self.Lambda(x) * x/w
-            else:
-                ans = np.zeros_like(w)
-                mask = diff > 0
-                x = np.sqrt(diff[mask] * (w[mask] + nm_omega))
-                ans[mask] = (2.0/np.pi) * self.Lambda(x) * x/w[mask]
-            return ans
+        """Return the memory kernel for a normal mode of frequency ωₙ,
 
-        def K_scalar(ti):
-            # Special case t = 0: use non-oscillatory integral 
-            if ti == 0.0:
-                val, err = quad(f, nm_omega, np.inf, **kwargs)
-            else:
-                val, err = quad(f, nm_omega, np.inf,
-                                weight='cos', wvar=ti,
-                                **kwargs)
-            return val
+            Kₙ(t) = (2/π) ∫ Λₙ(ω) cos(ωt) dω, from ωₙ to ∞,
+
+        with scipy.integrate.quad at each t, using the Fourier weight for
+        t ≠ 0.
+
+        Args:
+            nm_omega (float): ωₙ ≥ 0
+            t (float or ndarray): times
+            **kwargs: passed to quad, such as epsabs
+
+        Returns:
+            float for a Python scalar t, else a float array of the shape
+                of np.atleast_1d(t)
+        """
+        def integrand(w):
+            # (2/π) Λₙ(w) for the floats w ≥ ωₙ that quad passes
+            diff = w - nm_omega
+            if diff <= 0.0:
+                return 0.0
+            x = np.sqrt(diff * (w + nm_omega))
+            return (2.0/np.pi) * self.Lambda(x) * x/w
 
         t_arr = np.atleast_1d(t).astype(float)
         out = np.empty_like(t_arr)
-
         for i, ti in enumerate(t_arr):
-            out[i] = K_scalar(ti)
-
+            if ti == 0.0:
+                # the integrand does not oscillate
+                out[i] = quad(integrand, nm_omega, np.inf, **kwargs)[0]
+            else:
+                out[i] = quad(integrand, nm_omega, np.inf,
+                              weight='cos', wvar=ti, **kwargs)[0]
         return out[0] if np.isscalar(t) else out
             

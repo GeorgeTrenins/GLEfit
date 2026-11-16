@@ -17,10 +17,10 @@ from typing import Union
 class ExpOhmic(BaseSpectralDensity):
 
     def __init__(self, eta: float, omega_cut: float) -> None:
-        """Exponentially damped Ohmic spectral density
+        """Exponentially damped Ohmic spectral density, with
 
-        J(ω) = η * ω * exp(-ω/ωc)
-        K(t) = 2 * η * ωc / π * (1 + ωc²t²)
+        Λ(ω) = η exp(-|ω|/ωc)
+        K(t) = 2 η ωc / (π (1 + ωc²t²))
 
         Args:
             eta (float): static friction
@@ -33,13 +33,10 @@ class ExpOhmic(BaseSpectralDensity):
         self.eta = eta
         self.omega_cut = omega_cut
 
-    def J(self, omega: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """Spectral density at frequency omega.
-        """
-        return self.eta * np.abs(omega) * np.exp(-np.abs(omega)/self.omega_cut)
-    
-    def Lambda(self, omega: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """Spectral density at frequency omega, divided by omega.
+    def Lambda(
+            self, omega: Union[float, np.ndarray]
+    ) -> Union[float, np.ndarray]:
+        """Spectrum, the cosine transform of K, at frequency omega.
         """
         return self.eta * np.exp(-np.abs(omega)/self.omega_cut)
     
