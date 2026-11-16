@@ -201,9 +201,6 @@ Reproduced at `4c95893` by running the code.
 
 ### Open
 
-**SPC-1 · open · Integer frequency arrays give zeros.**
-For ωₙ > 0, `nmJ` and `nmLambda` create their output with `np.zeros_like(omega)`, so `ExpOhmic(0.7, 2.5).nmLambda(1.0, np.array([0, 2, 3]))` returns `[0, 0, 0]`. Agreed fix: create it with `np.zeros(np.shape(omega))`.
-
 **SPC-2 · open · The sign of J at negative ω differs between models.**
 `Debye.J` is odd, and `ExpOhmic.J` is even because it uses |ω|. `nmJ` is even for ωₙ > 0 but returns `J` at ωₙ = 0, so for `Debye(0.7, 2.5)`, `nmJ(0, -2)` gives −0.85 and `nmJ(1e-12, -2)` gives +0.85. Λ and K are not affected. Agreed fix: remove `J` and `nmJ`. Targets need only Λ and K, and Λₙ(ω) = θ(x)√x Λ(ω√x), with x = 1 − ωₙ²/ω², needs only Λ.
 
@@ -233,6 +230,10 @@ It integrates numerically, once per time point, so 201 time points take about 0.
 ### Tracked in other modules
 
 - No code writes model kernels or spectra to target files (UTL-2), and a model cannot be a config target (CFG-7).
+
+### Resolved
+
+- **SPC-1** · `fix(spectral): keep integer frequencies from truncating` · For ωₙ > 0, `nmJ` and `nmLambda` truncated their values to integers for integer ω, so `ExpOhmic(0.7, 2.5).nmLambda(1.0, np.array([0, 2, 3]))` gave `[0, 0, 0]`.
 
 ## `glefit.utils`
 

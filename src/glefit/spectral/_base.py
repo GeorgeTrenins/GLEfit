@@ -60,7 +60,7 @@ class BaseSpectralDensity(ABC):
             diff = w - nm_omega
             diff2 = diff * (w + nm_omega) # ω² - ωn²
             mask = diff > 0
-            ans = np.zeros_like(omega)
+            ans = np.zeros_like(omega, dtype=float)
             ans[mask] = self.J(np.sqrt(diff2[mask]))
             return ans
         
@@ -73,7 +73,7 @@ class BaseSpectralDensity(ABC):
             diff = w - nm_omega
             diff2 = diff * (w + nm_omega) # ω² - ωn²
             mask = diff > 0
-            ans = np.zeros_like(omega)
+            ans = np.zeros_like(omega, dtype=float)
             ans[mask] = self.J(np.sqrt(diff2[mask])) / w[mask]
             return ans
         

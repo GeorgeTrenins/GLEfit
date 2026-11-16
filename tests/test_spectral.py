@@ -90,6 +90,19 @@ def test_nm_lambda_matches_the_transformed_spectrum(model, expected):
     assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
 
 
+# as above, at ωₙ = 1 and ω = 0, 2, 3
+@pytest.mark.parametrize("model, expected", [
+    (Debye, [0.0, 0.4096066098980453, 0.2894589162751949]),
+    (ExpOhmic, [0.0, 0.3032079809420304, 0.2128990196866008]),
+], ids=MODEL_IDS)
+def test_nm_lambda_accepts_integer_frequencies(model, expected):
+    omega = np.array([0, 2, 3])
+
+    actual = model(ETA, OMEGA_CUT).nmLambda(1.0, omega)
+
+    assert_allclose(actual, expected, rtol=RTOL, atol=0.0)
+
+
 # (2/π) ∫₀^∞ Λ(u) u²/(u² + ωₙ²) cos(t√(u² + ωₙ²)) du, with mpmath at
 # 30 digits; at t = 0, the Debye value is η ωc²/(ωc + ωₙ)
 @pytest.mark.parametrize("model, expected", [
