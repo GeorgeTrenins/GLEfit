@@ -159,7 +159,9 @@ def test_from_config_rejects_an_unknown_type(
         section, known, bad, tmp_path, monkeypatch):
     config = copy.deepcopy(CONFIG)
     config[section]["type"] = bad
-    handler = ConfigHandler.from_dict(config)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+    handler = ConfigHandler(path)
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(ConfigError, match=re.escape(

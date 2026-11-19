@@ -30,22 +30,29 @@ CONFIG = {
 }
 
 
+def handler_for(config, folder):
+    """A handler that reads config from a JSON file in folder."""
+    path = folder / "config.json"
+    path.write_text(json.dumps(config))
+    return ConfigHandler(path)
+
+
 def without(path):
-    """A handler for CONFIG without the key at path."""
+    """A copy of CONFIG without the key at path."""
     config = copy.deepcopy(CONFIG)
     *parents, key = path
     section = config
     for parent in parents:
         section = section[parent]
     del section[key]
-    return ConfigHandler.from_dict(config)
+    return config
 
 
 def with_options(options):
-    """A handler for CONFIG with the given optimization options."""
+    """A copy of CONFIG with the given optimization options."""
     config = copy.deepcopy(CONFIG)
     config["optimization"]["options"] = options
-    return ConfigHandler.from_dict(config)
+    return config
 
 
 def replaced(section, value):
@@ -88,8 +95,8 @@ def csv_dataset(file, text, **entries):
             **entries}
 
 
-def test_validate_accepts_a_complete_config():
-    handler = ConfigHandler.from_dict(CONFIG)
+def test_validate_accepts_a_complete_config(tmp_path):
+    handler = handler_for(CONFIG, tmp_path)
 
     handler.validate()
 
@@ -114,15 +121,15 @@ REQUIRED = [
 
 @pytest.mark.parametrize("path, name", REQUIRED,
                          ids=[".".join(path) for path, _ in REQUIRED])
-def test_validate_requires_key(path, name):
-    handler = without(path)
+def test_validate_requires_key(path, name, tmp_path):
+    handler = handler_for(without(path), tmp_path)
 
     with pytest.raises(ConfigError, match=re.escape(name)):
         handler.validate()
 
 
-def test_validate_requires_options_to_be_a_dictionary():
-    handler = with_options(None)
+def test_validate_requires_options_to_be_a_dictionary(tmp_path):
+    handler = handler_for(with_options(None), tmp_path)
 
     with pytest.raises(ConfigError, match="optimization.options"):
         handler.validate()
@@ -130,24 +137,24 @@ def test_validate_requires_options_to_be_a_dictionary():
 
 @pytest.mark.parametrize("max_iter", ["5", 2.5, -1, True, None],
                          ids=["str", "float", "negative", "bool", "none"])
-def test_validate_rejects_bad_max_iter(max_iter):
-    handler = with_options({"max_iter": max_iter})
+def test_validate_rejects_bad_max_iter(max_iter, tmp_path):
+    handler = handler_for(with_options({"max_iter": max_iter}), tmp_path)
 
     with pytest.raises(ConfigError, match="max_iter"):
         handler.validate()
 
 
 @pytest.mark.parametrize("max_iter", [0, 5])
-def test_validate_accepts_a_non_negative_max_iter(max_iter):
-    handler = with_options({"max_iter": max_iter})
+def test_validate_accepts_a_non_negative_max_iter(max_iter, tmp_path):
+    handler = handler_for(with_options({"max_iter": max_iter}), tmp_path)
 
     handler.validate()
 
 
 @pytest.mark.parametrize(
     "section", ["data", "merit_function", "embedder", "optimization"])
-def test_validate_requires_section_to_be_a_dict(section):
-    handler = ConfigHandler.from_dict(replaced(section, None))
+def test_validate_requires_section_to_be_a_dict(section, tmp_path):
+    handler = handler_for(replaced(section, None), tmp_path)
 
     with pytest.raises(ConfigError, match=section):
         handler.validate()
@@ -158,8 +165,8 @@ def test_validate_requires_section_to_be_a_dict(section):
     (["kernel"], "data"),
     ({"kernel": [1.0, 0.25]}, "kernel"),
 ], ids=["empty", "list", "list dataset"])
-def test_validate_rejects_bad_data(data, name):
-    handler = ConfigHandler.from_dict(replaced("data", data))
+def test_validate_rejects_bad_data(data, name, tmp_path):
+    handler = handler_for(replaced("data", data), tmp_path)
 
     with pytest.raises(ConfigError, match=name):
         handler.validate()
@@ -289,32 +296,20 @@ def test_absolute_path_is_kept_as_written(tmp_path):
     assert handler.config["data"]["kernel"]["path"] == written
 
 
-def test_from_dict_reads_relative_path_from_cwd(tmp_path, monkeypatch):
-    dataset = csv_dataset(tmp_path / "target.csv", CSV_TEXT,
-                          path="target.csv")
-    monkeypatch.chdir(tmp_path)
-    handler = ConfigHandler.from_dict(replaced("data", {"kernel": dataset}))
-
-    grid, target = handler.load_data()["kernel"]
-
-    assert_array_equal(grid, GRID, strict=True)
-    assert_array_equal(target, TARGET, strict=True)
-
-
-def test_handler_loads_every_dataset():
+def test_handler_loads_every_dataset(tmp_path):
     unused = {"source": "inline", "grid": [0.0], "target": [3.0]}
-    handler = ConfigHandler.from_dict(
-        replaced("data", {**CONFIG["data"], "unused": unused}))
+    handler = handler_for(
+        replaced("data", {**CONFIG["data"], "unused": unused}), tmp_path)
 
     datasets = handler.load_data()
 
     assert sorted(datasets) == ["kernel", "unused"]
 
 
-def test_handler_names_the_dataset_that_fails():
+def test_handler_names_the_dataset_that_fails(tmp_path):
     broken = {"source": "inline", "grid": [0.0, 1.0], "target": [1.0]}
-    handler = ConfigHandler.from_dict(
-        replaced("data", {**CONFIG["data"], "broken": broken}))
+    handler = handler_for(
+        replaced("data", {**CONFIG["data"], "broken": broken}), tmp_path)
 
     with pytest.raises(ConfigError, match="'broken'"):
         handler.load_data()
@@ -325,8 +320,8 @@ def test_handler_names_the_dataset_that_fails():
     ("get_embedder_config", "embedder"),
     ("get_optimization_config", "optimization"),
 ], ids=["merit_function", "embedder", "optimization"])
-def test_get_config_returns_a_deep_copy(getter, section):
-    handler = ConfigHandler.from_dict(CONFIG)
+def test_get_config_returns_a_deep_copy(getter, section, tmp_path):
+    handler = handler_for(CONFIG, tmp_path)
     first = getattr(handler, getter)()
 
     first["parameters"].clear()

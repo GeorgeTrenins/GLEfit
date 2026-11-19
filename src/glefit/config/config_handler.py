@@ -10,7 +10,7 @@
 
 from __future__ import print_function, division, absolute_import
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Union
 import logging
 import json
 import copy
@@ -224,31 +224,3 @@ class ConfigHandler:
             Optimization configuration dictionary
         """
         return copy.deepcopy(self.config['optimization'])
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary (for serialization).
-        
-        Returns:
-            Configuration as dictionary
-        """
-        return copy.deepcopy(self.config)
-
-    @staticmethod
-    def from_dict(config_dict: Dict[str, Any], config_path: Optional[Path] = None) -> 'ConfigHandler':
-        """Create a ConfigHandler from a dictionary, without reading a file.
-
-        Paths are kept as given, so relative ones are relative to the
-        working directory.
-
-        Args:
-            config_dict: Configuration dictionary, copied
-            config_path: stored as `config_path`, but not used to resolve
-                paths
-
-        Returns:
-            ConfigHandler instance
-        """
-        handler = ConfigHandler.__new__(ConfigHandler)
-        handler.config = copy.deepcopy(config_dict)
-        handler.config_path = Path(config_path).resolve() if config_path else None
-        return handler
