@@ -247,6 +247,9 @@ It forms C(ω) = ∫ Λ from `omega[0]` to ω, so the grid must start at 0 to di
 **UTL-4 · accepted · `WAM_discretization` assumes Λ ≥ 0.**
 Where Λ is negative, C(ω) is not monotonic, and the frequencies are meaningless.
 
+**UTL-11 · accepted · The `wam` grid of `make_target.py` is for Λₙ only.**
+It is a frequency grid, so `property: kernel` with it raises `ConfigError`. No non-uniform time grid exists for Kₙ.
+
 ### Deferred features
 
 **UTL-8 · deferred · `plot_objective.py` cannot save a figure without the interactive window.**
@@ -259,3 +262,4 @@ A fix would add an option that calls `fig.savefig` for chosen steps, so that the
 - **UTL-5** · `fix(utils): build any embedder in plot_objective` · `setup_from_config` raised `UnboundLocalError` for every embedder but `multi`, because it turned off the mappers of `emb`, a name that only the loop over components binds.
 - **UTL-6** · `fix(utils): reject an empty trajectory` · A file without a step header, such as the trajectory of a fit that stopped at step 0 (OPT-16), or a log passed as `--traj`, raised `IndexError` in `plot_trajectory`; `parse_trajectory_file` now raises `ValueError` that names the file.
 - **UTL-9** · `feat(utils): plot the distance and gradient against step` · With `--log`, `plot_objective.py` now plots the distance and max|gᵢ| that the log holds against step, below the curves, with a line at the step the slider selects.
+- **UTL-10** · `feat(utils): build a non-uniform frequency grid`, `feat(utils): read a wam grid in make_target` · With `grid: {wam: ...}`, `make_target.py` writes Λₙ on a grid that holds the WAM frequencies of Λₙ, a pad below ωₙ at the smallest WAM spacing, and no gap wider than `max_step`, so that narrow components of a `multi` fit are resolved at ωₙ > 0.

@@ -35,6 +35,9 @@ GUESS_KEYS = {
     "exact": {"type", "output"},
     "wam": {"type", "nbath", "grid", "wmax", "output"},
 }
+# grid.wam: its keys, and the default of the only optional key
+WAM_GRID_KEYS = {"wmin", "wmax", "nbath", "pad_omega", "max_step", "npts"}
+WAM_GRID_NPTS = 4001
 
 
 def debye_embedding(model) -> dict:
@@ -170,6 +173,56 @@ def nonuniform_grid(
     return np.concatenate(pieces)
 
 
+def read_wam_grid(
+    section, model: BaseSpectralDensity, nm_omega
+) -> npt.NDArray[np.floating]:
+    """The grid of nonuniform_grid that the `grid.wam` section defines, at
+    the nbath WAM frequencies of Λₙ, sampled at npts points from wmin to
+    wmax.
+
+    Raises:
+        ConfigError: if a key is unknown, missing or malformed, or
+            wmax ≤ ωₙ
+        TypeError, ValueError: if ωₙ is not a real number ≥ 0, from
+            nmLambda
+    """
+    if not isinstance(section, dict):
+        raise ConfigError(
+            f"grid.wam must be a dictionary, got {section!r}")
+    unknown = set(section) - WAM_GRID_KEYS
+    if unknown:
+        raise ConfigError(
+            f"unknown keys {sorted(unknown)} in grid.wam; "
+            f"its keys are {sorted(WAM_GRID_KEYS)}")
+    missing = WAM_GRID_KEYS - {"npts"} - set(section)
+    if missing:
+        raise ConfigError(f"missing keys {sorted(missing)} in grid.wam")
+    values = {"npts": WAM_GRID_NPTS, **section}
+    for key, value in values.items():
+        integer = key in ("nbath", "npts")
+        if isinstance(value, bool) or \
+                not isinstance(value, int if integer else numbers.Real):
+            kind = "an integer" if integer else "a real number"
+            raise ConfigError(
+                f"grid.wam.{key} must be {kind}, got {value!r}")
+    wmin, wmax, nbath, npts = (
+        values[k] for k in ("wmin", "wmax", "nbath", "npts"))
+    pad_omega, max_step = values["pad_omega"], values["max_step"]
+    if not (0 <= wmin < wmax < np.inf and nbath >= 2 and npts >= 2
+            and pad_omega >= 0 and max_step > 0):
+        raise ConfigError(
+            "grid.wam needs 0 ≤ wmin < wmax < ∞, nbath ≥ 2, npts ≥ 2, "
+            f"pad_omega ≥ 0 and max_step > 0, got {section!r}")
+    fine = np.linspace(wmin, wmax, npts)
+    spectrum = model.nmLambda(nm_omega, fine)
+    if not nm_omega < wmax:
+        raise ConfigError(
+            f"grid.wam needs wmax > nm_omega, got wmax = {wmax!r} and "
+            f"nm_omega = {nm_omega!r}")
+    freqs = WAM_discretization(fine, spectrum, nbath)[1]
+    return nonuniform_grid(freqs, wmin, wmax, nm_omega, pad_omega, max_step)
+
+
 def wam_embedding(
     section: dict, model: BaseSpectralDensity, nm_omega, config_dir: Path
 ) -> dict:
@@ -249,6 +302,13 @@ def main(args: argparse.Namespace) -> None:
         grid:                          # required, one of
           linspace: [0.0, 40.0, 4001]  #   passed to np.linspace
           path: grid.csv               #   one column, relative to the config
+          wam:                         #   spectrum only, see read_wam_grid
+            wmin: 0.0                  #     first point
+            wmax: 40.0                 #     last point, above nm_omega
+            nbath: 20                  #     WAM frequencies, at least 2
+            pad_omega: 1.0             #     width of the pad below nm_omega
+            max_step: 0.5              #     largest spacing
+            npts: 4001                 #     optional: samples of Λₙ for WAM
         output: target.csv             # optional, default target.csv,
                                        # relative to the working directory
         initial_guess:                 # optional
@@ -287,8 +347,15 @@ def main(args: argparse.Namespace) -> None:
             f"the known properties are {sorted(PROPERTIES)}")
     method, grid_name = PROPERTIES[prop]
     config_dir = handler.config_path.parent
-    grid = read_grid(config.get("grid"), config_dir)
     nm_omega = config.get("nm_omega", 0.0)
+    grid_section = config.get("grid")
+    if isinstance(grid_section, dict) and list(grid_section) == ["wam"]:
+        if prop != "spectrum":
+            raise ConfigError(
+                f"grid.wam needs property spectrum, got {prop!r}")
+        grid = read_wam_grid(grid_section["wam"], model, nm_omega)
+    else:
+        grid = read_grid(grid_section, config_dir)
     section = config["model"]
     guess = config.get("initial_guess")
     embedder = None if guess is None else read_initial_guess(

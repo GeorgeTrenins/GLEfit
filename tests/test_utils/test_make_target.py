@@ -40,6 +40,11 @@ WMAX = 10.0
 WAM_LINSPACE = [0.0, 40.0, 4001]
 WAM_GUESS = {"type": "wam", "nbath": NBATH,
              "grid": {"linspace": WAM_LINSPACE}, "wmax": WMAX}
+# for Debye at NM_OMEGA, the pad spacing, 0.24, is below max_step, and
+# the gaps of the 12 WAM frequencies are both below and above it
+WAM_GRID = {"wmin": 0.0, "wmax": WMAX, "nbath": 12, "pad_omega": 1.2,
+            "max_step": 0.7}
+WAM_GRID_RANGES = "grid.wam needs 0 ≤ wmin < wmax < ∞"
 # ωⱼ = ωc tan((j − ½)ε/(η ωc)) for Debye, where C(ω) = η ωc arctan(ω/ωc)
 # and ε = C(WMAX)/nbath, from mpmath; the 4001-point grid gives 1e-10
 DEBYE_FREQUENCIES = [0.33341026255524782, 1.0503450185880893,
@@ -219,6 +224,54 @@ BAD_CONFIGS = {
     "string-wmax": (
         {"initial_guess": {**WAM_GUESS, "wmax": "10"}},
         "initial_guess.wmax must be a real number"),
+    "wam-grid-for-kernel": (
+        {"property": "kernel", "grid": {"wam": WAM_GRID}},
+        "grid.wam needs property spectrum, got 'kernel'"),
+    "wam-and-linspace": (
+        {"grid": {"wam": WAM_GRID, "linspace": LINSPACE}},
+        "grid must have exactly one key"),
+    "wam-grid-not-a-dict": (
+        {"grid": {"wam": NBATH}}, "grid.wam must be a dictionary"),
+    "misspelled-wam-grid-key": (
+        {"grid": {"wam": {**WAM_GRID, "nmpts": 2001}}},
+        r"unknown keys \['nmpts'\] in grid.wam"),
+    "no-max-step": (
+        {"grid": {"wam": {"wmin": 0.0, "wmax": WMAX, "nbath": NBATH,
+                          "pad_omega": 1.0}}},
+        r"missing keys \['max_step'\] in grid.wam"),
+    "string-wmin": (
+        {"grid": {"wam": {**WAM_GRID, "wmin": "0"}}},
+        "grid.wam.wmin must be a real number"),
+    "bool-pad-omega": (
+        {"grid": {"wam": {**WAM_GRID, "pad_omega": True}}},
+        "grid.wam.pad_omega must be a real number"),
+    "float-wam-nbath": (
+        {"grid": {"wam": {**WAM_GRID, "nbath": 12.0}}},
+        "grid.wam.nbath must be an integer"),
+    "float-npts": (
+        {"grid": {"wam": {**WAM_GRID, "npts": 2001.0}}},
+        "grid.wam.npts must be an integer"),
+    "negative-wmin": (
+        {"grid": {"wam": {**WAM_GRID, "wmin": -1.0}}}, WAM_GRID_RANGES),
+    "wmax-at-wmin": (
+        {"grid": {"wam": {**WAM_GRID, "wmax": 0.0}}}, WAM_GRID_RANGES),
+    "infinite-wmax": (
+        {"grid": {"wam": {**WAM_GRID, "wmax": np.inf}}}, WAM_GRID_RANGES),
+    "one-wam-frequency": (
+        {"grid": {"wam": {**WAM_GRID, "nbath": 1}}}, WAM_GRID_RANGES),
+    "one-wam-sample": (
+        {"grid": {"wam": {**WAM_GRID, "npts": 1}}}, WAM_GRID_RANGES),
+    "negative-pad-omega": (
+        {"grid": {"wam": {**WAM_GRID, "pad_omega": -1.0}}},
+        WAM_GRID_RANGES),
+    "zero-max-step": (
+        {"grid": {"wam": {**WAM_GRID, "max_step": 0.0}}}, WAM_GRID_RANGES),
+    "nm-omega-at-wmax": (
+        {"grid": {"wam": WAM_GRID}, "nm_omega": WMAX},
+        "grid.wam needs wmax > nm_omega"),
+    "wam-guess-on-wam-grid": (
+        {"initial_guess": {**WAM_GUESS, "grid": {"wam": WAM_GRID}}},
+        "initial_guess.grid must have exactly one key"),
 }
 
 
@@ -352,6 +405,38 @@ def test_wam_grid_file_is_read_relative_to_the_config(run_main, tmp_path):
 
     assert_allclose(read_modes(run_dir / "embedder.yaml")[0],
                     DEBYE_FREQUENCIES, rtol=0, atol=FREQUENCY_ATOL)
+
+
+@pytest.mark.parametrize(
+    "nm_omega, changes, fine",
+    [(NM_OMEGA, {}, [0.0, WMAX, 4001]),
+     (NM_OMEGA, {"npts": 2001}, [0.0, WMAX, 2001]),
+     # Λ > 0 below wmin, so WAM must start there
+     (0.0, {"wmin": 0.5}, [0.5, WMAX, 4001])],
+    ids=["default-npts", "npts-2001", "centroid-from-wmin"])
+def test_wam_grid_is_nonuniform_at_wam_frequencies(
+        run_main, nm_omega, changes, fine):
+    wam = {**WAM_GRID, **changes}
+    config = make_config(nm_omega=nm_omega, grid={"wam": wam})
+    omega = np.linspace(*fine)
+    freqs = WAM_discretization(
+        omega, Debye(eta=ETA, omega_cut=OMEGA_CUT).nmLambda(nm_omega, omega),
+        wam["nbath"])[1]
+    expected = nonuniform_grid(freqs, wam["wmin"], WMAX, nm_omega,
+                               wam["pad_omega"], wam["max_step"])
+
+    run_dir = run_main(config)
+
+    assert_array_equal(read_target(run_dir / "target.csv")[0], expected)
+
+
+def test_wam_grid_target_is_the_nm_spectrum(run_main):
+    config = make_config(nm_omega=NM_OMEGA, grid={"wam": WAM_GRID})
+
+    grid, target = read_target(run_main(config) / "target.csv")
+
+    assert_array_equal(
+        target, Debye(eta=ETA, omega_cut=OMEGA_CUT).nmLambda(NM_OMEGA, grid))
 
 
 # the smallest spacing, h = 0.3, is not the first
