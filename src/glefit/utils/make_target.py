@@ -127,6 +127,49 @@ def read_grid(
     return grid[:, 0]
 
 
+def nonuniform_grid(
+    freqs: npt.ArrayLike, wmin: float, wmax: float, nm_omega: float,
+    pad_omega: float, max_step: float
+) -> npt.NDArray[np.floating]:
+    """A frequency grid from wmin to wmax for the spectrum Λₙ, dense where
+    the WAM frequencies of Λₙ are and just below ωₙ, where Λₙ = 0 and WAM
+    places none. It is the union of
+
+    1. wmin, freqs and wmax, and
+    2. the pad: the fewest equally spaced points from
+       a = max(wmin, ωₙ − pad_omega) to ωₙ whose spacing is at most h,
+       the smallest spacing of freqs, if a < ωₙ,
+
+    with each gap of this union that is wider than max_step split into
+    the fewest equal intervals that are not.
+
+    Args:
+        freqs (array_like): increasing frequencies, at least two, between
+            wmin and wmax
+        wmin (float): first point of the grid
+        wmax (float): last point of the grid, above ωₙ
+        nm_omega (float): ωₙ ≥ 0
+        pad_omega (float): width of the pad, ≥ 0
+        max_step (float): largest spacing of the grid, > 0
+
+    Returns:
+        ndarray: increasing frequencies
+    """
+    points = [wmin, *freqs, wmax]
+    start = max(wmin, nm_omega - pad_omega)
+    if start < nm_omega:
+        h = np.min(np.diff(freqs))
+        num = int(np.ceil((nm_omega - start) / h))
+        points.extend(np.linspace(start, nm_omega, num + 1))
+    points = np.unique(points)
+    pieces = [points[:1]]
+    for a, b in zip(points[:-1], points[1:]):
+        num = int(np.ceil((b - a) / max_step))
+        # without a, which ends the previous piece
+        pieces.append(np.linspace(a, b, num + 1)[1:])
+    return np.concatenate(pieces)
+
+
 def wam_embedding(
     section: dict, model: BaseSpectralDensity, nm_omega, config_dir: Path
 ) -> dict:

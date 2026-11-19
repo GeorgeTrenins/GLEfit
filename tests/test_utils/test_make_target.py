@@ -19,7 +19,7 @@ from glefit.config.data_io import load_data
 from glefit.embedding import EMBEDDER_MAP
 from glefit.spectral import BrownianOscillator, Debye, ExpOhmic
 from glefit.utils.bath import WAM_discretization
-from glefit.utils.make_target import main
+from glefit.utils.make_target import main, nonuniform_grid
 
 ETA = 0.7
 OMEGA_CUT = 2.5
@@ -352,3 +352,63 @@ def test_wam_grid_file_is_read_relative_to_the_config(run_main, tmp_path):
 
     assert_allclose(read_modes(run_dir / "embedder.yaml")[0],
                     DEBYE_FREQUENCIES, rtol=0, atol=FREQUENCY_ATOL)
+
+
+# the smallest spacing, h = 0.3, is not the first
+GRID_FREQS = [3.2, 3.8, 4.1, 6.0]
+# linspace rounds the points that split a gap
+GRID_RTOL = 1e-15
+
+
+def make_grid(**changes):
+    """The grid of GRID_FREQS from 0 to 9, padded on [2, 3] and never
+    split, with arguments changed."""
+    arguments = {"freqs": GRID_FREQS, "wmin": 0.0, "wmax": 9.0,
+                 "nm_omega": 3.0, "pad_omega": 1.0, "max_step": 100.0}
+    arguments.update(changes)
+    return nonuniform_grid(**arguments)
+
+
+@pytest.mark.parametrize(
+    "changes, expected",
+    [({"nm_omega": 0.0}, [0.0, 3.2, 3.8, 4.1, 6.0, 9.0]),
+     ({"pad_omega": 0.0}, [0.0, 3.2, 3.8, 4.1, 6.0, 9.0]),
+     ({"wmin": 0.5, "nm_omega": 0.25}, [0.5, 3.2, 3.8, 4.1, 6.0, 9.0])],
+    ids=["centroid", "zero-pad", "nm-omega-below-wmin"])
+def test_grid_without_pad_is_wmin_frequencies_and_wmax(changes, expected):
+    grid = make_grid(**changes)
+
+    assert_array_equal(grid, expected)
+
+
+def test_pad_has_the_fewest_points_spaced_at_most_h():
+    # 1/h = 3.3 intervals, rounded up; the gap of 0.1 to wmax is not in h
+    grid = make_grid(wmax=6.1)
+
+    assert_allclose(grid, [0.0, 2.0, 2.25, 2.5, 2.75, 3.0, 3.2, 3.8, 4.1,
+                           6.0, 6.1], rtol=GRID_RTOL, atol=0)
+
+
+def test_pad_starts_no_lower_than_wmin():
+    # 0.5/h = 1.7 intervals, rounded up
+    grid = make_grid(wmin=2.5)
+
+    assert_allclose(grid, [2.5, 2.75, 3.0, 3.2, 3.8, 4.1, 6.0, 9.0],
+                    rtol=GRID_RTOL, atol=0)
+
+
+def test_wide_gaps_are_split_into_the_fewest_intervals():
+    # 3/1.25 = 2.4 and 1.8/1.25 = 1.44 intervals, rounded up; the last gap
+    # equals max_step, so it stays whole
+    grid = make_grid(freqs=[3.0, 4.2, 6.0], wmax=7.25, nm_omega=0.0,
+                     max_step=1.25)
+
+    assert_allclose(grid, [0.0, 1.0, 2.0, 3.0, 4.2, 5.1, 6.0, 7.25],
+                    rtol=GRID_RTOL, atol=0)
+
+
+def test_gap_below_the_pad_is_split_from_its_start():
+    grid = make_grid(freqs=[3.2, 3.5], wmax=4.0, max_step=1.25)
+
+    assert_allclose(grid, [0.0, 1.0, 2.0, 2.25, 2.5, 2.75, 3.0, 3.2, 3.5,
+                           4.0], rtol=GRID_RTOL, atol=0)
