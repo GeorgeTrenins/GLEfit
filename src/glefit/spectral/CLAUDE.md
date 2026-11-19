@@ -44,7 +44,7 @@ bath.nmK(10.0, time)          # Kₙ(t), numerical integral
 ## Relation to the rest of GLEFit
 
 - **Reference values:** `Debye(η, ωc)` is exactly `PronyEmbedder(theta=√(η ωc), gamma=ωc)`. Their K and Λ agree to 2e-16. `BrownianOscillator(η, ω₀, γ)` is exactly `TwoAuxEmbedder(theta=[ω₀√(η/γ), 0], gamma=γ/2, delta=−γ/2, zeta=ω₀)`, whose auxiliary block of the drift matrix is [[0, ω₀], [−ω₀, γ]]. They agree to 1e-15 in all three regimes of damping. `ExpOhmic` has no exact finite embedding, so it is a natural fitting target.
-- **Target data:** the config reads targets only from files or inline values, so evaluate a model on a grid and save it. `legacy_tests/test_optimize/fixtures/expohmic_nm_spectrum.csv` matches `ExpOhmic(1, 1).nmLambda(10, ω)` divided by `ExpOhmic(1, 1).nmK(10, 0)` = 1.1516e-02 to 5e-8. Its header records ωₙ = 10 and that K₀. The script that wrote it is not in the repository. `utils/make_target.py` writes such files, but does not divide by Kₙ(0).
+- **Target data:** the config reads targets only from files or inline values, so evaluate a model on a grid and save it. `utils/make_target.py` writes such files.
 - **Initial guesses:** the `initial_guess` section of `utils/make_target.py` writes the exact embedding of a model, if it has one, or a WAM discretization of Λₙ. `utils/bath.py::WAM_discretization(omega, Lambda, nbath)` takes Λ sampled on a grid, so pass `bath.nmLambda(wn, omega)`, not the model object.
 
 ## Conventions

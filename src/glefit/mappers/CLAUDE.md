@@ -35,4 +35,4 @@ Subclass `BaseMapper` and implement `forward`, `inverse`, `grad` and `hess` for 
 
 ## Testing
 
-Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_mappers.py` from the repository root. It compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy at bounds other than the defaults, and checks that `forward` rejects p on a bound, NaN and ±∞, and that the constructors check their bounds. Add a new mapper to `MAPS`, with its p(x) in SymPy. Nothing yet tests round trips or `IdentityMapper`. `legacy_tests/test_mappers/test_intervals.py` fails to import, and `tests/test_mappers.py` replaces it.
+Run `PYTHONPATH=src conda run -n tools python -m pytest tests/test_mappers.py` from the repository root. It compares `inverse`, `grad` and `hess` of the bounded mappers with SymPy at bounds other than the defaults, and checks that `forward` rejects p on a bound, NaN and ±∞, and that the constructors check their bounds. Add a new mapper to `MAPS`, with its p(x) in SymPy. Nothing yet tests round trips or `IdentityMapper`.
