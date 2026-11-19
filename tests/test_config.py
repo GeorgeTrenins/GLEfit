@@ -276,6 +276,19 @@ def test_relative_path_is_read_from_config_dir(tmp_path, monkeypatch):
     assert_array_equal(target, TARGET, strict=True)
 
 
+def test_absolute_path_is_kept_as_written(tmp_path):
+    # resolving the path would drop "data/..", which names the same file
+    (tmp_path / "data").mkdir()
+    written = str(tmp_path / "data" / ".." / "target.csv")
+    dataset = csv_dataset(tmp_path / "target.csv", CSV_TEXT, path=written)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(replaced("data", {"kernel": dataset})))
+
+    handler = ConfigHandler(path)
+
+    assert handler.config["data"]["kernel"]["path"] == written
+
+
 def test_from_dict_reads_relative_path_from_cwd(tmp_path, monkeypatch):
     dataset = csv_dataset(tmp_path / "target.csv", CSV_TEXT,
                           path="target.csv")
