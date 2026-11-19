@@ -56,7 +56,7 @@ class MemoryKernel(BaseProperty):
             A: npt.NDArray[np.floating],
             row: npt.NDArray[np.floating],
             time: npt.NDArray[np.floating],
-            col: Optional[npt.NDArray[np.floating]] = None
+            col: npt.NDArray[np.floating]
             ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """Compute ∇_A(θᵀ exp(-τA) θ) using matrix exponential Fréchet derivative.
 
@@ -69,8 +69,7 @@ class MemoryKernel(BaseProperty):
             A: Drift submatrix of shape (n, n)
             row: θᵀ, from the top row of Ap, shape (n,)
             time: 1-D float array of times, shape (n_times,)
-            col: θ, from the negated left column of Ap, shape (n,).
-                None means the same as row.
+            col: θ, from the negated left column of Ap, shape (n,)
 
         Returns:
             Tuple of (exp_matrix, frechet_derivative) where:
@@ -78,8 +77,6 @@ class MemoryKernel(BaseProperty):
             - frechet_derivative: -t * L_exp(-tA^T, θθᵀ) with same shape
         """
         time = time[:, None, None]
-        if col is None:
-            col = row
         # Outer product: θ θᵀ
         E = np.outer(row, col)
         # Fréchet derivative: L_exp(-τA^T, E)
